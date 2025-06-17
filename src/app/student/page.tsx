@@ -324,7 +324,7 @@ export default function StudentPage() {
             <CardContent className="space-y-3">
               <div className="flex items-center justify-center h-40 bg-secondary/20 rounded-lg p-4 text-center">
                 {studentActivityLogs.length === 0 ? (
-                   <p className="text-muted-foreground">최근에 운동을 하지 않았네요! 어서 운동을 시작해요~</p>
+                   <p className="text-muted-foreground">아직 운동을 하지 않았네요.</p>
                 ) : (
                   <Image src="https://placehold.co/300x200.png" alt="활동 내역 이미지" width={300} height={200} className="rounded-md object-cover" data-ai-hint="activity log chart" />
                 )}
