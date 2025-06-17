@@ -12,7 +12,7 @@ const ClassSelector: React.FC<ClassSelectorProps> = ({ selectedClass, onClassCha
   return (
     <Select onValueChange={(value: ClassName) => onClassChange(value)} value={selectedClass}>
       <SelectTrigger className="w-full md:w-[280px] text-base py-6 rounded-lg shadow-sm">
-        <SelectValue placeholder="Select a Class" />
+        <SelectValue placeholder="학급 선택" />
       </SelectTrigger>
       <SelectContent>
         {ALL_CLASSES.map((className) => (

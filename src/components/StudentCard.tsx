@@ -21,19 +21,31 @@ const getInitials = (name: string) => {
   return initials;
 };
 
+const formatLastExercise = (exercise: ExerciseType, log: RecordedExercise): string => {
+  let parts = [];
+  if (exercise.category === 'count_time') {
+    if (log.countValue !== undefined) parts.push(`${log.countValue}${exercise.countUnit}`);
+    if (log.timeValue !== undefined) parts.push(`${log.timeValue}${exercise.timeUnit}`);
+  } else if (exercise.category === 'steps_distance') {
+    if (log.stepsValue !== undefined) parts.push(`${log.stepsValue}${exercise.stepsUnit}`);
+    if (log.distanceValue !== undefined) parts.push(`${log.distanceValue}${exercise.distanceUnit}`);
+  }
+  return parts.length > 0 ? `${exercise.koreanName}: ${parts.join(', ')}` : "운동 기록됨";
+};
+
 const StudentCard: React.FC<StudentCardProps> = ({ student, onLogExercise, recordedExercises }) => {
   const placeholderAvatarUrl = `https://placehold.co/80x80.png?text=${getInitials(student.name)}&bg=87CEEB&fg=FFFFFF`;
   
   const today = new Date().toISOString().split('T')[0];
-  const exercisesLoggedToday = recordedExercises.filter(
-    rec => rec.studentId === student.id && rec.date === today
-  );
+  const exercisesLoggedToday = recordedExercises
+    .filter(rec => rec.studentId === student.id && rec.date === today)
+    .sort((a,b) => b.id.localeCompare(a.id)); // Get the latest by sorting, assuming ID is time-based
 
   const getLastExerciseLogged = () => {
-    if (exercisesLoggedToday.length === 0) return "No exercises logged today";
-    const lastLog = exercisesLoggedToday[exercisesLoggedToday.length - 1];
+    if (exercisesLoggedToday.length === 0) return "오늘 기록된 운동 없음";
+    const lastLog = exercisesLoggedToday[0]; // The latest log
     const exerciseInfo = EXERCISES.find(ex => ex.id === lastLog.exerciseId);
-    return exerciseInfo ? `${exerciseInfo.name}: ${lastLog.value} ${exerciseInfo.unit}` : "Exercise logged";
+    return exerciseInfo ? formatLastExercise(exerciseInfo, lastLog) : "운동 기록됨";
   }
 
   return (
@@ -49,15 +61,15 @@ const StudentCard: React.FC<StudentCardProps> = ({ student, onLogExercise, recor
         </div>
       </CardHeader>
       <CardContent className="p-4">
-        <div className="text-sm text-muted-foreground mb-2">Last activity:</div>
+        <div className="text-sm text-muted-foreground mb-2">최근 활동:</div>
         <div className="flex items-center gap-2">
           {exercisesLoggedToday.length > 0 ? <CheckCircle2 className="h-5 w-5 text-accent" /> : <Activity className="h-5 w-5 text-muted-foreground/50" />}
           <p className="text-sm truncate" title={getLastExerciseLogged()}>{getLastExerciseLogged()}</p>
         </div>
       </CardContent>
       <CardFooter className="p-4 bg-slate-50 dark:bg-slate-800/30">
-        <Button onClick={() => onLogExercise(student)} className="w-full py-3 text-base rounded-lg" aria-label={`Log exercise for ${student.name}`}>
-          <Activity className="mr-2 h-5 w-5" /> Log Exercise
+        <Button onClick={() => onLogExercise(student)} className="w-full py-3 text-base rounded-lg" aria-label={`${student.name} 학생 운동 기록`}>
+          <Activity className="mr-2 h-5 w-5" /> 운동 기록
         </Button>
       </CardFooter>
     </Card>

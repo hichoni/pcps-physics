@@ -1,24 +1,41 @@
 import type React from 'react';
 
-export type ClassName = 'Class 3A' | 'Class 3B' | 'Class 3C' | 'Class 3D' | 'Class 3E';
+export type ClassName = '3학년 1반' | '3학년 2반' | '3학년 3반' | '3학년 4반' | '3학년 5반';
 
-export const ALL_CLASSES: ClassName[] = ['Class 3A', 'Class 3B', 'Class 3C', 'Class 3D', 'Class 3E'];
+export const ALL_CLASSES: ClassName[] = ['3학년 1반', '3학년 2반', '3학년 3반', '3학년 4반', '3학년 5반'];
 
 export interface Student {
   id: string;
   name: string;
   class: ClassName;
-  avatarSeed: string; // Seed for generating consistent placeholder avatar
+  avatarSeed: string;
 }
+
+export type ExerciseCategory = 'count_time' | 'steps_distance';
 
 export interface Exercise {
   id: string;
-  name: string;
+  koreanName: string; 
   icon: React.FC<React.SVGProps<SVGSVGElement> & { className?: string }>;
-  unit: 'reps' | 'minutes';
-  defaultLogValue: number;
-  step: number;
-  dataAiHint: string; // For placeholder images if exercise specific images were used
+  category: ExerciseCategory;
+
+  // For 'count_time' category (스쿼트, 플랭크, 줄넘기)
+  countUnit?: string; // e.g., '회'
+  defaultCount?: number;
+  countStep?: number;
+  timeUnit?: string; // e.g., '분'
+  defaultTime?: number;
+  timeStep?: number;
+
+  // For 'steps_distance' category (걷기/달리기)
+  stepsUnit?: string; // e.g., '걸음'
+  defaultSteps?: number;
+  stepsStep?: number;
+  distanceUnit?: string; // e.g., 'm' (미터)
+  defaultDistance?: number;
+  distanceStep?: number;
+
+  dataAiHint: string;
 }
 
 export interface RecordedExercise {
@@ -26,7 +43,13 @@ export interface RecordedExercise {
   studentId: string;
   exerciseId: string;
   date: string; // ISO string YYYY-MM-DD
-  value: number;
+  
+  countValue?: number;    
+  timeValue?: number;     // 단위: 분
+  
+  stepsValue?: number;    
+  distanceValue?: number; // 단위: m
+  
   className: ClassName;
 }
 
@@ -36,9 +59,9 @@ export interface AiSuggestion {
 }
 
 export interface DailyLog {
-  date: string; // YYYY-MM-DD
+  date: string; 
   className: ClassName;
   studentId: string;
   exerciseId: string;
-  value: number;
+  value: number; // This structure might need update if DailyLog is used with new exercise types
 }

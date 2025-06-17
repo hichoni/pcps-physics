@@ -8,10 +8,26 @@ import StudentCard from '@/components/StudentCard';
 import ExerciseLogForm from '@/components/ExerciseLogForm';
 import ExerciseSummaryChart from '@/components/ExerciseSummaryChart';
 import AiSuggestionBox from '@/components/AiSuggestionBox';
-import type { Student, ClassName, RecordedExercise } from '@/lib/types';
-import { STUDENTS_DATA, CLASSES, EXERCISES } from '@/data/mockData'; // EXERCISES를 가져옵니다.
+import type { Student, ClassName, RecordedExercise, Exercise } from '@/lib/types';
+import { STUDENTS_DATA, CLASSES, EXERCISES } from '@/data/mockData';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Users, BarChart2, Lightbulb, ListChecks } from 'lucide-react';
+import { format } from 'date-fns';
+import { ko } from 'date-fns/locale';
+
+
+const formatExerciseValue = (exercise: Exercise, log: RecordedExercise): string => {
+  let parts = [];
+  if (exercise.category === 'count_time') {
+    if (log.countValue !== undefined) parts.push(`${log.countValue}${exercise.countUnit}`);
+    if (log.timeValue !== undefined) parts.push(`${log.timeValue}${exercise.timeUnit}`);
+  } else if (exercise.category === 'steps_distance') {
+    if (log.stepsValue !== undefined) parts.push(`${log.stepsValue}${exercise.stepsUnit}`);
+    if (log.distanceValue !== undefined) parts.push(`${log.distanceValue}${exercise.distanceUnit}`);
+  }
+  return parts.join(', ');
+};
+
 
 export default function Home() {
   const [selectedClass, setSelectedClass] = useState<ClassName | undefined>(CLASSES[0]);
@@ -64,7 +80,7 @@ export default function Home() {
     <ExerciseSummaryChart recordedExercises={recordedExercises} students={STUDENTS_DATA} />
   ), [recordedExercises]);
 
-  const memoizedAiSuggestionBox = useMemo(() => <AiSuggestionBox />, []);
+  const memoizedAiSuggestionBox = useMemo(() => <AiSuggestionBox recordedExercises={recordedExercises} />, []);
 
 
   return (
@@ -73,7 +89,7 @@ export default function Home() {
       <main className="flex-grow container mx-auto p-4 sm:p-6 lg:p-8 space-y-8">
         <section aria-labelledby="class-selection-heading" className="bg-card p-6 rounded-xl shadow-md">
           <h2 id="class-selection-heading" className="text-xl font-semibold mb-4 font-headline">
-            Select Class
+            학급 선택
           </h2>
           <ClassSelector selectedClass={selectedClass} onClassChange={handleClassChange} />
         </section>
@@ -81,23 +97,23 @@ export default function Home() {
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 h-auto rounded-lg p-1.5">
             <TabsTrigger value="students" className="py-3 text-base data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-md">
-              <Users className="mr-2 h-5 w-5" /> Students
+              <Users className="mr-2 h-5 w-5" /> 학생 목록
             </TabsTrigger>
             <TabsTrigger value="log" className="py-3 text-base data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-md">
-              <ListChecks className="mr-2 h-5 w-5" /> Activity Log
+              <ListChecks className="mr-2 h-5 w-5" /> 활동 기록
             </TabsTrigger>
             <TabsTrigger value="summary" className="py-3 text-base data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-md">
-              <BarChart2 className="mr-2 h-5 w-5" /> Summary
+              <BarChart2 className="mr-2 h-5 w-5" /> 요약
             </TabsTrigger>
             <TabsTrigger value="ai" className="py-3 text-base data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-md">
-              <Lightbulb className="mr-2 h-5 w-5" /> AI Coach
+              <Lightbulb className="mr-2 h-5 w-5" /> AI 코치
             </TabsTrigger>
           </TabsList>
 
           <TabsContent value="students" className="mt-6">
             <section aria-labelledby="student-list-heading">
               <h2 id="student-list-heading" className="text-xl font-semibold mb-4 font-headline">
-                {selectedClass ? `Students in ${selectedClass}` : 'Select a class to see students'}
+                {selectedClass ? `${selectedClass} 학생들` : '학생을 보려면 학급을 선택하세요'}
               </h2>
               {selectedClass && studentsInClass.length > 0 ? (
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
@@ -112,7 +128,7 @@ export default function Home() {
                 </div>
               ) : (
                 <p className="text-muted-foreground">
-                  {selectedClass ? 'No students in this class.' : 'Please select a class.'}
+                  {selectedClass ? '이 학급에는 학생이 없습니다.' : '학급을 선택해주세요.'}
                 </p>
               )}
             </section>
@@ -120,41 +136,45 @@ export default function Home() {
           
           <TabsContent value="log" className="mt-6">
              <section aria-labelledby="activity-log-heading">
-                <h2 id="activity-log-heading" className="text-xl font-semibold mb-4 font-headline">Recent Activity</h2>
+                <h2 id="activity-log-heading" className="text-xl font-semibold mb-4 font-headline">최근 활동</h2>
                 {recordedExercises.length > 0 ? (
                   <div className="space-y-3 max-h-[500px] overflow-y-auto bg-card p-4 rounded-xl shadow-md">
                     {recordedExercises
                       .filter(log => !selectedClass || log.className === selectedClass)
-                      .sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime() || b.id.localeCompare(a.id) ) // sort by date desc, then by id for stable sort
-                      .slice(0, 20) // Show recent 20 logs for the selected class
+                      .sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime() || b.id.localeCompare(a.id) )
+                      .slice(0, 20) 
                       .map(log => {
                         const student = STUDENTS_DATA.find(s => s.id === log.studentId);
                         const exerciseInfo = EXERCISES.find(ex => ex.id === log.exerciseId);
+                        if (!exerciseInfo) return null;
+                        const formattedValue = formatExerciseValue(exerciseInfo, log);
                         return (
                           <div key={log.id} className="p-3 bg-secondary/30 rounded-lg shadow-sm text-sm">
-                            <p><strong>{student?.name || 'Unknown Student'}</strong> ({log.className})</p>
-                            <p>Logged {log.value} {exerciseInfo?.unit} of {exerciseInfo?.name || 'Unknown Exercise'}</p>
-                            <p className="text-xs text-muted-foreground">Date: {new Date(log.date).toLocaleDateString()}</p>
+                            <p><strong>{student?.name || '알 수 없는 학생'}</strong> ({log.className})</p>
+                            <p>{exerciseInfo?.koreanName || '알 수 없는 운동'}: {formattedValue}</p>
+                            <p className="text-xs text-muted-foreground">
+                              날짜: {format(new Date(log.date), "PPP", { locale: ko })}
+                            </p>
                           </div>
                         );
                     })}
                   </div>
                 ) : (
-                  <p className="text-muted-foreground">No activities logged yet.</p>
+                  <p className="text-muted-foreground">아직 기록된 활동이 없습니다.</p>
                 )}
              </section>
           </TabsContent>
 
           <TabsContent value="summary" className="mt-6">
             <section aria-labelledby="visualization-heading">
-              <h2 id="visualization-heading" className="sr-only">Exercise Visualization</h2>
+              <h2 id="visualization-heading" className="sr-only">운동 시각화</h2>
               {memoizedExerciseSummaryChart}
             </section>
           </TabsContent>
 
           <TabsContent value="ai" className="mt-6">
              <section aria-labelledby="ai-suggestion-heading">
-                <h2 id="ai-suggestion-heading" className="sr-only">AI Exercise Suggestion</h2>
+                <h2 id="ai-suggestion-heading" className="sr-only">AI 운동 제안</h2>
                 {memoizedAiSuggestionBox}
               </section>
           </TabsContent>
@@ -171,7 +191,7 @@ export default function Home() {
         )}
       </main>
       <footer className="text-center p-4 text-sm text-muted-foreground border-t">
-        &copy; {new Date().getFullYear()} PhysEd Pal. Keeping students active!
+        &copy; {new Date().getFullYear()} PhysEd Pal. 학생들이 활동적으로 지낼 수 있도록!
       </footer>
     </div>
   );
