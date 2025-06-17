@@ -7,7 +7,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dumbbell, Target, History, PlusCircle, LogOut, UserCheck, Loader2, AlertTriangle } from 'lucide-react';
-import Image from 'next/image';
 import type { Student, ClassName, Exercise, StudentGoal, ExerciseGoal, RecordedExercise, Gender } from '@/lib/types';
 import { STUDENTS_DATA, CLASSES, EXERCISES } from '@/data/mockData';
 import SetStudentGoalsDialog from '@/components/SetStudentGoalsDialog';
@@ -292,7 +291,7 @@ export default function StudentPage() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <Card className="shadow-md hover:shadow-lg transition-shadow rounded-xl lg:col-span-1">
+          <Card className="shadow-md hover:shadow-lg transition-shadow rounded-xl">
             <CardHeader>
               <CardTitle className="flex items-center font-headline text-xl">
                 <Dumbbell className="mr-3 h-7 w-7 text-primary" />
@@ -320,7 +319,7 @@ export default function StudentPage() {
             </CardContent>
           </Card>
 
-          <Card className="shadow-md hover:shadow-lg transition-shadow rounded-xl lg:col-span-1">
+          <Card className="shadow-md hover:shadow-lg transition-shadow rounded-xl">
             <CardHeader>
               <CardTitle className="flex items-center font-headline text-xl">
                 <History className="mr-3 h-7 w-7 text-destructive" />
@@ -331,7 +330,7 @@ export default function StudentPage() {
             <CardContent className="space-y-3">
                {studentActivityLogs.length === 0 ? (
                 <div className="flex items-center justify-center text-center py-4 flex-grow">
-                  <p className="text-muted-foreground">아직 운동을 하지 않았네요.</p>
+                  <p className="text-muted-foreground">오늘도 씩씩하게 운동을 시작해요 :D</p>
                 </div>
               ) : (
                 <div className="flex items-center justify-center h-40 bg-secondary/20 rounded-lg p-2 flex-grow">
@@ -364,4 +363,5 @@ export default function StudentPage() {
     
 
     
+
 
