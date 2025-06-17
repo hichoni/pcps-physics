@@ -1,52 +1,51 @@
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 body {
-  font-family: 'PT Sans', sans-serif;
+  font-family: 'Noto Sans KR', 'PT Sans', sans-serif;
 }
 
 @layer base {
   :root {
-    --background: 208 100% 97%; /* #F0F8FF - Very Light Blue */
-    --foreground: 210 40% 9.8%; /* Default dark text */
+    --background: 210 60% 98%; /* Very light blue, almost white */
+    --foreground: 210 25% 30%; /* Dark grayish blue for text */
 
-    --card: 0 0% 100%;
-    --card-foreground: 210 40% 9.8%;
+    --card: 0 0% 100%; /* White */
+    --card-foreground: 210 25% 30%;
 
-    --popover: 0 0% 100%;
-    --popover-foreground: 210 40% 9.8%;
+    --popover: 0 0% 100%; /* White */
+    --popover-foreground: 210 25% 30%;
 
-    --primary: 197 71% 70%; /* #87CEEB - Soft Sky Blue */
-    --primary-foreground: 215 28% 17%; /* Dark blue/grey for text on primary */
+    --primary: 217 71% 53%; /* Logo Blue */
+    --primary-foreground: 0 0% 100%; /* White */
 
-    --secondary: 197 71% 90%; /* Lighter sky blue for secondary elements */
-    --secondary-foreground: 215 28% 17%;
+    --secondary: 217 71% 88%; /* Lighter Logo Blue */
+    --secondary-foreground: 217 71% 30%; /* Darker blue for text on light blue */
 
-    --muted: 208 60% 90%; /* Lighter muted blue */
-    --muted-foreground: 208 30% 45%; /* Darker muted blue for text */
+    --muted: 210 40% 90%; /* Light muted blue */
+    --muted-foreground: 210 30% 50%; /* Darker muted blue text */
 
-    --accent: 147 49% 46%; /* #3CB371 - Muted Sea Green */
-    --accent-foreground: 147 100% 97%; /* Very light green/white for text on accent */
+    --accent: 100 57% 45%; /* Logo Green */
+    --accent-foreground: 0 0% 100%; /* White */
 
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 0 0% 98%;
+    --destructive: 0 84.2% 60.2%; /* Default Red */
+    --destructive-foreground: 0 0% 98%; /* Light text for destructive */
 
-    --border: 197 50% 85%; /* Light blue border */
-    --input: 197 50% 90%; /* Light blue input background */
-    --ring: 197 71% 65%; /* Sky blue for focus rings */
+    --border: 217 50% 80%; /* Muted Logo Blue border */
+    --input: 217 50% 94%; /* Light Logo Blue input background */
+    --ring: 54 100% 58%; /* Logo Yellow for focus rings */
     
-    --chart-1: 197 71% 60%;
-    --chart-2: 147 49% 55%;
-    --chart-3: 210 80% 60%;
-    --chart-4: 43 74% 66%;
-    --chart-5: 27 87% 67%;
-    --radius: 0.8rem; /* Slightly larger radius for a softer, kid-friendly look */
+    --chart-1: 217 71% 53%; /* Logo Blue */
+    --chart-2: 100 57% 45%; /* Logo Green */
+    --chart-3: 54 100% 60%; /* Logo Yellow */
+    --chart-4: 217 71% 70%; /* Lighter Logo Blue */
+    --chart-5: 100 57% 60%; /* Lighter Logo Green */
+    --radius: 0.8rem;
   }
 
   .dark {
-    /* Defining dark mode variables for completeness, though not explicitly requested for this theme.
-       Using a darker, desaturated version of the light theme. */
     --background: 210 20% 12%;
     --foreground: 210 40% 98%;
 
@@ -56,30 +55,30 @@ body {
     --popover: 210 20% 15%;
     --popover-foreground: 210 40% 98%;
 
-    --primary: 197 60% 50%;
-    --primary-foreground: 197 40% 95%;
+    --primary: 217 65% 60%; /* Dark mode Primary Blue */
+    --primary-foreground: 0 0% 100%;
 
-    --secondary: 197 50% 30%;
-    --secondary-foreground: 197 40% 95%;
+    --secondary: 217 50% 35%; /* Dark mode Secondary Blue */
+    --secondary-foreground: 210 40% 95%;
 
     --muted: 210 20% 25%;
     --muted-foreground: 210 30% 70%;
 
-    --accent: 147 40% 40%;
-    --accent-foreground: 147 40% 95%;
+    --accent: 100 50% 50%; /* Dark mode Accent Green */
+    --accent-foreground: 0 0% 100%;
 
-    --destructive: 0 62.8% 30.6%;
+    --destructive: 0 70% 45%;
     --destructive-foreground: 0 0% 98%;
 
-    --border: 210 20% 20%;
-    --input: 210 20% 20%;
-    --ring: 197 60% 55%;
+    --border: 210 20% 25%;
+    --input: 210 20% 22%;
+    --ring: 54 80% 65%; /* Dark mode Ring Yellow */
     
-    --chart-1: 197 60% 50%;
-    --chart-2: 147 40% 45%;
-    --chart-3: 210 70% 50%;
-    --chart-4: 43 64% 56%;
-    --chart-5: 27 77% 57%;
+    --chart-1: 217 65% 60%;
+    --chart-2: 100 50% 50%;
+    --chart-3: 54 80% 65%;
+    --chart-4: 217 60% 50%;
+    --chart-5: 100 45% 40%;
   }
 }
 

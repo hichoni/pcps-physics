@@ -3,14 +3,14 @@ import type React from 'react';
 import type { Student, RecordedExercise, Exercise as ExerciseType } from '@/lib/types';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Activity, CheckCircle2, Trash2 } from 'lucide-react'; // Trash2 추가
+import { Card, CardContent, CardFooter, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Activity, CheckCircle2, Trash2, UserCircle2 } from 'lucide-react';
 import { EXERCISES } from '@/data/mockData';
 
 interface StudentCardProps {
   student: Student;
   onLogExercise: (student: Student) => void;
-  onDeleteStudent: (student: Student) => void; // onDeleteStudent prop 타입 수정 (student 객체 받도록)
+  onDeleteStudent: (student: Student) => void;
   recordedExercises: RecordedExercise[];
 }
 
@@ -50,17 +50,25 @@ const StudentCard: React.FC<StudentCardProps> = ({ student, onLogExercise, onDel
     return exerciseInfo ? formatLastExercise(exerciseInfo, lastLog) : "운동 기록됨";
   }
 
+  const avatarHint = student.gender === 'male' ? 'boy portrait' : 'girl portrait';
+
   return (
     <Card className="w-full shadow-lg hover:shadow-xl transition-shadow duration-300 rounded-xl overflow-hidden flex flex-col justify-between">
       <div>
         <CardHeader className="flex flex-row items-center space-x-4 p-4 bg-secondary/30">
           <Avatar className="h-16 w-16 border-2 border-primary">
-            <AvatarImage src={student.avatarSeed && !student.avatarSeed.startsWith('https://') ? placeholderAvatarUrl : student.avatarSeed} alt={student.name} data-ai-hint="child portrait" />
+            <AvatarImage 
+              src={student.avatarSeed && !student.avatarSeed.startsWith('https://') ? placeholderAvatarUrl : student.avatarSeed} 
+              alt={student.name} 
+              data-ai-hint={avatarHint} 
+            />
             <AvatarFallback className="text-xl bg-primary text-primary-foreground">{getInitials(student.name)}</AvatarFallback>
           </Avatar>
           <div>
             <CardTitle className="text-xl font-headline">{student.name}</CardTitle>
-            <p className="text-sm text-muted-foreground">{student.class}</p>
+            <CardDescription className="text-sm text-muted-foreground">
+              {student.class} {student.studentNumber}번 ({student.gender === 'male' ? '남' : '여'})
+            </CardDescription>
           </div>
         </CardHeader>
         <CardContent className="p-4">

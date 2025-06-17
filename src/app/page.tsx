@@ -8,13 +8,13 @@ import StudentCard from '@/components/StudentCard';
 import ExerciseLogForm from '@/components/ExerciseLogForm';
 import ExerciseSummaryChart from '@/components/ExerciseSummaryChart';
 import AiSuggestionBox from '@/components/AiSuggestionBox';
-import AddStudentDialog from '@/components/AddStudentDialog'; // 추가
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"; // 추가
-import type { Student, ClassName, RecordedExercise, Exercise } from '@/lib/types';
+import AddStudentDialog from '@/components/AddStudentDialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import type { Student, ClassName, RecordedExercise, Exercise, Gender } from '@/lib/types';
 import { STUDENTS_DATA, CLASSES, EXERCISES } from '@/data/mockData';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Button } from "@/components/ui/button"; // 추가
-import { Users, BarChart2, Lightbulb, ListChecks, UserPlus, Trash2 } from 'lucide-react'; // UserPlus, Trash2 추가
+import { Button } from "@/components/ui/button";
+import { Users, BarChart2, Lightbulb, ListChecks, UserPlus, Trash2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ko } from 'date-fns/locale';
 
@@ -37,7 +37,7 @@ export default function Home() {
   
   const [students, setStudents] = useState<Student[]>(() => {
     if (typeof window !== 'undefined') {
-      const savedStudents = localStorage.getItem('physEdPalStudents');
+      const savedStudents = localStorage.getItem('physEdPalStudents_v2'); // Changed key for new structure
       return savedStudents ? JSON.parse(savedStudents) : STUDENTS_DATA;
     }
     return STUDENTS_DATA;
@@ -48,43 +48,48 @@ export default function Home() {
   const [isLogFormOpen, setIsLogFormOpen] = useState(false);
   const [recordedExercises, setRecordedExercises] = useState<RecordedExercise[]>(() => {
     if (typeof window !== 'undefined') {
-      const savedLogs = localStorage.getItem('physEdPalLogs');
+      const savedLogs = localStorage.getItem('physEdPalLogs_v2'); // Changed key
       return savedLogs ? JSON.parse(savedLogs) : [];
     }
     return [];
   });
   const [activeTab, setActiveTab] = useState<string>("students");
-  const [isAddStudentDialogOpen, setIsAddStudentDialogOpen] = useState(false); // 추가
-  const [studentToDelete, setStudentToDelete] = useState<Student | null>(null); // 추가
-  const [isConfirmDeleteDialogOpen, setIsConfirmDeleteDialogOpen] = useState(false); // 추가
+  const [isAddStudentDialogOpen, setIsAddStudentDialogOpen] = useState(false);
+  const [studentToDelete, setStudentToDelete] = useState<Student | null>(null);
+  const [isConfirmDeleteDialogOpen, setIsConfirmDeleteDialogOpen] = useState(false);
 
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      localStorage.setItem('physEdPalStudents', JSON.stringify(students));
+      localStorage.setItem('physEdPalStudents_v2', JSON.stringify(students));
     }
   }, [students]);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      localStorage.setItem('physEdPalLogs', JSON.stringify(recordedExercises));
+      localStorage.setItem('physEdPalLogs_v2', JSON.stringify(recordedExercises));
     }
   }, [recordedExercises]);
 
   useEffect(() => {
     if (selectedClass) {
-      setStudentsInClass(students.filter(student => student.class === selectedClass));
+      setStudentsInClass(students.filter(student => student.class === selectedClass).sort((a, b) => a.studentNumber - b.studentNumber));
     } else {
-      // 만약 특정 학급이 선택되지 않았다면 모든 학생을 보여주거나, 빈 배열로 둘 수 있습니다.
-      // 여기서는 선택된 학급이 있을 때만 필터링하고, 그렇지 않으면 모든 학생을 보여주는 대신 빈 배열을 사용합니다.
-      // 또는 모든 학생을 보여주려면 setStudentsInClass(students) 로 설정할 수 있습니다.
-      setStudentsInClass(students.filter(student => student.class === selectedClass)); // 모든 학생 또는 선택된 학급 학생
+      setStudentsInClass(students.sort((a,b) => {
+        const classCompare = a.class.localeCompare(b.class);
+        if (classCompare !== 0) return classCompare;
+        return a.studentNumber - b.studentNumber;
+      }));
     }
   }, [selectedClass, students]);
 
 
-  const handleClassChange = (className: ClassName) => {
-    setSelectedClass(className);
+  const handleClassChange = (className: ClassName | 'all') => { // 'all' option
+    if (className === 'all') {
+      setSelectedClass(undefined); // Set to undefined to show all students
+    } else {
+      setSelectedClass(className as ClassName);
+    }
   };
 
   const handleOpenLogForm = (student: Student) => {
@@ -101,10 +106,10 @@ export default function Home() {
     setRecordedExercises(prev => [...prev, { ...log, id: `log-${Date.now()}-${Math.random()}` }]);
   };
 
-  const handleAddStudent = (newStudentData: { name: string; class: ClassName }) => {
+  const handleAddStudent = (newStudentData: { name: string; class: ClassName; studentNumber: number; gender: Gender }) => {
     const newStudent: Student = {
       ...newStudentData,
-      id: `s${Date.now()}${Math.random().toString(36).substring(2, 7)}`, // 더 고유한 ID 생성
+      id: `s${Date.now()}${Math.random().toString(36).substring(2, 7)}`,
       avatarSeed: newStudentData.name, 
     };
     setStudents(prevStudents => [...prevStudents, newStudent]);
@@ -139,7 +144,7 @@ export default function Home() {
           <h2 id="class-selection-heading" className="text-xl font-semibold mb-4 font-headline">
             학급 선택
           </h2>
-          <ClassSelector selectedClass={selectedClass} onClassChange={handleClassChange} />
+          <ClassSelector selectedClass={selectedClass} onClassChange={handleClassChange} allClasses={CLASSES} />
         </section>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
@@ -162,27 +167,27 @@ export default function Home() {
             <section aria-labelledby="student-list-heading">
               <div className="flex justify-between items-center mb-4">
                 <h2 id="student-list-heading" className="text-xl font-semibold font-headline">
-                  {selectedClass ? `${selectedClass} 학생들` : '학생을 보려면 학급을 선택하세요'}
+                  {selectedClass ? `${selectedClass} 학생들` : '전체 학생 목록'}
                 </h2>
                 <Button onClick={() => setIsAddStudentDialogOpen(true)} className="rounded-lg">
                   <UserPlus className="mr-2 h-5 w-5" /> 학생 추가
                 </Button>
               </div>
-              {selectedClass && studentsInClass.length > 0 ? (
+              {studentsInClass.length > 0 ? (
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
                   {studentsInClass.map(student => (
                     <StudentCard 
                       key={student.id} 
                       student={student} 
                       onLogExercise={handleOpenLogForm}
-                      onDeleteStudent={() => requestDeleteStudent(student)} // 변경
+                      onDeleteStudent={() => requestDeleteStudent(student)}
                       recordedExercises={recordedExercises}
                     />
                   ))}
                 </div>
               ) : (
                 <p className="text-muted-foreground">
-                  {selectedClass ? '이 학급에는 학생이 없습니다. 학생을 추가해주세요.' : '학급을 선택해주세요.'}
+                  {selectedClass ? '이 학급에는 학생이 없습니다. 학생을 추가해주세요.' : '등록된 학생이 없습니다. 학생을 추가해주세요.'}
                 </p>
               )}
             </section>
@@ -198,13 +203,13 @@ export default function Home() {
                       .sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime() || b.id.localeCompare(a.id) )
                       .slice(0, 20) 
                       .map(log => {
-                        const student = students.find(s => s.id === log.studentId); // STUDENTS_DATA 대신 students 사용
+                        const student = students.find(s => s.id === log.studentId);
                         const exerciseInfo = EXERCISES.find(ex => ex.id === log.exerciseId);
                         if (!exerciseInfo) return null;
                         const formattedValue = formatExerciseValue(exerciseInfo, log);
                         return (
                           <div key={log.id} className="p-3 bg-secondary/30 rounded-lg shadow-sm text-sm">
-                            <p><strong>{student?.name || '알 수 없는 학생'}</strong> ({log.className})</p>
+                            <p><strong>{student?.name || '알 수 없는 학생'}</strong> ({log.className} {student?.studentNumber}번)</p>
                             <p>{exerciseInfo?.koreanName || '알 수 없는 운동'}: {formattedValue}</p>
                             <p className="text-xs text-muted-foreground">
                               날짜: {format(new Date(log.date), "PPP", { locale: ko })}
@@ -257,7 +262,7 @@ export default function Home() {
               <AlertDialogHeader>
                 <AlertDialogTitle>학생 삭제 확인</AlertDialogTitle>
                 <AlertDialogDescription>
-                  <strong>{studentToDelete.name}</strong> 학생을 정말 삭제하시겠습니까? 이 학생의 모든 운동 기록도 함께 삭제됩니다. 이 작업은 되돌릴 수 없습니다.
+                  <strong>{studentToDelete.name}</strong> ({studentToDelete.class} {studentToDelete.studentNumber}번) 학생을 정말 삭제하시겠습니까? 이 학생의 모든 운동 기록도 함께 삭제됩니다. 이 작업은 되돌릴 수 없습니다.
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
@@ -272,7 +277,7 @@ export default function Home() {
 
       </main>
       <footer className="text-center p-4 text-sm text-muted-foreground border-t">
-        &copy; {new Date().getFullYear()} PhysEd Pal. 학생들이 활동적으로 지낼 수 있도록!
+        &copy; {new Date().getFullYear()} 풍풍이의 운동기록장. 학생들이 활동적으로 지낼 수 있도록!
       </footer>
     </div>
   );

@@ -1,9 +1,10 @@
+
 import type {Metadata} from 'next';
 import './globals.css';
 import { Toaster } from "@/components/ui/toaster";
 
 export const metadata: Metadata = {
-  title: '체육 활동 도우미',
+  title: '풍풍이의 운동기록장',
   description: '초등학생을 위한 일일 운동 기록 앱입니다.',
 };
 
