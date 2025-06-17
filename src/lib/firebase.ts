@@ -36,8 +36,9 @@ console.log("Firebase config to be used by initializeApp (src/lib/firebase.ts):"
 let app;
 let db;
 
-// Check if all required config values are present
-if (apiKey && authDomain && projectId && storageBucket && messagingSenderId && appId) {
+// Check if all required config values are present and not placeholders
+if (apiKey && authDomain && projectId && storageBucket && messagingSenderId && appId &&
+    !apiKey.includes("YOUR_") && !projectId.includes("YOUR_")) {
   try {
     if (!getApps().length) {
       console.log("Initializing new Firebase app (src/lib/firebase.ts)...");
@@ -53,7 +54,7 @@ if (apiKey && authDomain && projectId && storageBucket && messagingSenderId && a
       console.log("Firestore instance initialized successfully (src/lib/firebase.ts).");
     } else {
       console.error("Firebase app object seems invalid or critical options (like projectId) are missing after initialization attempt (src/lib/firebase.ts).");
-      console.error("Double-check your .env.local file and ensure all NEXT_PUBLIC_FIREBASE_ variables are correctly set and the server was restarted.");
+      console.error("Double-check your .env.local file and ensure all NEXT_PUBLIC_FIREBASE_ variables are correctly set with actual values and the server was restarted.");
     }
   } catch (error) {
     console.error("Firebase initialization error in src/lib/firebase.ts:", error);
@@ -61,15 +62,26 @@ if (apiKey && authDomain && projectId && storageBucket && messagingSenderId && a
     console.error("Ensure all values in .env.local are correct and the Next.js server has been restarted.");
   }
 } else {
-  console.error("One or more Firebase environment variables are missing. Firebase cannot be initialized. (src/lib/firebase.ts)");
-  console.error("Please ensure all NEXT_PUBLIC_FIREBASE_... variables are set in your .env.local file and the server has been restarted.");
-  // Log which specific values are missing or undefined
-  if (!apiKey) console.error("Missing: NEXT_PUBLIC_FIREBASE_API_KEY");
-  if (!authDomain) console.error("Missing: NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN");
-  if (!projectId) console.error("Missing: NEXT_PUBLIC_FIREBASE_PROJECT_ID");
-  if (!storageBucket) console.error("Missing: NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET");
-  if (!messagingSenderId) console.error("Missing: NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID");
-  if (!appId) console.error("Missing: NEXT_PUBLIC_FIREBASE_APP_ID");
+  console.error("One or more Firebase environment variables are missing, undefined, or still contain placeholders. Firebase cannot be initialized. (src/lib/firebase.ts)");
+  console.error("Please ensure all NEXT_PUBLIC_FIREBASE_... variables are set with your actual Firebase project credentials in your .env.local file and the server has been restarted.");
+  // Log which specific values are problematic
+  if (!apiKey) console.error("Missing or undefined: NEXT_PUBLIC_FIREBASE_API_KEY");
+  else if (apiKey.includes("YOUR_")) console.error("Placeholder value detected for: NEXT_PUBLIC_FIREBASE_API_KEY");
+  
+  if (!authDomain) console.error("Missing or undefined: NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN");
+  else if (authDomain.includes("YOUR_")) console.error("Placeholder value detected for: NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN");
+
+  if (!projectId) console.error("Missing or undefined: NEXT_PUBLIC_FIREBASE_PROJECT_ID");
+  else if (projectId.includes("YOUR_")) console.error("Placeholder value detected for: NEXT_PUBLIC_FIREBASE_PROJECT_ID");
+  
+  if (!storageBucket) console.error("Missing or undefined: NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET");
+  else if (storageBucket.includes("YOUR_")) console.error("Placeholder value detected for: NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET");
+
+  if (!messagingSenderId) console.error("Missing or undefined: NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID");
+  else if (messagingSenderId.includes("YOUR_")) console.error("Placeholder value detected for: NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID");
+
+  if (!appId) console.error("Missing or undefined: NEXT_PUBLIC_FIREBASE_APP_ID");
+  else if (appId.includes("YOUR_")) console.error("Placeholder value detected for: NEXT_PUBLIC_FIREBASE_APP_ID");
 }
 
 export { db };
