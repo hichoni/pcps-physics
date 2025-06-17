@@ -46,7 +46,7 @@ export default function StudentPage() {
 
   const [isGoalsDialogOpen, setIsGoalsDialogOpen] = useState(false);
   const [isLogFormOpen, setIsLogFormOpen] = useState(false);
-  const [isChangeOwnPinDialogOpen, setIsChangeOwnPinDialogOpen] = useState(false); // 추가
+  const [isChangeOwnPinDialogOpen, setIsChangeOwnPinDialogOpen] = useState(false); 
   const [studentGoals, setStudentGoals] = useState<StudentGoal>({});
   const [studentActivityLogs, setStudentActivityLogs] = useState<RecordedExercise[]>([]);
   const [recommendedExercise, setRecommendedExercise] = useState<RecommendStudentExerciseOutput | null>(null);
@@ -160,15 +160,15 @@ export default function StudentPage() {
       setLoginError("학생을 먼저 선택해주세요.");
       return;
     }
-    if (!studentForPinCheck.pin) { // 이 경우는 교사가 PIN을 설정 안했을 때 (지금은 기본 0000이라 거의 발생 안함)
+    if (!studentForPinCheck.pin) { 
       setLoginError("PIN이 설정되지 않았습니다. 선생님께 문의하세요.");
       return;
     }
     if (enteredPin === studentForPinCheck.pin) {
       setCurrentStudent(studentForPinCheck);
       setLoginError(null);
-      setStudentForPinCheck(null); // PIN 입력 UI 숨기기 위해
-      setEnteredPin(''); // PIN 입력 필드 초기화
+      setStudentForPinCheck(null); 
+      setEnteredPin(''); 
     } else {
       setLoginError("PIN 번호가 올바르지 않습니다. 다시 시도해주세요.");
       setEnteredPin('');
@@ -370,42 +370,38 @@ export default function StudentPage() {
       />
       <main className="flex-grow container mx-auto p-4 sm:p-6 lg:p-8 space-y-8">
         
-        <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 items-stretch">
-          <section className="lg:col-span-3 bg-card p-6 sm:p-8 rounded-xl shadow-lg flex flex-col justify-center">
-            <div>
-              {dailyCompliment && <p className="text-lg sm:text-xl text-muted-foreground mb-1 text-center lg:text-left">{dailyCompliment}</p>}
-              <h2 className="text-2xl sm:text-3xl font-bold font-headline text-primary mb-3 text-center lg:text-left">
-                {currentStudent.name}님, 안녕하세요!
-              </h2>
-              <p className="text-base sm:text-lg text-muted-foreground mb-6 text-center lg:text-left">
-                오늘도 즐겁게 운동하고 건강해져요! 어떤 활동을 계획하고 있나요?
-              </p>
-              <div className="flex flex-col sm:flex-row gap-3 justify-center lg:justify-start items-center">
-                <Button size="lg" className="rounded-lg py-3 px-6 text-lg flex-grow sm:flex-grow-0" onClick={handleOpenLogForm}>
-                  <PlusCircle className="mr-2 h-6 w-6" />
-                  새로운 운동 기록하기
+        <section className="bg-card p-6 sm:p-8 rounded-xl shadow-lg flex flex-col justify-center">
+          <div>
+            {dailyCompliment && <p className="text-lg sm:text-xl text-muted-foreground mb-1 text-center lg:text-left">{dailyCompliment}</p>}
+            <h2 className="text-2xl sm:text-3xl font-bold font-headline text-primary mb-3 text-center lg:text-left">
+              {currentStudent.name}님, 안녕하세요!
+            </h2>
+            <p className="text-base sm:text-lg text-muted-foreground mb-6 text-center lg:text-left">
+              오늘도 즐겁게 운동하고 건강해져요! 어떤 활동을 계획하고 있나요?
+            </p>
+            <div className="flex flex-col sm:flex-row gap-3 justify-center lg:justify-start items-center">
+              <Button size="lg" className="rounded-lg py-3 px-6 text-lg flex-grow sm:flex-grow-0" onClick={handleOpenLogForm}>
+                <PlusCircle className="mr-2 h-6 w-6" />
+                새로운 운동 기록하기
+              </Button>
+              {currentStudent.pin === "0000" && (
+                <Button variant="outline" size="lg" className="rounded-lg py-3 px-6 text-lg border-accent text-accent hover:bg-accent/10 flex-grow sm:flex-grow-0" onClick={() => setIsChangeOwnPinDialogOpen(true)}>
+                  <Edit3 className="mr-2 h-5 w-5" />
+                  PIN 변경하기
                 </Button>
-                {currentStudent.pin === "0000" && (
-                  <Button variant="outline" size="lg" className="rounded-lg py-3 px-6 text-lg border-accent text-accent hover:bg-accent/10 flex-grow sm:flex-grow-0" onClick={() => setIsChangeOwnPinDialogOpen(true)}>
-                    <Edit3 className="mr-2 h-5 w-5" />
-                    PIN 변경하기
-                  </Button>
-                )}
-                <Button variant="outline" size="lg" onClick={handleLogout} className="rounded-lg py-3 px-6 text-lg flex-grow sm:flex-grow-0">
-                  <LogOut className="mr-2 h-6 w-6" />
-                  다른 학생으로 로그인
-                </Button>
-              </div>
-               {currentStudent.pin === "0000" && (
-                <p className="text-sm text-amber-600 dark:text-amber-400 mt-3 text-center lg:text-left">
-                  <AlertTriangle className="inline-block mr-1 h-4 w-4" />
-                  보안을 위해 초기 PIN "0000"을 변경해주세요.
-                </p>
               )}
             </div>
-          </section>
+              {currentStudent.pin === "0000" && (
+              <p className="text-sm text-amber-600 dark:text-amber-400 mt-3 text-center lg:text-left">
+                <AlertTriangle className="inline-block mr-1 h-4 w-4" />
+                보안을 위해 초기 PIN "0000"을 변경해주세요.
+              </p>
+            )}
+          </div>
+        </section>
 
-          <Card className="shadow-md hover:shadow-lg transition-shadow rounded-xl lg:col-span-2 flex flex-col">
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 items-stretch">
+          <Card className="shadow-md hover:shadow-lg transition-shadow rounded-xl lg:col-span-3 flex flex-col">
             <CardHeader>
               <CardTitle className="flex items-center font-headline text-xl">
                 <Target className="mr-3 h-7 w-7 text-accent" />
@@ -441,10 +437,8 @@ export default function StudentPage() {
               <Button variant="outline" className="w-full rounded-lg mt-auto py-3 text-base" onClick={() => setIsGoalsDialogOpen(true)}>목표 설정/확인</Button>
             </CardContent>
           </Card>
-        </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <Card className="shadow-md hover:shadow-lg transition-shadow rounded-xl">
+          <Card className="shadow-md hover:shadow-lg transition-shadow rounded-xl lg:col-span-2 flex flex-col">
             <CardHeader>
               <CardTitle className="flex items-center font-headline text-xl">
                 <Dumbbell className="mr-3 h-7 w-7 text-primary" />
@@ -452,8 +446,8 @@ export default function StudentPage() {
               </CardTitle>
               <CardDescription>AI 코치가 추천하는 활동을 확인해보세요!</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="flex flex-col items-center justify-center min-h-[10rem] bg-secondary/20 rounded-lg p-4 text-center overflow-y-auto">
+            <CardContent className="space-y-3 flex-grow flex flex-col">
+              <div className="flex flex-col items-center justify-center min-h-[10rem] bg-secondary/20 rounded-lg p-4 text-center overflow-y-auto flex-grow">
                 {isRecommendationLoading ? (
                   <Loader2 className="h-8 w-8 animate-spin text-primary" />
                 ) : recommendedExercise ? (
@@ -471,54 +465,61 @@ export default function StudentPage() {
               </div>
             </CardContent>
           </Card>
-
-          <Card className="shadow-md hover:shadow-lg transition-shadow rounded-xl">
-            <CardHeader>
-              <CardTitle className="flex items-center font-headline text-xl">
-                <History className="mr-3 h-7 w-7 text-destructive" />
-                나의 활동 내역
-              </CardTitle>
-              <CardDescription>최근 운동 기록을 살펴봐요.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-               {studentActivityLogs.length === 0 ? (
-                <div className="flex items-center justify-center text-center py-4 flex-grow min-h-[10rem] rounded-lg">
-                  <p className="text-muted-foreground">오늘도 씩씩하게 운동을 시작해요 :D</p>
-                </div>
-              ) : (
-                 <div className="space-y-2 max-h-[200px] overflow-y-auto p-3 bg-secondary/20 rounded-lg">
-                    {studentActivityLogs
-                        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime() || (b.id && a.id ? b.id.localeCompare(a.id) : 0))
-                        .slice(0, 5) 
-                        .map(log => {
-                            const exerciseInfo = EXERCISES.find(ex => ex.id === log.exerciseId);
-                            if (!exerciseInfo) return null;
-                            let valueDisplay = "";
-                            if (exerciseInfo.category === 'count_time') {
-                                if (log.countValue !== undefined && log.countValue > 0) valueDisplay += `${log.countValue}${exerciseInfo.countUnit || ''} `;
-                                if (log.timeValue !== undefined && log.timeValue > 0) valueDisplay += `${log.timeValue}${exerciseInfo.timeUnit || ''}`;
-                            } else if (exerciseInfo.category === 'steps_distance') {
-                                if (log.stepsValue !== undefined && log.stepsValue > 0) valueDisplay += `${log.stepsValue}${exerciseInfo.stepsUnit || ''} `;
-                                if (log.distanceValue !== undefined && log.distanceValue > 0) valueDisplay += `${log.distanceValue}${exerciseInfo.distanceUnit || ''}`;
-                            }
-                            valueDisplay = valueDisplay.trim();
-                            if (!valueDisplay) valueDisplay = "기록됨"; 
-
-                            return (
-                                <div key={log.id} className="text-sm p-1.5 bg-background/50 rounded">
-                                    <span>{format(new Date(log.date), "MM/dd", { locale: ko })}: {exerciseInfo.koreanName} - {valueDisplay}</span>
-                                </div>
-                            );
-                    })}
-                </div>
-              )}
-              <Button variant="outline" className="w-full rounded-lg py-3 text-base" disabled={studentActivityLogs.length === 0}>
-                전체 활동 내역 보기 (개발 예정)
-              </Button>
-            </CardContent>
-          </Card>
         </div>
+
+        <Card className="shadow-md hover:shadow-lg transition-shadow rounded-xl">
+          <CardHeader>
+            <CardTitle className="flex items-center font-headline text-xl">
+              <History className="mr-3 h-7 w-7 text-destructive" />
+              나의 활동 내역
+            </CardTitle>
+            <CardDescription>최근 운동 기록을 살펴봐요.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+              {studentActivityLogs.length === 0 ? (
+              <div className="flex items-center justify-center text-center py-4 flex-grow min-h-[10rem] rounded-lg">
+                <p className="text-muted-foreground">오늘도 씩씩하게 운동을 시작해요 :D</p>
+              </div>
+            ) : (
+                <div className="space-y-2 max-h-[200px] overflow-y-auto p-3 bg-secondary/20 rounded-lg">
+                  {studentActivityLogs
+                      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime() || (b.id && a.id ? b.id.localeCompare(a.id) : 0))
+                      .slice(0, 5) 
+                      .map(log => {
+                          const exerciseInfo = EXERCISES.find(ex => ex.id === log.exerciseId);
+                          if (!exerciseInfo) return null;
+                          let valueDisplay = "";
+                          if (exerciseInfo.category === 'count_time') {
+                              if (log.countValue !== undefined && log.countValue > 0) valueDisplay += `${log.countValue}${exerciseInfo.countUnit || ''} `;
+                              if (log.timeValue !== undefined && log.timeValue > 0) valueDisplay += `${log.timeValue}${exerciseInfo.timeUnit || ''}`;
+                          } else if (exerciseInfo.category === 'steps_distance') {
+                              if (log.stepsValue !== undefined && log.stepsValue > 0) valueDisplay += `${log.stepsValue}${exerciseInfo.stepsUnit || ''} `;
+                              if (log.distanceValue !== undefined && log.distanceValue > 0) valueDisplay += `${log.distanceValue}${exerciseInfo.distanceUnit || ''}`;
+                          }
+                          valueDisplay = valueDisplay.trim();
+                          if (!valueDisplay) valueDisplay = "기록됨"; 
+
+                          return (
+                              <div key={log.id} className="text-sm p-1.5 bg-background/50 rounded">
+                                  <span>{format(new Date(log.date), "MM/dd", { locale: ko })}: {exerciseInfo.koreanName} - {valueDisplay}</span>
+                              </div>
+                          );
+                  })}
+              </div>
+            )}
+            <Button variant="outline" className="w-full rounded-lg py-3 text-base mt-3" disabled={studentActivityLogs.length === 0}>
+              전체 활동 내역 보기 (개발 예정)
+            </Button>
+          </CardContent>
+        </Card>
         
+        <div className="mt-8">
+            <Button variant="outline" size="lg" onClick={handleLogout} className="rounded-lg py-3 px-6 text-lg w-full">
+              <LogOut className="mr-2 h-6 w-6" />
+              로그아웃
+            </Button>
+        </div>
+
         {currentStudent && (
           <ExerciseLogForm
             student={currentStudent}
@@ -553,3 +554,5 @@ export default function StudentPage() {
     </div>
   );
 }
+
+    
