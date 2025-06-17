@@ -8,7 +8,7 @@ import StudentCard from '@/components/StudentCard';
 import ExerciseSummaryChart from '@/components/ExerciseSummaryChart';
 import AiSuggestionBox from '@/components/AiSuggestionBox';
 import AddStudentDialog from '@/components/AddStudentDialog';
-import ManageStudentPinDialog from '@/components/ManageStudentPinDialog'; // 추가
+import ManageStudentPinDialog from '@/components/ManageStudentPinDialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import type { Student, ClassName, RecordedExercise, Exercise, Gender, TeacherExerciseRecommendation } from '@/lib/types';
 import { EXERCISES } from '@/data/mockData';
@@ -17,7 +17,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Users, BarChart2, Lightbulb, ListChecks, UserPlus, Trash2, Sparkles, MessageSquarePlus, MessageSquareX, Loader2, Wand2, KeyRound } from 'lucide-react';
+import { Users, BarChart2, Lightbulb, ListChecks, UserPlus, Trash2, Sparkles, MessageSquarePlus, MessageSquareX, Loader2, Wand2, KeyRound, LogIn } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle as PinCardTitle, CardDescription as PinCardDescription } from '@/components/ui/card'; // PIN 카드용 별칭
 import { format } from 'date-fns';
 import { ko } from 'date-fns/locale';
 import { useToast } from "@/hooks/use-toast";
@@ -47,9 +48,13 @@ const DEFAULT_COMPLIMENTS = [
 
 const COMPLIMENTS_DOC_PATH = "appConfig/complimentsDoc";
 const RECOMMENDATIONS_DOC_PATH = "appConfig/exerciseRecommendationsDoc";
-
+const TEACHER_PIN = "0408";
 
 export default function TeacherPage() {
+  const [pinInput, setPinInput] = useState('');
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [pinError, setPinError] = useState('');
+
   const [selectedClass, setSelectedClass] = useState<ClassName | undefined>(undefined);
   const { toast } = useToast();
   
@@ -77,6 +82,16 @@ export default function TeacherPage() {
   const [isManagePinDialogOpen, setIsManagePinDialogOpen] = useState(false);
   const [studentForPinManage, setStudentForPinManage] = useState<Student | null>(null);
 
+  const handlePinSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (pinInput === TEACHER_PIN) {
+      setIsAuthenticated(true);
+      setPinError('');
+    } else {
+      setPinError('PIN 번호가 올바르지 않습니다. 다시 시도해주세요.');
+      setPinInput('');
+    }
+  };
 
   const fetchStudents = useCallback(async () => {
     setIsLoadingStudents(true);
@@ -85,7 +100,6 @@ export default function TeacherPage() {
       const studentsSnapshot = await getDocs(studentsCollection);
       const studentsList = studentsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Student));
       setStudents(studentsList);
-
       const classNames = Array.from(new Set(studentsList.map(s => s.class))).sort();
       setDynamicClasses(classNames);
     } catch (error) {
@@ -157,11 +171,13 @@ export default function TeacherPage() {
 
 
   useEffect(() => {
-    fetchStudents();
-    fetchLogs();
-    fetchCompliments();
-    fetchExerciseRecommendations();
-  }, [fetchStudents, fetchLogs, fetchCompliments, fetchExerciseRecommendations]);
+    if (isAuthenticated) {
+      fetchStudents();
+      fetchLogs();
+      fetchCompliments();
+      fetchExerciseRecommendations();
+    }
+  }, [isAuthenticated, fetchStudents, fetchLogs, fetchCompliments, fetchExerciseRecommendations]);
 
   useEffect(() => {
     if (selectedClass) {
@@ -188,7 +204,7 @@ export default function TeacherPage() {
       const studentWithAvatarAndPin = {
         ...newStudentData,
         class: newStudentData.class.trim(),
-        avatarSeed: '', // Initialize avatarSeed as empty, student will choose later
+        avatarSeed: '', 
       };
       const docRef = await addDoc(collection(db, "students"), studentWithAvatarAndPin);
       const newStudent = { ...studentWithAvatarAndPin, id: docRef.id };
@@ -213,28 +229,21 @@ export default function TeacherPage() {
     if (studentToDelete) {
       try {
         const batch = writeBatch(db);
-        
         const studentDocRef = doc(db, "students", studentToDelete.id);
         batch.delete(studentDocRef);
-
         const logsQuery = query(collection(db, "exerciseLogs"), where("studentId", "==", studentToDelete.id));
         const logsSnapshot = await getDocs(logsQuery);
         logsSnapshot.forEach(logDoc => {
           batch.delete(doc(db, "exerciseLogs", logDoc.id));
         });
-        
         const goalsDocRef = doc(db, "studentGoals", studentToDelete.id);
         batch.delete(goalsDocRef);
-
         await batch.commit();
-
         setStudents(prevStudents => prevStudents.filter(s => s.id !== studentToDelete.id));
         setRecordedExercises(prevLogs => prevLogs.filter(log => log.studentId !== studentToDelete.id));
-        
         const remainingStudents = students.filter(s => s.id !== studentToDelete.id);
         const updatedClassNames = Array.from(new Set(remainingStudents.map(s => s.class))).sort();
         setDynamicClasses(updatedClassNames);
-
         toast({ title: "성공", description: `${studentToDelete.name} 학생 정보가 삭제되었습니다.` });
         setStudentToDelete(null);
       } catch (error) {
@@ -372,6 +381,47 @@ export default function TeacherPage() {
   const memoizedAiSuggestionBox = useMemo(() => <AiSuggestionBox recordedExercises={recordedExercises} />, [recordedExercises]);
 
   const isLoading = isLoadingStudents || isLoadingLogs || isLoadingCompliments || isLoadingRecommendations;
+
+
+  if (!isAuthenticated) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-br from-primary/10 via-background to-accent/10 p-4">
+        <Card className="w-full max-w-md shadow-xl rounded-xl">
+          <CardHeader className="text-center pb-4">
+            <div className="flex justify-center mb-6">
+              <KeyRound className="h-16 w-16 text-primary" />
+            </div>
+            <PinCardTitle className="text-3xl font-bold font-headline text-primary">교사용 페이지</PinCardTitle>
+            <PinCardDescription className="text-lg text-muted-foreground pt-1">
+              계속하려면 PIN 번호를 입력하세요.
+            </PinCardDescription>
+          </CardHeader>
+          <CardContent className="p-6 pt-2">
+            <form onSubmit={handlePinSubmit} className="space-y-6">
+              <Input
+                id="teacherPin"
+                type="password"
+                value={pinInput}
+                onChange={(e) => {
+                  setPinInput(e.target.value);
+                  if (pinError) setPinError('');
+                }}
+                placeholder="PIN 4자리 입력"
+                maxLength={4}
+                className="text-center text-2xl tracking-[0.3em] py-4 rounded-lg"
+                autoFocus
+              />
+              {pinError && <p className="text-sm text-destructive text-center">{pinError}</p>}
+              <Button type="submit" size="lg" className="w-full py-4 text-xl rounded-lg">
+                <LogIn className="mr-3 h-6 w-6" />
+                확인
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   if (isLoading) {
     return (
@@ -668,5 +718,3 @@ export default function TeacherPage() {
     </div>
   );
 }
-
-    
