@@ -7,14 +7,15 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from '@/components/ui/button';
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dumbbell, Target, History, PlusCircle, LogOut, UserCheck, Loader2, AlertTriangle, KeyRound, Edit3, Camera } from 'lucide-react';
+import { Dumbbell, Target, History, PlusCircle, LogOut, UserCheck, Loader2, AlertTriangle, KeyRound, Edit3, Camera, BarChart3 } from 'lucide-react';
 import type { Student, ClassName, Exercise, StudentGoal, RecordedExercise, Gender } from '@/lib/types';
 import { EXERCISES } from '@/data/mockData';
 import SetStudentGoalsDialog from '@/components/SetStudentGoalsDialog';
 import ExerciseLogForm from '@/components/ExerciseLogForm';
 import ChangeOwnPinDialog from '@/components/ChangeOwnPinDialog';
 import ChangeAvatarDialog from '@/components/ChangeAvatarDialog';
-import JumpRopeCameraMode from '@/components/JumpRopeCameraMode'; // 새로운 컴포넌트 임포트
+import JumpRopeCameraMode from '@/components/JumpRopeCameraMode';
+import StudentActivityChart from '@/components/StudentActivityChart'; // 그래프 컴포넌트
 import { useToast } from "@/hooks/use-toast";
 import { recommendStudentExercise, RecommendStudentExerciseOutput } from '@/ai/flows/recommend-student-exercise';
 import { db } from '@/lib/firebase';
@@ -59,6 +60,8 @@ export default function StudentPage() {
   const [isCameraModeOpen, setIsCameraModeOpen] = useState(false);
   const [cameraExerciseId, setCameraExerciseId] = useState<string | null>(null);
 
+  const [activityChartTimeFrame, setActivityChartTimeFrame] = useState<'today' | 'week' | 'month'>('today');
+
 
   const { toast } = useToast();
 
@@ -99,7 +102,8 @@ export default function StudentPage() {
 
       const logsQuery = query(collection(db, "exerciseLogs"), where("studentId", "==", studentId));
       const logsSnapshot = await getDocs(logsQuery);
-      setStudentActivityLogs(logsSnapshot.docs.map(lDoc => ({ id: lDoc.id, ...lDoc.data() } as RecordedExercise)));
+      const logsList = logsSnapshot.docs.map(lDoc => ({ id: lDoc.id, ...lDoc.data(), date: (lDoc.data().date as any).toDate ? (lDoc.data().date as any).toDate().toISOString().split('T')[0] : lDoc.data().date  } as RecordedExercise));
+      setStudentActivityLogs(logsList);
       
       const complimentsDocRef = doc(db, COMPLIMENTS_DOC_PATH);
       const complimentsDocSnap = await getDoc(complimentsDocRef);
@@ -237,8 +241,8 @@ export default function StudentPage() {
       const docRef = await addDoc(collection(db, "exerciseLogs"), logData);
       setStudentActivityLogs(prev => [...prev, { ...logData, id: docRef.id }].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
       toast({ title: "기록 완료!", description: "오늘의 운동이 성공적으로 기록되었어요! 참 잘했어요!" });
-      setIsLogFormOpen(false); // 수동 기록 폼 닫기
-      setIsCameraModeOpen(false); // 카메라 모드도 닫기
+      setIsLogFormOpen(false); 
+      setIsCameraModeOpen(false); 
       setCameraExerciseId(null);
     } catch (error) {
       console.error("Error saving exercise log for student: ", error);
@@ -278,8 +282,8 @@ export default function StudentPage() {
 
   const handleSwitchToCameraMode = (exerciseId: string) => {
     setCameraExerciseId(exerciseId);
-    setIsLogFormOpen(false); // 수동 입력 폼 닫기
-    setIsCameraModeOpen(true); // 카메라 모드 열기
+    setIsLogFormOpen(false); 
+    setIsCameraModeOpen(true); 
   };
 
   const handleCloseCameraMode = () => {
@@ -288,14 +292,14 @@ export default function StudentPage() {
   };
 
   const handleSaveFromCamera = (count: number) => {
-    if (currentStudent && cameraExerciseId === 'ex4') { // ex4 is jump rope
+    if (currentStudent && cameraExerciseId === 'ex4') { 
       const logEntry: Omit<RecordedExercise, 'id'> = {
         studentId: currentStudent.id,
         exerciseId: cameraExerciseId,
-        date: format(new Date(), "yyyy-MM-dd"), // 카메라 사용은 현재 날짜로 기록
+        date: format(new Date(), "yyyy-MM-dd"), 
         className: currentStudent.class as ClassName,
         countValue: count,
-        timeValue: 0, // 줄넘기는 횟수만 카운트한다고 가정
+        timeValue: 0, 
       };
       handleSaveExerciseLog(logEntry);
     }
@@ -535,19 +539,47 @@ export default function StudentPage() {
 
         <Card className="shadow-md hover:shadow-lg transition-shadow rounded-xl">
           <CardHeader>
-            <CardTitle className="flex items-center font-headline text-xl">
-              <History className="mr-3 h-7 w-7 text-destructive" />
-              나의 활동 내역
-            </CardTitle>
-            <CardDescription>최근 운동 기록을 살펴봐요.</CardDescription>
+            <div className="flex justify-between items-center">
+              <CardTitle className="flex items-center font-headline text-xl">
+                <History className="mr-3 h-7 w-7 text-destructive" />
+                나의 활동 내역
+              </CardTitle>
+              <div className="flex gap-2">
+                {(['today', 'week', 'month'] as const).map((frame) => (
+                  <Button
+                    key={frame}
+                    variant={activityChartTimeFrame === frame ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setActivityChartTimeFrame(frame)}
+                    className="rounded-md"
+                  >
+                    {frame === 'today' && '오늘'}
+                    {frame === 'week' && '주간'}
+                    {frame === 'month' && '월간'}
+                  </Button>
+                ))}
+              </div>
+            </div>
+            <CardDescription>선택한 기간의 운동 기록을 그래프로 확인하고, 최근 활동도 살펴봐요.</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-3">
-              {studentActivityLogs.length === 0 ? (
-              <div className="flex items-center justify-center text-center py-4 flex-grow min-h-[10rem] rounded-lg">
-                <p className="text-muted-foreground">오늘도 씩씩하게 운동을 시작해요 :D</p>
+          <CardContent className="space-y-4">
+            {studentActivityLogs.length === 0 ? (
+              <div className="flex items-center justify-center text-center py-10 min-h-[200px] bg-secondary/10 rounded-lg">
+                <div className="flex flex-col items-center">
+                  <BarChart3 className="h-12 w-12 text-muted-foreground mb-3" />
+                  <p className="text-muted-foreground">오늘도 씩씩하게 운동을 시작해요 :D</p>
+                  <p className="text-xs text-muted-foreground mt-1">운동을 기록하면 여기에 그래프가 표시됩니다.</p>
+                </div>
               </div>
             ) : (
-                <div className="space-y-2 max-h-[200px] overflow-y-auto p-3 bg-secondary/20 rounded-lg">
+              <StudentActivityChart logs={studentActivityLogs} timeFrame={activityChartTimeFrame} />
+            )}
+            
+            <h4 className="text-md font-semibold pt-4 border-t mt-6">최근 5개 활동:</h4>
+            {studentActivityLogs.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-2">기록된 활동이 없습니다.</p>
+            ) : (
+                <div className="space-y-2 max-h-[150px] overflow-y-auto p-3 bg-secondary/20 rounded-lg text-sm">
                   {studentActivityLogs
                       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime() || (b.id && a.id ? b.id.localeCompare(a.id) : 0))
                       .slice(0, 5) 
@@ -566,16 +598,13 @@ export default function StudentPage() {
                           if (!valueDisplay) valueDisplay = "기록됨"; 
 
                           return (
-                              <div key={log.id} className="text-sm p-1.5 bg-background/50 rounded">
-                                  <span>{format(new Date(log.date), "MM/dd", { locale: ko })}: {exerciseInfo.koreanName} - {valueDisplay}</span>
+                              <div key={log.id} className="p-1.5 bg-background/50 rounded">
+                                  <span>{format(new Date(log.date), "MM/dd (EEE)", { locale: ko })}: {exerciseInfo.koreanName} - {valueDisplay}</span>
                               </div>
                           );
                   })}
               </div>
             )}
-            <Button variant="outline" className="w-full rounded-lg py-3 text-base mt-3" disabled={studentActivityLogs.length === 0}>
-              전체 활동 내역 보기 (개발 예정)
-            </Button>
           </CardContent>
         </Card>
         
@@ -630,6 +659,4 @@ export default function StudentPage() {
     </div>
   );
 }
-    
-
     
