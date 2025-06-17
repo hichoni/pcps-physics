@@ -26,13 +26,13 @@ export default function WelcomePage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6 p-6 pt-2">
-          <Link href="/teacher" passHref legacyBehavior>
+          <Link href="/teacher" asChild>
             <Button size="lg" className="w-full py-7 text-xl rounded-lg shadow-md hover:shadow-lg transition-shadow">
               <Users className="mr-3 h-6 w-6" />
               교사용 페이지
             </Button>
           </Link>
-          <Link href="/student" passHref legacyBehavior>
+          <Link href="/student" asChild>
             <Button variant="outline" size="lg" className="w-full py-7 text-xl rounded-lg border-accent text-accent hover:bg-accent/10 hover:text-accent-foreground shadow-md hover:shadow-lg transition-shadow">
               <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-3 h-6 w-6"><path d="M12 12a5 5 0 1 0 0-10 5 5 0 0 0 0 10z"></path><path d="M18 20a6 6 0 0 0-12 0Z"></path></svg>
               학생용 페이지
