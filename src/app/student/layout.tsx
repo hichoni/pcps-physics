@@ -14,16 +14,15 @@ export default function StudentLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="ko">
-      <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link href="https://fonts.googleapis.com/css2?family=PT+Sans:wght@400;700&family=Noto+Sans+KR:wght@400;700&display=swap" rel="stylesheet" />
-      </head>
-      <body className="font-body antialiased min-h-screen flex flex-col">
-        {children}
-        <Toaster />
-      </body>
-    </html>
+    <>
+      {/*
+        The <head> content like fonts is now managed by the RootLayout (src/app/layout.tsx)
+        or by Next.js's built-in <Head> component if needed for page-specific head tags within pages.
+        The <body> tag is also rendered by the RootLayout.
+        StudentLayout should only provide the content that goes *inside* the body.
+      */}
+      {children}
+      <Toaster />
+    </>
   );
 }
