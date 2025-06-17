@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import type { Student, Exercise, RecordedExercise, ClassName } from '@/lib/types';
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
+import { CardContent } from "@/components/ui/card"; // Added import
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { EXERCISES } from "@/data/mockData";
