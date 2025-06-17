@@ -285,7 +285,7 @@ export default function StudentPage() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <Card className="shadow-md hover:shadow-lg transition-shadow rounded-xl lg:col-span-2">
+          <Card className="shadow-md hover:shadow-lg transition-shadow rounded-xl lg:col-span-1">
             <CardHeader>
               <CardTitle className="flex items-center font-headline text-xl">
                 <Dumbbell className="mr-3 h-7 w-7 text-primary" />
@@ -313,7 +313,7 @@ export default function StudentPage() {
             </CardContent>
           </Card>
 
-          <Card className="shadow-md hover:shadow-lg transition-shadow rounded-xl md:col-span-2 lg:col-span-3">
+          <Card className="shadow-md hover:shadow-lg transition-shadow rounded-xl lg:col-span-1">
             <CardHeader>
               <CardTitle className="flex items-center font-headline text-xl">
                 <History className="mr-3 h-7 w-7 text-destructive" />
@@ -323,7 +323,9 @@ export default function StudentPage() {
             </CardHeader>
             <CardContent className="space-y-3">
               {studentActivityLogs.length === 0 ? (
-                <p className="text-muted-foreground text-center p-4">아직 운동을 하지 않았네요.</p>
+                <div className="text-center p-4">
+                  <p className="text-muted-foreground">아직 운동을 하지 않았네요.</p>
+                </div>
               ) : (
                 <div className="text-center p-4">
                   <p className="text-foreground font-semibold">운동 기록 있음 (데이터 표시 영역)</p>
@@ -350,6 +352,8 @@ export default function StudentPage() {
     </div>
   );
 }
+    
+
     
 
     
