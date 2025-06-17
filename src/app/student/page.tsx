@@ -10,11 +10,12 @@ import { Dumbbell, Target, History, PlusCircle, LogOut, UserCheck, Loader2, Aler
 import type { Student, ClassName, Exercise, StudentGoal, RecordedExercise, Gender } from '@/lib/types';
 import { EXERCISES } from '@/data/mockData';
 import SetStudentGoalsDialog from '@/components/SetStudentGoalsDialog';
+import ExerciseLogForm from '@/components/ExerciseLogForm'; // Added import
 import { useToast } from "@/hooks/use-toast";
 import { recommendStudentExercise, RecommendStudentExerciseOutput } from '@/ai/flows/recommend-student-exercise';
 import { db } from '@/lib/firebase';
-import { collection, getDocs, doc, getDoc, setDoc, query, where } from 'firebase/firestore';
-import { format } from 'date-fns'; // Added import for format
+import { collection, getDocs, doc, getDoc, setDoc, query, where, addDoc } from 'firebase/firestore'; // Added addDoc
+import { format } from 'date-fns';
 
 const DEFAULT_POSITIVE_ADJECTIVES_KR = [
   "별처럼 빛나는", "항상 긍정적인", "꿈을 향해 달리는", "세상을 밝히는",
@@ -34,9 +35,10 @@ export default function StudentPage() {
   const [currentStudent, setCurrentStudent] = useState<Student | null>(null);
   
   const [isLoadingLoginOptions, setIsLoadingLoginOptions] = useState(true);
-  const [isLoadingStudentData, setIsLoadingStudentData] = useState(false); // For data loaded after login
+  const [isLoadingStudentData, setIsLoadingStudentData] = useState(false);
 
   const [isGoalsDialogOpen, setIsGoalsDialogOpen] = useState(false);
+  const [isLogFormOpen, setIsLogFormOpen] = useState(false); // Added state for log form
   const [studentGoals, setStudentGoals] = useState<StudentGoal>({});
   const [studentActivityLogs, setStudentActivityLogs] = useState<RecordedExercise[]>([]);
   const [recommendedExercise, setRecommendedExercise] = useState<RecommendStudentExerciseOutput | null>(null);
@@ -45,7 +47,6 @@ export default function StudentPage() {
 
   const { toast } = useToast();
 
-  // Fetch initial data for login screen
   const fetchLoginOptions = useCallback(async () => {
     setIsLoadingLoginOptions(true);
     try {
@@ -69,12 +70,10 @@ export default function StudentPage() {
     fetchLoginOptions();
   }, [fetchLoginOptions]);
 
-  // Fetch data for logged-in student
   const fetchStudentSpecificData = useCallback(async (studentId: string, studentName: string) => {
     if (!studentId) return;
     setIsLoadingStudentData(true);
     try {
-      // Fetch Goals
       const goalsDocRef = doc(db, "studentGoals", studentId);
       const goalsDocSnap = await getDoc(goalsDocRef);
       if (goalsDocSnap.exists()) {
@@ -83,12 +82,10 @@ export default function StudentPage() {
         setStudentGoals({});
       }
 
-      // Fetch Logs
       const logsQuery = query(collection(db, "exerciseLogs"), where("studentId", "==", studentId));
       const logsSnapshot = await getDocs(logsQuery);
       setStudentActivityLogs(logsSnapshot.docs.map(lDoc => ({ id: lDoc.id, ...lDoc.data() } as RecordedExercise)));
       
-      // Fetch Compliments (shared)
       const complimentsDocRef = doc(db, COMPLIMENTS_DOC_PATH);
       const complimentsDocSnap = await getDoc(complimentsDocRef);
       let adjectiveList = DEFAULT_POSITIVE_ADJECTIVES_KR;
@@ -99,7 +96,6 @@ export default function StudentPage() {
       const adjectiveIndex = (dayOfMonth - 1 + studentName.length) % adjectiveList.length;
       setDailyCompliment(adjectiveList[adjectiveIndex] || adjectiveList[0] || "");
 
-      // Fetch AI Recommendation
       fetchRecommendation();
 
     } catch (error) {
@@ -109,7 +105,7 @@ export default function StudentPage() {
       setIsLoadingStudentData(false);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [toast]); // fetchRecommendation should not be a dependency to avoid re-fetching on every compliment change
+  }, [toast]); 
 
 
   useEffect(() => {
@@ -139,8 +135,6 @@ export default function StudentPage() {
       setRecommendedExercise(recommendation);
     } catch (error) {
       console.error("AI 추천 가져오기 오류:", error);
-      // Only toast if it's not a silent failure
-      // toast({ title: "AI 추천 오류", description: "추천을 가져오지 못했어요.", variant: "destructive" });
       setRecommendedExercise(null); 
     } finally {
       setIsRecommendationLoading(false);
@@ -177,6 +171,29 @@ export default function StudentPage() {
     setCurrentStudent(null);
     setSelectedClass('');
     setSelectedStudentId('');
+  };
+
+  const handleOpenLogForm = () => {
+    if (currentStudent) {
+      setIsLogFormOpen(true);
+    }
+  };
+
+  const handleCloseLogForm = () => {
+    setIsLogFormOpen(false);
+  };
+
+  const handleSaveExerciseLog = async (logData: Omit<RecordedExercise, 'id'>) => {
+    if (!currentStudent) return;
+    try {
+      const docRef = await addDoc(collection(db, "exerciseLogs"), logData);
+      setStudentActivityLogs(prev => [...prev, { ...logData, id: docRef.id }]);
+      toast({ title: "기록 완료!", description: "오늘의 운동이 성공적으로 기록되었어요! 참 잘했어요!" });
+      setIsLogFormOpen(false);
+    } catch (error) {
+      console.error("Error saving exercise log for student: ", error);
+      toast({ title: "기록 실패", description: "운동 기록 중 오류가 발생했어요. 다시 시도해주세요.", variant: "destructive" });
+    }
   };
   
   const hasEffectiveGoals = useMemo(() => {
@@ -284,9 +301,9 @@ export default function StudentPage() {
                 오늘도 즐겁게 운동하고 건강해져요! 어떤 활동을 계획하고 있나요?
               </p>
               <div className="flex flex-col sm:flex-row gap-3 justify-center lg:justify-start">
-                <Button size="lg" className="rounded-lg py-3 px-6 text-lg flex-grow sm:flex-grow-0" disabled={true} title="운동 기록 기능은 교사용 앱에서만 가능합니다.">
+                <Button size="lg" className="rounded-lg py-3 px-6 text-lg flex-grow sm:flex-grow-0" onClick={handleOpenLogForm}>
                   <PlusCircle className="mr-2 h-6 w-6" />
-                  새로운 운동 기록하기 (교사용)
+                  새로운 운동 기록하기
                 </Button>
                 <Button variant="outline" size="lg" onClick={handleLogout} className="rounded-lg py-3 px-6 text-lg flex-grow sm:flex-grow-0">
                   <LogOut className="mr-2 h-6 w-6" />
@@ -380,7 +397,7 @@ export default function StudentPage() {
                  <div className="space-y-2 max-h-[200px] overflow-y-auto p-3 bg-secondary/20 rounded-lg">
                     {studentActivityLogs
                         .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime() || (b.id && a.id ? b.id.localeCompare(a.id) : 0))
-                        .slice(0, 5) // Show recent 5 logs
+                        .slice(0, 5) 
                         .map(log => {
                             const exerciseInfo = EXERCISES.find(ex => ex.id === log.exerciseId);
                             if (!exerciseInfo) return null;
@@ -407,6 +424,16 @@ export default function StudentPage() {
           </Card>
         </div>
         
+        {currentStudent && (
+          <ExerciseLogForm
+            student={currentStudent}
+            isOpen={isLogFormOpen}
+            onClose={handleCloseLogForm}
+            onSave={handleSaveExerciseLog}
+            recordedExercises={studentActivityLogs} 
+          />
+        )}
+
         <SetStudentGoalsDialog
           isOpen={isGoalsDialogOpen}
           onClose={() => setIsGoalsDialogOpen(false)}
@@ -423,3 +450,5 @@ export default function StudentPage() {
     </div>
   );
 }
+
+    

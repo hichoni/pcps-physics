@@ -5,7 +5,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import Header from '@/components/Header';
 import ClassSelector from '@/components/ClassSelector';
 import StudentCard from '@/components/StudentCard';
-import ExerciseLogForm from '@/components/ExerciseLogForm';
+// ExerciseLogForm is removed as logging is now done by students
 import ExerciseSummaryChart from '@/components/ExerciseSummaryChart';
 import AiSuggestionBox from '@/components/AiSuggestionBox';
 import AddStudentDialog from '@/components/AddStudentDialog';
@@ -59,8 +59,9 @@ export default function Home() {
   const [isLoadingCompliments, setIsLoadingCompliments] = useState(true);
 
   const [studentsInClass, setStudentsInClass] = useState<Student[]>([]);
-  const [selectedStudentForLog, setSelectedStudentForLog] = useState<Student | null>(null);
-  const [isLogFormOpen, setIsLogFormOpen] = useState(false);
+  // Exercise logging related states are removed from teacher's page
+  // const [selectedStudentForLog, setSelectedStudentForLog] = useState<Student | null>(null);
+  // const [isLogFormOpen, setIsLogFormOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<string>("students");
   const [isAddStudentDialogOpen, setIsAddStudentDialogOpen] = useState(false);
   const [studentToDelete, setStudentToDelete] = useState<Student | null>(null);
@@ -109,13 +110,12 @@ export default function Home() {
         setCompliments(complimentsDocSnap.data().list);
       } else {
         setCompliments(DEFAULT_COMPLIMENTS);
-        // Optionally create the document with default compliments if it doesn't exist
         await setDoc(complimentsDocRef, { list: DEFAULT_COMPLIMENTS });
       }
     } catch (error) {
       console.error("Error fetching compliments: ", error);
       toast({ title: "오류", description: "칭찬 문구를 불러오는 데 실패했습니다.", variant: "destructive"});
-      setCompliments(DEFAULT_COMPLIMENTS); // Fallback to default
+      setCompliments(DEFAULT_COMPLIMENTS);
     } finally {
       setIsLoadingCompliments(false);
     }
@@ -147,33 +147,34 @@ export default function Home() {
     }
   };
 
-  const handleOpenLogForm = (student: Student) => {
-    setSelectedStudentForLog(student);
-    setIsLogFormOpen(true);
-  };
+  // Exercise logging functions are removed from teacher's page
+  // const handleOpenLogForm = (student: Student) => {
+  //   setSelectedStudentForLog(student);
+  //   setIsLogFormOpen(true);
+  // };
 
-  const handleCloseLogForm = () => {
-    setIsLogFormOpen(false);
-    setSelectedStudentForLog(null);
-  };
+  // const handleCloseLogForm = () => {
+  //   setIsLogFormOpen(false);
+  //   setSelectedStudentForLog(null);
+  // };
 
-  const handleSaveExerciseLog = async (logData: Omit<RecordedExercise, 'id'>) => {
-    try {
-      const docRef = await addDoc(collection(db, "exerciseLogs"), logData);
-      setRecordedExercises(prev => [...prev, { ...logData, id: docRef.id }]);
-      toast({ title: "성공", description: "운동 기록이 저장되었습니다." });
-    } catch (error) {
-      console.error("Error saving exercise log: ", error);
-      toast({ title: "오류", description: "운동 기록 저장에 실패했습니다.", variant: "destructive"});
-    }
-  };
+  // const handleSaveExerciseLog = async (logData: Omit<RecordedExercise, 'id'>) => {
+  //   try {
+  //     const docRef = await addDoc(collection(db, "exerciseLogs"), logData);
+  //     setRecordedExercises(prev => [...prev, { ...logData, id: docRef.id }]);
+  //     toast({ title: "성공", description: "운동 기록이 저장되었습니다." });
+  //   } catch (error) {
+  //     console.error("Error saving exercise log: ", error);
+  //     toast({ title: "오류", description: "운동 기록 저장에 실패했습니다.", variant: "destructive"});
+  //   }
+  // };
 
   const handleAddStudent = async (newStudentData: { name: string; class: string; studentNumber: number; gender: Gender }) => {
     try {
       const studentWithAvatar = {
         ...newStudentData,
         class: newStudentData.class.trim(),
-        avatarSeed: newStudentData.name, // Default avatar seed
+        avatarSeed: newStudentData.name, 
       };
       const docRef = await addDoc(collection(db, "students"), studentWithAvatar);
       const newStudent = { ...studentWithAvatar, id: docRef.id };
@@ -199,21 +200,16 @@ export default function Home() {
       try {
         const batch = writeBatch(db);
         
-        // Delete student document
         const studentDocRef = doc(db, "students", studentToDelete.id);
         batch.delete(studentDocRef);
 
-        // Delete associated exercise logs
         const logsQuery = query(collection(db, "exerciseLogs"), where("studentId", "==", studentToDelete.id));
         const logsSnapshot = await getDocs(logsQuery);
         logsSnapshot.forEach(logDoc => {
           batch.delete(doc(db, "exerciseLogs", logDoc.id));
         });
         
-        // Delete associated student goals
         const goalsDocRef = doc(db, "studentGoals", studentToDelete.id);
-        // Check if goal doc exists before attempting delete, or just try delete.
-        // For simplicity, we'll just attempt delete. If it doesn't exist, it's a no-op.
         batch.delete(goalsDocRef);
 
         await batch.commit();
@@ -364,7 +360,7 @@ export default function Home() {
                     <StudentCard 
                       key={student.id} 
                       student={student} 
-                      onLogExercise={handleOpenLogForm}
+                      // onLogExercise prop is removed
                       onDeleteStudent={() => requestDeleteStudent(student)}
                       recordedExercises={recordedExercises}
                     />
@@ -469,7 +465,8 @@ export default function Home() {
           </TabsContent>
         </Tabs>
 
-        {selectedStudentForLog && (
+        {/* ExerciseLogForm is removed from teacher's page */}
+        {/* {selectedStudentForLog && (
           <ExerciseLogForm
             student={selectedStudentForLog}
             isOpen={isLogFormOpen}
@@ -477,7 +474,7 @@ export default function Home() {
             onSave={handleSaveExerciseLog}
             recordedExercises={recordedExercises}
           />
-        )}
+        )} */}
 
         <AddStudentDialog
           isOpen={isAddStudentDialogOpen}
@@ -510,3 +507,5 @@ export default function Home() {
     </div>
   );
 }
+
+    

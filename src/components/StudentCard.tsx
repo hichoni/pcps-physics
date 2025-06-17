@@ -4,12 +4,12 @@ import type { Student, RecordedExercise, Exercise as ExerciseType } from '@/lib/
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Activity, CheckCircle2, Trash2, UserCircle2 } from 'lucide-react';
+import { Activity, CheckCircle2, Trash2 } from 'lucide-react'; // UserCircle2 removed, Activity might be redundant if not logging here
 import { EXERCISES } from '@/data/mockData';
 
 interface StudentCardProps {
   student: Student;
-  onLogExercise: (student: Student) => void;
+  // onLogExercise prop is removed
   onDeleteStudent: (student: Student) => void;
   recordedExercises: RecordedExercise[];
 }
@@ -35,13 +35,13 @@ const formatLastExercise = (exercise: ExerciseType, log: RecordedExercise): stri
   return parts.length > 0 ? `${exercise.koreanName}: ${parts.join(', ')}` : "운동 기록됨";
 };
 
-const StudentCard: React.FC<StudentCardProps> = ({ student, onLogExercise, onDeleteStudent, recordedExercises }) => {
+const StudentCard: React.FC<StudentCardProps> = ({ student, onDeleteStudent, recordedExercises }) => {
   const placeholderAvatarUrl = `https://placehold.co/80x80.png?text=${getInitials(student.name)}&bg=87CEEB&fg=FFFFFF`;
   
   const today = new Date().toISOString().split('T')[0];
   const exercisesLoggedToday = recordedExercises
     .filter(rec => rec.studentId === student.id && rec.date === today)
-    .sort((a,b) => b.id.localeCompare(a.id));
+    .sort((a,b) => b.id.localeCompare(a.id)); // Assuming id is a string like Firestore ID
 
   const getLastExerciseLogged = () => {
     if (exercisesLoggedToday.length === 0) return "오늘 기록된 운동 없음";
@@ -79,10 +79,8 @@ const StudentCard: React.FC<StudentCardProps> = ({ student, onLogExercise, onDel
           </div>
         </CardContent>
       </div>
-      <CardFooter className="p-4 bg-slate-50 dark:bg-slate-800/30 flex gap-2">
-        <Button onClick={() => onLogExercise(student)} className="w-full py-3 text-base rounded-lg" aria-label={`${student.name} 학생 운동 기록`}>
-          <Activity className="mr-2 h-5 w-5" /> 기록
-        </Button>
+      <CardFooter className="p-4 bg-slate-50 dark:bg-slate-800/30 flex justify-end">
+        {/* Log exercise button is removed */}
         <Button onClick={() => onDeleteStudent(student)} variant="destructive" size="icon" className="rounded-lg py-3 h-auto px-3" aria-label={`${student.name} 학생 삭제`}>
           <Trash2 className="h-5 w-5" />
         </Button>
@@ -92,3 +90,5 @@ const StudentCard: React.FC<StudentCardProps> = ({ student, onLogExercise, onDel
 };
 
 export default StudentCard;
+
+    
