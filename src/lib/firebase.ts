@@ -5,7 +5,7 @@ import { getFirestore } from 'firebase/firestore';
 // Log environment variables to see if they are loaded correctly by the application.
 console.log("====================================================================");
 console.log("Attempting to load Firebase config from environment variables (src/lib/firebase.ts)...");
-console.log("SCRIPT VERSION: 1.2 - Explicit Logging");
+console.log("SCRIPT VERSION: 1.3 - Enhanced Logging & Check");
 console.log("====================================================================");
 
 const apiKey = process.env.NEXT_PUBLIC_FIREBASE_API_KEY;
@@ -16,12 +16,12 @@ const messagingSenderId = process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID;
 const appId = process.env.NEXT_PUBLIC_FIREBASE_APP_ID;
 
 // Log the raw values read from process.env
-console.log("Raw NEXT_PUBLIC_FIREBASE_API_KEY from process.env:", apiKey);
-console.log("Raw NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN from process.env:", authDomain);
-console.log("Raw NEXT_PUBLIC_FIREBASE_PROJECT_ID from process.env:", projectId);
-console.log("Raw NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET from process.env:", storageBucket);
-console.log("Raw NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID from process.env:", messagingSenderId);
-console.log("Raw NEXT_PUBLIC_FIREBASE_APP_ID from process.env:", appId);
+console.log("Raw NEXT_PUBLIC_FIREBASE_API_KEY from process.env:", apiKey ? "******** (loaded)" : "!!! UNDEFINED !!!");
+console.log("Raw NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN from process.env:", authDomain ? authDomain : "!!! UNDEFINED !!!");
+console.log("Raw NEXT_PUBLIC_FIREBASE_PROJECT_ID from process.env:", projectId ? projectId : "!!! UNDEFINED !!!");
+console.log("Raw NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET from process.env:", storageBucket ? storageBucket : "!!! UNDEFINED !!!");
+console.log("Raw NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID from process.env:", messagingSenderId ? messagingSenderId : "!!! UNDEFINED !!!");
+console.log("Raw NEXT_PUBLIC_FIREBASE_APP_ID from process.env:", appId ? appId : "!!! UNDEFINED !!!");
 
 const firebaseConfig = {
   apiKey: apiKey,
@@ -34,7 +34,7 @@ const firebaseConfig = {
 
 console.log("--------------------------------------------------------------------");
 console.log("Firebase config OBJECT to be used by initializeApp (src/lib/firebase.ts):");
-console.log("apiKey:", firebaseConfig.apiKey);
+console.log("apiKey:", firebaseConfig.apiKey ? "******** (set in config)" : "!!! NOT SET in config !!!");
 console.log("authDomain:", firebaseConfig.authDomain);
 console.log("projectId:", firebaseConfig.projectId);
 console.log("storageBucket:", firebaseConfig.storageBucket);
@@ -45,14 +45,21 @@ console.log("-------------------------------------------------------------------
 let app;
 let db;
 
-if (
-    firebaseConfig.apiKey && !firebaseConfig.apiKey.includes("YOUR_") && !firebaseConfig.apiKey.startsWith("!!!_REPLACE_") &&
-    firebaseConfig.authDomain &&
-    firebaseConfig.projectId && !firebaseConfig.projectId.includes("YOUR_") && !firebaseConfig.projectId.startsWith("!!!_REPLACE_") &&
-    firebaseConfig.storageBucket &&
-    firebaseConfig.messagingSenderId &&
-    firebaseConfig.appId
-) {
+const requiredEnvVars = {
+  NEXT_PUBLIC_FIREBASE_API_KEY: apiKey,
+  NEXT_PUBLIC_FIREBASE_PROJECT_ID: projectId,
+  // Add other critical vars if needed, e.g., authDomain, appId
+};
+
+let allRequiredVarsPresent = true;
+for (const [key, value] of Object.entries(requiredEnvVars)) {
+  if (!value || value.includes("YOUR_") || value.startsWith("!!!_REPLACE_")) {
+    console.error(`CRITICAL: Environment variable ${key} is missing, undefined, or contains a placeholder.`);
+    allRequiredVarsPresent = false;
+  }
+}
+
+if (allRequiredVarsPresent) {
   try {
     if (!getApps().length) {
       console.log("Initializing new Firebase app (src/lib/firebase.ts)...");
