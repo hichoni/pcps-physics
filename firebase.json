@@ -1,6 +1,7 @@
+
 {
   "hosting": {
-    "site": "physed-pal",
+    "site": "pcps",
     "public": "public",
     "ignore": [
       "firebase.json",
