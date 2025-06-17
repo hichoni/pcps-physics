@@ -3,7 +3,10 @@ import { initializeApp, getApp, getApps } from 'firebase/app';
 import { getFirestore } from 'firebase/firestore';
 
 // Log environment variables to see if they are loaded correctly by the application.
+console.log("====================================================================");
 console.log("Attempting to load Firebase config from environment variables (src/lib/firebase.ts)...");
+console.log("SCRIPT VERSION: 1.2 - Explicit Logging");
+console.log("====================================================================");
 
 const apiKey = process.env.NEXT_PUBLIC_FIREBASE_API_KEY;
 const authDomain = process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN;
@@ -29,16 +32,27 @@ const firebaseConfig = {
   appId: appId,
 };
 
-// Log the config object that will be used for initialization.
-// Use JSON.stringify to ensure undefined values are explicitly shown as such if they occur.
-console.log("Firebase config to be used by initializeApp (src/lib/firebase.ts):", JSON.stringify(firebaseConfig, null, 2));
+console.log("--------------------------------------------------------------------");
+console.log("Firebase config OBJECT to be used by initializeApp (src/lib/firebase.ts):");
+console.log("apiKey:", firebaseConfig.apiKey);
+console.log("authDomain:", firebaseConfig.authDomain);
+console.log("projectId:", firebaseConfig.projectId);
+console.log("storageBucket:", firebaseConfig.storageBucket);
+console.log("messagingSenderId:", firebaseConfig.messagingSenderId);
+console.log("appId:", firebaseConfig.appId);
+console.log("--------------------------------------------------------------------");
 
 let app;
 let db;
 
-// Check if all required config values are present and not placeholders
-if (apiKey && authDomain && projectId && storageBucket && messagingSenderId && appId &&
-    !apiKey.includes("YOUR_") && !projectId.includes("YOUR_")) {
+if (
+    firebaseConfig.apiKey && !firebaseConfig.apiKey.includes("YOUR_") && !firebaseConfig.apiKey.startsWith("!!!_REPLACE_") &&
+    firebaseConfig.authDomain &&
+    firebaseConfig.projectId && !firebaseConfig.projectId.includes("YOUR_") && !firebaseConfig.projectId.startsWith("!!!_REPLACE_") &&
+    firebaseConfig.storageBucket &&
+    firebaseConfig.messagingSenderId &&
+    firebaseConfig.appId
+) {
   try {
     if (!getApps().length) {
       console.log("Initializing new Firebase app (src/lib/firebase.ts)...");
@@ -51,37 +65,24 @@ if (apiKey && authDomain && projectId && storageBucket && messagingSenderId && a
     if (app && app.options.projectId) {
       console.log("Firebase app initialized/retrieved successfully (src/lib/firebase.ts). Project ID in use: " + app.options.projectId);
       db = getFirestore(app);
-      console.log("Firestore instance initialized successfully (src/lib/firebase.ts).");
+      console.log("Firestore instance initialized successfully (src/lib/firebase.ts). ALL LOOKS GOOD HERE!");
+      console.log("====================================================================");
     } else {
-      console.error("Firebase app object seems invalid or critical options (like projectId) are missing after initialization attempt (src/lib/firebase.ts).");
-      console.error("Double-check your .env.local file and ensure all NEXT_PUBLIC_FIREBASE_ variables are correctly set with actual values and the server was restarted.");
+      console.error("Firebase app object is invalid or critical options (like projectId) are missing AFTER initialization attempt (src/lib/firebase.ts).");
+      console.error("This might happen if initializeApp failed silently or returned an incomplete object.");
+      console.log("====================================================================");
     }
   } catch (error) {
-    console.error("Firebase initialization error in src/lib/firebase.ts:", error);
-    console.error("Firebase config that may have caused error:", JSON.stringify(firebaseConfig, null, 2));
-    console.error("Ensure all values in .env.local are correct and the Next.js server has been restarted.");
+    console.error("Firebase INITIALIZATION ERROR in src/lib/firebase.ts:", error);
+    console.error("Firebase config that caused error:", firebaseConfig);
+    console.error("Ensure all values in .env.local are correct, match your Firebase project, and the Next.js server has been RESTARTED.");
+    console.log("====================================================================");
   }
 } else {
-  console.error("One or more Firebase environment variables are missing, undefined, or still contain placeholders. Firebase cannot be initialized. (src/lib/firebase.ts)");
-  console.error("Please ensure all NEXT_PUBLIC_FIREBASE_... variables are set with your actual Firebase project credentials in your .env.local file and the server has been restarted.");
-  // Log which specific values are problematic
-  if (!apiKey) console.error("Missing or undefined: NEXT_PUBLIC_FIREBASE_API_KEY");
-  else if (apiKey.includes("YOUR_")) console.error("Placeholder value detected for: NEXT_PUBLIC_FIREBASE_API_KEY");
-  
-  if (!authDomain) console.error("Missing or undefined: NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN");
-  else if (authDomain.includes("YOUR_")) console.error("Placeholder value detected for: NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN");
-
-  if (!projectId) console.error("Missing or undefined: NEXT_PUBLIC_FIREBASE_PROJECT_ID");
-  else if (projectId.includes("YOUR_")) console.error("Placeholder value detected for: NEXT_PUBLIC_FIREBASE_PROJECT_ID");
-  
-  if (!storageBucket) console.error("Missing or undefined: NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET");
-  else if (storageBucket.includes("YOUR_")) console.error("Placeholder value detected for: NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET");
-
-  if (!messagingSenderId) console.error("Missing or undefined: NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID");
-  else if (messagingSenderId.includes("YOUR_")) console.error("Placeholder value detected for: NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID");
-
-  if (!appId) console.error("Missing or undefined: NEXT_PUBLIC_FIREBASE_APP_ID");
-  else if (appId.includes("YOUR_")) console.error("Placeholder value detected for: NEXT_PUBLIC_FIREBASE_APP_ID");
+  console.error("CRITICAL ERROR: One or more Firebase environment variables are MISSING, UNDEFINED, or still contain PLACEHOLDERS. Firebase CANNOT be initialized. (src/lib/firebase.ts)");
+  console.error("Please ensure all NEXT_PUBLIC_FIREBASE_... variables are correctly set with your ACTUAL Firebase project credentials in your .env.local file and the server has been RESTARTED.");
+  console.error("Problematic firebaseConfig values received by src/lib/firebase.ts:", firebaseConfig);
+  console.log("====================================================================");
 }
 
 export { db };
