@@ -2,6 +2,9 @@
 # https://firebase.google.com/docs/app-hosting/configure
 
 runConfig:
+  # To minimize costs, allow instances to scale down to 0 when there's no traffic.
+  # For applications requiring faster cold starts, consider setting this to 1 or higher.
+  minInstances: 0
   # Increase this value if you'd like to automatically spin up
   # more instances in response to increased traffic.
   maxInstances: 1
