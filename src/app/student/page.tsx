@@ -38,11 +38,12 @@ export default function StudentPage() {
   const { toast } = useToast();
 
   useEffect(() => {
-    setAllStudents(STUDENTS_DATA);
-    setAvailableClasses(CLASSES);
-    
-    let studentToLoad: Student | null = null;
+    // Ensure this runs only on the client
     if (typeof window !== 'undefined') {
+      setAllStudents(STUDENTS_DATA); // Assuming STUDENTS_DATA is static or loaded client-side
+      setAvailableClasses(CLASSES);   // Assuming CLASSES is static or loaded client-side
+      
+      let studentToLoad: Student | null = null;
       const storedStudent = localStorage.getItem(LOCAL_STORAGE_STUDENT_KEY);
       if (storedStudent) {
         try {
@@ -52,17 +53,17 @@ export default function StudentPage() {
           localStorage.removeItem(LOCAL_STORAGE_STUDENT_KEY);
         }
       }
+      
+      if (studentToLoad) {
+        setCurrentStudent(studentToLoad);
+        // loadStudentGoals and loadStudentLogs will be called in the other useEffect triggered by currentStudent change
+      }
+      setIsLoading(false);
     }
-    
-    if (studentToLoad) {
-      setCurrentStudent(studentToLoad);
-      loadStudentGoals(studentToLoad.id);
-      loadStudentLogs(studentToLoad.id);
-    }
-    setIsLoading(false);
   }, []);
 
   useEffect(() => {
+    // This effect runs when currentStudent changes, safely on client-side
     if (currentStudent) {
       if (typeof window !== 'undefined') {
         localStorage.setItem(LOCAL_STORAGE_STUDENT_KEY, JSON.stringify(currentStudent));
@@ -78,7 +79,8 @@ export default function StudentPage() {
       setStudentActivityLogs([]);
       setRecommendedExercise(null);
     }
-  }, [currentStudent]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentStudent]); // fetchRecommendation is called here, so it's fine
 
   useEffect(() => {
     if (selectedClass) {
@@ -134,7 +136,7 @@ export default function StudentPage() {
         description: "추천 운동을 가져오는 데 실패했어요. 나중에 다시 시도해 보세요.",
         variant: "destructive",
       });
-      setRecommendedExercise(null); // Clear previous recommendation on error
+      setRecommendedExercise(null); 
     } finally {
       setIsRecommendationLoading(false);
     }
@@ -280,7 +282,7 @@ export default function StudentPage() {
             </CardContent>
           </Card>
 
-          <Card className="shadow-md hover:shadow-lg transition-shadow rounded-xl">
+          <Card className="shadow-md hover:shadow-lg transition-shadow rounded-xl lg:col-span-2">
             <CardHeader>
               <CardTitle className="flex items-center font-headline text-xl">
                 <Dumbbell className="mr-3 h-7 w-7 text-primary" />
@@ -305,11 +307,10 @@ export default function StudentPage() {
                   </div>
                 )}
               </div>
-               {/*<Button variant="outline" className="w-full rounded-lg">다른 추천 보기</Button>*/}
             </CardContent>
           </Card>
 
-          <Card className="shadow-md hover:shadow-lg transition-shadow rounded-xl">
+          <Card className="shadow-md hover:shadow-lg transition-shadow rounded-xl md:col-span-2 lg:col-span-3">
             <CardHeader>
               <CardTitle className="flex items-center font-headline text-xl">
                 <History className="mr-3 h-7 w-7 text-destructive" />
