@@ -20,7 +20,7 @@ import { useToast } from "@/hooks/use-toast";
 import { recommendStudentExercise, RecommendStudentExerciseOutput } from '@/ai/flows/recommend-student-exercise';
 import { db } from '@/lib/firebase';
 import { collection, getDocs, doc, getDoc, setDoc, query, where, addDoc, updateDoc } from 'firebase/firestore';
-import { format } from 'date-fns'; 
+import { format, parseISO } from 'date-fns'; 
 import { ko } from 'date-fns/locale';
 
 
