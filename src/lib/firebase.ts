@@ -1,12 +1,13 @@
 
 import { initializeApp, getApp, getApps } from 'firebase/app';
 import { getFirestore } from 'firebase/firestore';
+import { getStorage } from 'firebase/storage'; // Storage 임포트 추가
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
   authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
   projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET, // Storage Bucket 설정 확인 중요
   messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
   measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID,
@@ -14,18 +15,20 @@ const firebaseConfig = {
 
 let app;
 let db;
+let storage; // storage 변수 선언
 
 // Check if all critical Firebase config values are present
-const criticalConfigValues = [
-  firebaseConfig.apiKey,
-  firebaseConfig.authDomain,
-  firebaseConfig.projectId,
-  firebaseConfig.appId
-];
+const criticalConfigValues: Record<string, string | undefined> = {
+  apiKey: firebaseConfig.apiKey,
+  authDomain: firebaseConfig.authDomain,
+  projectId: firebaseConfig.projectId,
+  storageBucket: firebaseConfig.storageBucket, // storageBucket도 필수 값으로 포함
+  appId: firebaseConfig.appId
+};
 
 // Ensure that values are not undefined, null, empty strings, or common placeholder indicators
-const allCriticalValuesPresent = criticalConfigValues.every(
-  value => value && typeof value === 'string' && value.trim() !== '' && !value.startsWith("YOUR_") && !value.includes("!!! UNDEFINED")
+const allCriticalValuesPresent = Object.entries(criticalConfigValues).every(
+  ([key, value]) => value && typeof value === 'string' && value.trim() !== '' && !value.startsWith("YOUR_") && !value.includes("!!! UNDEFINED")
 );
 
 if (allCriticalValuesPresent) {
@@ -36,9 +39,9 @@ if (allCriticalValuesPresent) {
       app = getApp();
     }
     db = getFirestore(app);
+    storage = getStorage(app); // storage 초기화
   } catch (error: any) {
     console.error("Firebase initialization error (src/lib/firebase.ts):", error.message);
-    // In a production environment, you might want to log this error to a dedicated error tracking service.
   }
 } else {
   console.error(
@@ -46,15 +49,13 @@ if (allCriticalValuesPresent) {
     "One or more NEXT_PUBLIC_FIREBASE_... environment variables are missing, invalid, or contain placeholders. " +
     "Ensure they are set correctly in your deployment environment. " +
     "Missing or invalid keys: " + 
-    Object.entries(firebaseConfig)
-      .filter(([key, value]) => 
-        ['apiKey', 'authDomain', 'projectId', 'appId'].includes(key) && 
-        (!value || typeof value !== 'string' || value.trim() === '' || value.startsWith("YOUR_") || value.includes("!!! UNDEFINED"))
+    Object.entries(criticalConfigValues)
+      .filter(([, value]) => 
+        !value || typeof value !== 'string' || value.trim() === '' || value.startsWith("YOUR_") || value.includes("!!! UNDEFINED")
       )
       .map(([key]) => key)
       .join(', ')
   );
 }
 
-export { db };
-
+export { db, storage }; // storage 익스포트

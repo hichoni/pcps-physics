@@ -17,8 +17,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Users, BarChart2, Lightbulb, ListChecks, UserPlus, Trash2, Sparkles, MessageSquarePlus, MessageSquareX, Loader2, Wand2, KeyRound, LogIn } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle as PinCardTitle, CardDescription as PinCardDescription } from '@/components/ui/card'; // PIN 카드용 별칭
+import { Users, BarChart2, Lightbulb, ListChecks, UserPlus, Trash2, Sparkles, MessageSquarePlus, MessageSquareX, Loader2, Wand2, KeyRound, LogIn, Image as ImageIcon } from 'lucide-react'; // ImageIcon 추가
+import { Card, CardContent, CardHeader, CardTitle as PinCardTitle, CardDescription as PinCardDescription } from '@/components/ui/card';
 import { format } from 'date-fns';
 import { ko } from 'date-fns/locale';
 import { useToast } from "@/hooks/use-toast";
@@ -26,6 +26,7 @@ import { db } from '@/lib/firebase';
 import { 
   collection, getDocs, addDoc, deleteDoc, doc, writeBatch, query, where, setDoc, getDoc, updateDoc, arrayUnion, arrayRemove 
 } from 'firebase/firestore';
+import NextImage from 'next/image'; // next/image 임포트
 
 const formatExerciseValue = (exercise: Exercise, log: RecordedExercise): string => {
   let parts = [];
@@ -115,7 +116,22 @@ export default function TeacherPage() {
     try {
       const logsCollection = collection(db, "exerciseLogs");
       const logsSnapshot = await getDocs(logsCollection);
-      const logsList = logsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as RecordedExercise));
+      const logsList = logsSnapshot.docs.map(doc => {
+        const data = doc.data();
+        // Firestore Timestamp를 "yyyy-MM-dd" 문자열로 변환
+        let dateStr = data.date;
+        if (data.date && typeof data.date.toDate === 'function') {
+          dateStr = format(data.date.toDate(), "yyyy-MM-dd");
+        } else if (typeof data.date === 'string' && data.date.includes('T')) { // ISO 문자열 형식인 경우
+           dateStr = data.date.split('T')[0];
+        }
+        // 다른 필드도 가져와서 RecordedExercise 타입으로 맞춤
+        return { 
+          id: doc.id, 
+          ...data, 
+          date: dateStr // 변환된 날짜 문자열 사용
+        } as RecordedExercise;
+      });
       setRecordedExercises(logsList);
     } catch (error) {
       console.error("Error fetching logs: ", error);
@@ -124,6 +140,7 @@ export default function TeacherPage() {
       setIsLoadingLogs(false);
     }
   }, [toast]);
+
 
   const fetchCompliments = useCallback(async () => {
     setIsLoadingCompliments(true);
@@ -527,11 +544,27 @@ export default function TeacherPage() {
                         const formattedValue = formatExerciseValue(exerciseInfo, log);
                         return (
                           <div key={log.id} className="p-3 bg-secondary/30 rounded-lg shadow-sm text-sm">
-                            <p><strong>{student?.name || '알 수 없는 학생'}</strong> ({log.className} {student?.studentNumber}번)</p>
-                            <p>{exerciseInfo?.koreanName || '알 수 없는 운동'}: {formattedValue}</p>
-                            <p className="text-xs text-muted-foreground">
-                              날짜: {format(new Date(log.date), "PPP", { locale: ko })}
-                            </p>
+                            <div className="flex justify-between items-start">
+                                <div>
+                                    <p><strong>{student?.name || '알 수 없는 학생'}</strong> ({log.className} {student?.studentNumber}번)</p>
+                                    <p>{exerciseInfo?.koreanName || '알 수 없는 운동'}: {formattedValue}</p>
+                                    <p className="text-xs text-muted-foreground">
+                                    날짜: {format(new Date(log.date), "PPP", { locale: ko })}
+                                    </p>
+                                </div>
+                                {log.imageUrl && (
+                                    <a href={log.imageUrl} target="_blank" rel="noopener noreferrer" className="ml-4 shrink-0">
+                                        <NextImage 
+                                            src={log.imageUrl} 
+                                            alt={`${student?.name || '학생'} 인증샷`} 
+                                            width={64} 
+                                            height={64} 
+                                            className="rounded-md object-cover border"
+                                            onError={(e) => e.currentTarget.style.display = 'none'} // 이미지 로드 실패 시 숨김
+                                        />
+                                    </a>
+                                )}
+                            </div>
                           </div>
                         );
                     })}

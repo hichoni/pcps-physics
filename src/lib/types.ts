@@ -53,6 +53,7 @@ export interface RecordedExercise {
   distanceValue?: number; 
   
   className: ClassName;
+  imageUrl?: string; // 인증샷 이미지 URL 필드 추가
 }
 
 export interface AiSuggestion {
