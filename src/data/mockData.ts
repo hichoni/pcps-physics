@@ -1,5 +1,5 @@
 import type { Student, Exercise, ClassName } from '@/lib/types';
-import { Run } from 'lucide-react';
+import { Footprints } from 'lucide-react'; // Changed from Run
 import { PushUpIcon, SitUpIcon, JumpingJacksIcon, StretchingIcon } from '@/components/icons';
 
 export const CLASSES: ClassName[] = ['Class 3A', 'Class 3B', 'Class 3C', 'Class 3D', 'Class 3E'];
@@ -23,7 +23,7 @@ export const STUDENTS_DATA: Student[] = [
 ];
 
 export const EXERCISES: Exercise[] = [
-  { id: 'ex1', name: 'Running', icon: Run, unit: 'minutes', defaultLogValue: 2, step: 1, dataAiHint: 'children running' },
+  { id: 'ex1', name: 'Running', icon: Footprints, unit: 'minutes', defaultLogValue: 2, step: 1, dataAiHint: 'children running' }, // Changed from Run
   { id: 'ex2', name: 'Push-ups', icon: PushUpIcon, unit: 'reps', defaultLogValue: 5, step: 1, dataAiHint: 'child pushup' },
   { id: 'ex3', name: 'Sit-ups', icon: SitUpIcon, unit: 'reps', defaultLogValue: 10, step: 1, dataAiHint: 'child situp' },
   { id: 'ex4', name: 'Jumping Jacks', icon: JumpingJacksIcon, unit: 'reps', defaultLogValue: 15, step: 5, dataAiHint: 'child jumping' },

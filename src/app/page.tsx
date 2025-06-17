@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
@@ -8,7 +9,7 @@ import ExerciseLogForm from '@/components/ExerciseLogForm';
 import ExerciseSummaryChart from '@/components/ExerciseSummaryChart';
 import AiSuggestionBox from '@/components/AiSuggestionBox';
 import type { Student, ClassName, RecordedExercise } from '@/lib/types';
-import { STUDENTS_DATA, CLASSES } from '@/data/mockData';
+import { STUDENTS_DATA, CLASSES, EXERCISES } from '@/data/mockData'; // EXERCISES를 가져옵니다.
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Users, BarChart2, Lightbulb, ListChecks } from 'lucide-react';
 
@@ -128,7 +129,6 @@ export default function Home() {
                       .slice(0, 20) // Show recent 20 logs for the selected class
                       .map(log => {
                         const student = STUDENTS_DATA.find(s => s.id === log.studentId);
-                        const exercise = STUDENTS_DATA.find(e => e.id === log.exerciseId); // This seems to be a typo, should be EXERCISES.find
                         const exerciseInfo = EXERCISES.find(ex => ex.id === log.exerciseId);
                         return (
                           <div key={log.id} className="p-3 bg-secondary/30 rounded-lg shadow-sm text-sm">
