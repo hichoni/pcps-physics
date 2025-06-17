@@ -285,7 +285,7 @@ export default function StudentPage() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <Card className="shadow-md hover:shadow-lg transition-shadow rounded-xl">
+          <Card className="shadow-md hover:shadow-lg transition-shadow rounded-xl lg:col-span-2">
             <CardHeader>
               <CardTitle className="flex items-center font-headline text-xl">
                 <Dumbbell className="mr-3 h-7 w-7 text-primary" />
@@ -313,7 +313,7 @@ export default function StudentPage() {
             </CardContent>
           </Card>
 
-          <Card className="shadow-md hover:shadow-lg transition-shadow rounded-xl">
+          <Card className="shadow-md hover:shadow-lg transition-shadow rounded-xl md:col-span-2 lg:col-span-3">
             <CardHeader>
               <CardTitle className="flex items-center font-headline text-xl">
                 <History className="mr-3 h-7 w-7 text-destructive" />
@@ -323,12 +323,10 @@ export default function StudentPage() {
             </CardHeader>
             <CardContent className="space-y-3">
               {studentActivityLogs.length === 0 ? (
-                <div className="text-center p-4">
-                  <p className="text-muted-foreground">최근에 운동을 하지 않았네요! 어서 운동을 시작해요~</p>
-                </div>
+                <p className="text-muted-foreground text-center p-4">아직 운동을 하지 않았네요.</p>
               ) : (
-                <div className="flex items-center justify-center h-40 bg-secondary/20 rounded-lg p-4 text-center">
-                  <Image src="https://placehold.co/300x200.png" alt="활동 내역 이미지" width={300} height={200} className="rounded-md object-cover" data-ai-hint="activity log chart" />
+                <div className="text-center p-4">
+                  <p className="text-foreground font-semibold">운동 기록 있음 (데이터 표시 영역)</p>
                 </div>
               )}
               <Button variant="outline" className="w-full rounded-lg" disabled={studentActivityLogs.length === 0}>활동 내역 보기</Button>
@@ -352,5 +350,6 @@ export default function StudentPage() {
     </div>
   );
 }
+    
 
     
