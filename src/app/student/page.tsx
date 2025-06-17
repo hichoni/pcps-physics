@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dumbbell, Target, History, PlusCircle, LogOut, UserCheck, Loader2, AlertTriangle } from 'lucide-react';
 import Image from 'next/image';
-import type { Student, ClassName, Exercise, StudentGoal, ExerciseGoal, RecordedExercise } from '@/lib/types';
+import type { Student, ClassName, Exercise, StudentGoal, ExerciseGoal, RecordedExercise, Gender } from '@/lib/types';
 import { STUDENTS_DATA, CLASSES, EXERCISES } from '@/data/mockData';
 import SetStudentGoalsDialog from '@/components/SetStudentGoalsDialog';
 import { useToast } from "@/hooks/use-toast";
@@ -220,7 +220,10 @@ export default function StudentPage() {
 
   return (
     <div className="flex flex-col min-h-screen">
-      <StudentHeader studentName={`${currentStudent.name} (${currentStudent.class} ${currentStudent.studentNumber}번)`} />
+      <StudentHeader 
+        studentNameBase={`${currentStudent.name} (${currentStudent.class} ${currentStudent.studentNumber}번)`} 
+        gender={currentStudent.gender}
+      />
       <main className="flex-grow container mx-auto p-4 sm:p-6 lg:p-8 space-y-8">
         
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 items-stretch">
@@ -285,7 +288,7 @@ export default function StudentPage() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <Card className="shadow-md hover:shadow-lg transition-shadow rounded-xl lg:col-span-1">
+          <Card className="shadow-md hover:shadow-lg transition-shadow rounded-xl">
             <CardHeader>
               <CardTitle className="flex items-center font-headline text-xl">
                 <Dumbbell className="mr-3 h-7 w-7 text-primary" />
@@ -313,7 +316,7 @@ export default function StudentPage() {
             </CardContent>
           </Card>
 
-          <Card className="shadow-md hover:shadow-lg transition-shadow rounded-xl lg:col-span-1">
+          <Card className="shadow-md hover:shadow-lg transition-shadow rounded-xl">
             <CardHeader>
               <CardTitle className="flex items-center font-headline text-xl">
                 <History className="mr-3 h-7 w-7 text-destructive" />
@@ -322,12 +325,12 @@ export default function StudentPage() {
               <CardDescription>최근 운동 기록을 살펴봐요.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
-              {studentActivityLogs.length === 0 ? (
-                <div className="text-center p-4">
+               {studentActivityLogs.length === 0 ? (
+                <div className="text-center py-4">
                   <p className="text-muted-foreground">아직 운동을 하지 않았네요.</p>
                 </div>
               ) : (
-                <div className="text-center p-4">
+                <div className="text-center py-4">
                   <p className="text-foreground font-semibold">운동 기록 있음 (데이터 표시 영역)</p>
                 </div>
               )}
