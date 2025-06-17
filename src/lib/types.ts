@@ -26,7 +26,7 @@ export interface Exercise {
   countUnit?: string; // e.g., '회'
   defaultCount?: number;
   countStep?: number;
-  timeUnit?: string; // e.g., '분'
+  timeUnit?: string; // e.g., '분' or '초'
   defaultTime?: number;
   timeStep?: number;
 
@@ -48,7 +48,7 @@ export interface RecordedExercise {
   date: string; // ISO string YYYY-MM-DD
   
   countValue?: number;    
-  timeValue?: number;     // 단위: 분
+  timeValue?: number;     // 단위: 운동에 따라 분 또는 초
   
   stepsValue?: number;    
   distanceValue?: number; // 단위: m
@@ -72,9 +72,15 @@ export interface DailyLog {
 // 학생별 운동 목표 타입
 export interface ExerciseGoal {
   count?: number; // 목표 횟수
-  time?: number; // 목표 시간 (분)
+  time?: number; // 목표 시간 (운동 단위에 따라 분 또는 초)
   steps?: number; // 목표 걸음 수
   distance?: number; // 목표 거리 (m)
 }
 
 export type StudentGoal = Record<string, ExerciseGoal>; // exerciseId를 키로 가짐
+
+// 교사가 직접 관리하는 추천 운동/팁 타입 (RecommendStudentExerciseOutput과 동일 구조)
+export interface TeacherExerciseRecommendation {
+  recommendationTitle: string;
+  recommendationDetail: string;
+}

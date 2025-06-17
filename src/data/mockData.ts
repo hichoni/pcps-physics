@@ -25,11 +25,11 @@ export const EXERCISES: Exercise[] = [
     icon: PlankIcon, 
     category: 'count_time',
     countUnit: '회', 
-    defaultCount: 3, 
+    defaultCount: 1, // 1세트 의미
     countStep: 1,
-    timeUnit: '분', 
-    defaultTime: 0.5, 
-    timeStep: 0.5, 
+    timeUnit: '초', // '분'에서 '초'로 변경
+    defaultTime: 30, // 0.5분 -> 30초
+    timeStep: 1, // 0.5 -> 1초 단위
     dataAiHint: 'child plank'
   },
   { 
@@ -59,3 +59,4 @@ export const EXERCISES: Exercise[] = [
     dataAiHint: 'child jump rope'
   },
 ];
+

@@ -5,17 +5,17 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import Header from '@/components/Header';
 import ClassSelector from '@/components/ClassSelector';
 import StudentCard from '@/components/StudentCard';
-// ExerciseLogForm is removed as logging is now done by students
 import ExerciseSummaryChart from '@/components/ExerciseSummaryChart';
 import AiSuggestionBox from '@/components/AiSuggestionBox';
 import AddStudentDialog from '@/components/AddStudentDialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import type { Student, ClassName, RecordedExercise, Exercise, Gender } from '@/lib/types';
+import type { Student, ClassName, RecordedExercise, Exercise, Gender, TeacherExerciseRecommendation } from '@/lib/types';
 import { EXERCISES } from '@/data/mockData';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Users, BarChart2, Lightbulb, ListChecks, UserPlus, Trash2, Sparkles, MessageSquarePlus, MessageSquareX, Loader2 } from 'lucide-react';
+import { Textarea } from "@/components/ui/textarea";
+import { Users, BarChart2, Lightbulb, ListChecks, UserPlus, Trash2, Sparkles, MessageSquarePlus, MessageSquareX, Loader2, Wand2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ko } from 'date-fns/locale';
 import { useToast } from "@/hooks/use-toast";
@@ -27,11 +27,11 @@ import {
 const formatExerciseValue = (exercise: Exercise, log: RecordedExercise): string => {
   let parts = [];
   if (exercise.category === 'count_time') {
-    if (log.countValue !== undefined) parts.push(`${log.countValue}${exercise.countUnit}`);
-    if (log.timeValue !== undefined) parts.push(`${log.timeValue}${exercise.timeUnit}`);
+    if (log.countValue !== undefined && exercise.countUnit) parts.push(`${log.countValue}${exercise.countUnit}`);
+    if (log.timeValue !== undefined && exercise.timeUnit) parts.push(`${log.timeValue}${exercise.timeUnit}`);
   } else if (exercise.category === 'steps_distance') {
-    if (log.stepsValue !== undefined) parts.push(`${log.stepsValue}${exercise.stepsUnit}`);
-    if (log.distanceValue !== undefined) parts.push(`${log.distanceValue}${exercise.distanceUnit}`);
+    if (log.stepsValue !== undefined && exercise.stepsUnit) parts.push(`${log.stepsValue}${exercise.stepsUnit}`);
+    if (log.distanceValue !== undefined && exercise.distanceUnit) parts.push(`${log.distanceValue}${exercise.distanceUnit}`);
   }
   return parts.join(', ');
 };
@@ -44,6 +44,8 @@ const DEFAULT_COMPLIMENTS = [
 ];
 
 const COMPLIMENTS_DOC_PATH = "appConfig/complimentsDoc";
+const RECOMMENDATIONS_DOC_PATH = "appConfig/exerciseRecommendationsDoc";
+
 
 export default function Home() {
   const [selectedClass, setSelectedClass] = useState<ClassName | undefined>(undefined);
@@ -53,20 +55,23 @@ export default function Home() {
   const [dynamicClasses, setDynamicClasses] = useState<ClassName[]>([]);
   const [recordedExercises, setRecordedExercises] = useState<RecordedExercise[]>([]);
   const [compliments, setCompliments] = useState<string[]>(DEFAULT_COMPLIMENTS);
+  const [exerciseRecommendations, setExerciseRecommendations] = useState<TeacherExerciseRecommendation[]>([]);
 
   const [isLoadingStudents, setIsLoadingStudents] = useState(true);
   const [isLoadingLogs, setIsLoadingLogs] = useState(true);
   const [isLoadingCompliments, setIsLoadingCompliments] = useState(true);
+  const [isLoadingRecommendations, setIsLoadingRecommendations] = useState(true);
 
   const [studentsInClass, setStudentsInClass] = useState<Student[]>([]);
-  // Exercise logging related states are removed from teacher's page
-  // const [selectedStudentForLog, setSelectedStudentForLog] = useState<Student | null>(null);
-  // const [isLogFormOpen, setIsLogFormOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<string>("students");
   const [isAddStudentDialogOpen, setIsAddStudentDialogOpen] = useState(false);
   const [studentToDelete, setStudentToDelete] = useState<Student | null>(null);
   const [isConfirmDeleteDialogOpen, setIsConfirmDeleteDialogOpen] = useState(false);
+  
   const [newCompliment, setNewCompliment] = useState<string>('');
+  const [newRecommendationTitle, setNewRecommendationTitle] = useState<string>('');
+  const [newRecommendationDetail, setNewRecommendationDetail] = useState<string>('');
+
 
   const fetchStudents = useCallback(async () => {
     setIsLoadingStudents(true);
@@ -110,7 +115,10 @@ export default function Home() {
         setCompliments(complimentsDocSnap.data().list);
       } else {
         setCompliments(DEFAULT_COMPLIMENTS);
-        await setDoc(complimentsDocRef, { list: DEFAULT_COMPLIMENTS });
+        // Only set if it doesn't exist, to avoid overwriting if it's just empty
+        if (!complimentsDocSnap.exists()) {
+            await setDoc(complimentsDocRef, { list: DEFAULT_COMPLIMENTS });
+        }
       }
     } catch (error) {
       console.error("Error fetching compliments: ", error);
@@ -121,11 +129,36 @@ export default function Home() {
     }
   }, [toast]);
 
+  const fetchExerciseRecommendations = useCallback(async () => {
+    setIsLoadingRecommendations(true);
+    try {
+      const recommendationsDocRef = doc(db, RECOMMENDATIONS_DOC_PATH);
+      const recommendationsDocSnap = await getDoc(recommendationsDocRef);
+      if (recommendationsDocSnap.exists() && recommendationsDocSnap.data().list) {
+        setExerciseRecommendations(recommendationsDocSnap.data().list);
+      } else {
+        setExerciseRecommendations([]); // Start with empty if not found
+        // Optionally create with a default if it doesn't exist at all
+        if (!recommendationsDocSnap.exists()) {
+             await setDoc(recommendationsDocRef, { list: [] });
+        }
+      }
+    } catch (error) {
+      console.error("Error fetching exercise recommendations: ", error);
+      toast({ title: "오류", description: "추천 운동/팁 목록을 불러오는 데 실패했습니다.", variant: "destructive"});
+      setExerciseRecommendations([]);
+    } finally {
+      setIsLoadingRecommendations(false);
+    }
+  }, [toast]);
+
+
   useEffect(() => {
     fetchStudents();
     fetchLogs();
     fetchCompliments();
-  }, [fetchStudents, fetchLogs, fetchCompliments]);
+    fetchExerciseRecommendations();
+  }, [fetchStudents, fetchLogs, fetchCompliments, fetchExerciseRecommendations]);
 
   useEffect(() => {
     if (selectedClass) {
@@ -146,28 +179,6 @@ export default function Home() {
       setSelectedClass(className as ClassName);
     }
   };
-
-  // Exercise logging functions are removed from teacher's page
-  // const handleOpenLogForm = (student: Student) => {
-  //   setSelectedStudentForLog(student);
-  //   setIsLogFormOpen(true);
-  // };
-
-  // const handleCloseLogForm = () => {
-  //   setIsLogFormOpen(false);
-  //   setSelectedStudentForLog(null);
-  // };
-
-  // const handleSaveExerciseLog = async (logData: Omit<RecordedExercise, 'id'>) => {
-  //   try {
-  //     const docRef = await addDoc(collection(db, "exerciseLogs"), logData);
-  //     setRecordedExercises(prev => [...prev, { ...logData, id: docRef.id }]);
-  //     toast({ title: "성공", description: "운동 기록이 저장되었습니다." });
-  //   } catch (error) {
-  //     console.error("Error saving exercise log: ", error);
-  //     toast({ title: "오류", description: "운동 기록 저장에 실패했습니다.", variant: "destructive"});
-  //   }
-  // };
 
   const handleAddStudent = async (newStudentData: { name: string; class: string; studentNumber: number; gender: Gender }) => {
     try {
@@ -253,10 +264,10 @@ export default function Home() {
       const complimentsDocRef = doc(db, COMPLIMENTS_DOC_PATH);
       const currentDoc = await getDoc(complimentsDocRef);
       if (!currentDoc.exists()) {
-         await setDoc(complimentsDocRef, { list: [newCompliment.trim()] });
-         setCompliments([newCompliment.trim()]);
+         await setDoc(complimentsDocRef, { list: [newCompliment.trim(), ...DEFAULT_COMPLIMENTS.filter(c => c !== newCompliment.trim())] });
+         setCompliments([newCompliment.trim(), ...DEFAULT_COMPLIMENTS.filter(c => c !== newCompliment.trim())]);
          setNewCompliment('');
-         toast({ title: "성공", description: "칭찬 문구가 추가되었습니다."});
+         toast({ title: "성공", description: "칭찬 문구가 추가되었습니다 (새 목록 생성)."});
       } else {
         toast({ title: "오류", description: "칭찬 문구 추가에 실패했습니다.", variant: "destructive"});
       }
@@ -277,13 +288,66 @@ export default function Home() {
     }
   };
 
+  const handleAddExerciseRecommendation = async () => {
+    const title = newRecommendationTitle.trim();
+    const detail = newRecommendationDetail.trim();
+    if (title === '' || detail === '') {
+      toast({ title: "오류", description: "추천 운동/팁의 제목과 내용을 모두 입력해주세요.", variant: "destructive"});
+      return;
+    }
+    if (exerciseRecommendations.some(rec => rec.recommendationTitle === title)) {
+      toast({ title: "오류", description: "이미 목록에 있는 추천 제목입니다.", variant: "destructive"});
+      return;
+    }
+    const newRecommendation: TeacherExerciseRecommendation = { recommendationTitle: title, recommendationDetail: detail };
+    try {
+      const recommendationsDocRef = doc(db, RECOMMENDATIONS_DOC_PATH);
+      await updateDoc(recommendationsDocRef, {
+        list: arrayUnion(newRecommendation)
+      });
+      setExerciseRecommendations(prev => [...prev, newRecommendation]);
+      setNewRecommendationTitle('');
+      setNewRecommendationDetail('');
+      toast({ title: "성공", description: "추천 운동/팁이 추가되었습니다."});
+    } catch (error) {
+        console.error("Error adding exercise recommendation: ", error);
+        const recommendationsDocRef = doc(db, RECOMMENDATIONS_DOC_PATH);
+        const currentDoc = await getDoc(recommendationsDocRef);
+        if (!currentDoc.exists()) {
+            await setDoc(recommendationsDocRef, { list: [newRecommendation] });
+            setExerciseRecommendations([newRecommendation]);
+            setNewRecommendationTitle('');
+            setNewRecommendationDetail('');
+            toast({ title: "성공", description: "추천 운동/팁이 추가되었습니다 (새 목록 생성)."});
+        } else {
+            toast({ title: "오류", description: "추천 운동/팁 추가에 실패했습니다.", variant: "destructive"});
+        }
+    }
+  };
+
+  const handleDeleteExerciseRecommendation = async (recommendationToDelete: TeacherExerciseRecommendation) => {
+    try {
+      const recommendationsDocRef = doc(db, RECOMMENDATIONS_DOC_PATH);
+      // Firestore arrayRemove works with the entire object for comparison
+      await updateDoc(recommendationsDocRef, {
+        list: arrayRemove(recommendationToDelete)
+      });
+      setExerciseRecommendations(prev => prev.filter(rec => rec.recommendationTitle !== recommendationToDelete.recommendationTitle || rec.recommendationDetail !== recommendationToDelete.recommendationDetail));
+      toast({ title: "성공", description: "추천 운동/팁이 삭제되었습니다."});
+    } catch (error) {
+      console.error("Error deleting exercise recommendation: ", error);
+      toast({ title: "오류", description: "추천 운동/팁 삭제에 실패했습니다.", variant: "destructive"});
+    }
+  };
+
+
   const memoizedExerciseSummaryChart = useMemo(() => (
     <ExerciseSummaryChart recordedExercises={recordedExercises} students={students} />
   ), [recordedExercises, students]);
 
   const memoizedAiSuggestionBox = useMemo(() => <AiSuggestionBox recordedExercises={recordedExercises} />, [recordedExercises]);
 
-  const isLoading = isLoadingStudents || isLoadingLogs || isLoadingCompliments;
+  const isLoading = isLoadingStudents || isLoadingLogs || isLoadingCompliments || isLoadingRecommendations;
 
   if (isLoading) {
     return (
@@ -312,7 +376,7 @@ export default function Home() {
         </section>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-2 sm:grid-cols-5 h-auto rounded-lg p-1.5">
+          <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 h-auto rounded-lg p-1.5">
             <TabsTrigger value="students" className="py-3 text-base data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-md">
               <Users className="mr-2 h-5 w-5" /> 학생 목록
             </TabsTrigger>
@@ -327,6 +391,9 @@ export default function Home() {
             </TabsTrigger>
             <TabsTrigger value="compliments" className="py-3 text-base data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-md">
               <Sparkles className="mr-2 h-5 w-5" /> 칭찬 문구
+            </TabsTrigger>
+            <TabsTrigger value="recommendations" className="py-3 text-base data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-md">
+              <Wand2 className="mr-2 h-5 w-5" /> 추천 관리
             </TabsTrigger>
           </TabsList>
 
@@ -360,7 +427,6 @@ export default function Home() {
                     <StudentCard 
                       key={student.id} 
                       student={student} 
-                      // onLogExercise prop is removed
                       onDeleteStudent={() => requestDeleteStudent(student)}
                       recordedExercises={recordedExercises}
                     />
@@ -434,7 +500,7 @@ export default function Home() {
                     <MessageSquarePlus className="mr-2 h-5 w-5" /> 추가
                   </Button>
                 </div>
-                {isLoadingCompliments && <Loader2 className="mx-auto h-6 w-6 animate-spin text-primary" />}
+                {isLoadingCompliments && <div className="flex justify-center py-4"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>}
                 {!isLoadingCompliments && compliments.length > 0 ? (
                   <div className="space-y-2 max-h-[300px] overflow-y-auto border p-3 rounded-lg bg-secondary/20">
                     {compliments.map((phrase, index) => (
@@ -463,18 +529,76 @@ export default function Home() {
               </div>
             </section>
           </TabsContent>
-        </Tabs>
 
-        {/* ExerciseLogForm is removed from teacher's page */}
-        {/* {selectedStudentForLog && (
-          <ExerciseLogForm
-            student={selectedStudentForLog}
-            isOpen={isLogFormOpen}
-            onClose={handleCloseLogForm}
-            onSave={handleSaveExerciseLog}
-            recordedExercises={recordedExercises}
-          />
-        )} */}
+          <TabsContent value="recommendations" className="mt-6">
+            <section aria-labelledby="recommendations-management-heading" className="bg-card p-6 rounded-xl shadow-md">
+              <h2 id="recommendations-management-heading" className="text-xl font-semibold mb-6 font-headline flex items-center">
+                <Wand2 className="mr-2 h-6 w-6 text-primary" />
+                추천 운동/팁 관리
+              </h2>
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="recommendationTitleInput" className="text-base">제목</Label>
+                  <Input 
+                    id="recommendationTitleInput"
+                    type="text"
+                    value={newRecommendationTitle}
+                    onChange={(e) => setNewRecommendationTitle(e.target.value)}
+                    placeholder="예: 신나는 제자리 뛰기"
+                    className="rounded-lg text-base py-3"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="recommendationDetailInput" className="text-base">내용</Label>
+                  <Textarea
+                    id="recommendationDetailInput"
+                    value={newRecommendationDetail}
+                    onChange={(e) => setNewRecommendationDetail(e.target.value)}
+                    placeholder="예: 무릎을 살짝 구부렸다가 힘껏 점프! 착지는 사뿐히."
+                    className="rounded-lg text-base py-3 min-h-[80px]"
+                    rows={3}
+                  />
+                </div>
+                <Button onClick={handleAddExerciseRecommendation} className="rounded-lg py-3 w-full sm:w-auto">
+                  <MessageSquarePlus className="mr-2 h-5 w-5" /> 추천 추가
+                </Button>
+                
+                {isLoadingRecommendations && <div className="flex justify-center py-4"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>}
+                {!isLoadingRecommendations && exerciseRecommendations.length > 0 ? (
+                  <div className="space-y-3 max-h-[400px] overflow-y-auto border p-3 rounded-lg bg-secondary/20">
+                    {exerciseRecommendations.map((rec, index) => (
+                      <div key={index} className="p-3 bg-background rounded-md shadow-sm">
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <h4 className="font-semibold text-primary">{rec.recommendationTitle}</h4>
+                            <p className="text-sm text-muted-foreground mt-1">{rec.recommendationDetail}</p>
+                          </div>
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            onClick={() => handleDeleteExerciseRecommendation(rec)}
+                            className="text-destructive hover:text-destructive/80 ml-2 shrink-0"
+                            aria-label={`${rec.recommendationTitle} 삭제`}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                 !isLoadingRecommendations && <p className="text-sm text-muted-foreground text-center py-4">
+                    아직 추가된 추천 운동/팁이 없습니다. 위에서 추가해보세요!
+                  </p>
+                )}
+                 <p className="text-xs text-muted-foreground">
+                  학생용 앱 '오늘의 추천 운동/팁'에 표시될 목록입니다. 목록에 내용이 있으면 여기서 임의로 선택되어 학생에게 보여집니다. 비어있으면 AI가 생성합니다.
+                </p>
+              </div>
+            </section>
+          </TabsContent>
+
+        </Tabs>
 
         <AddStudentDialog
           isOpen={isAddStudentDialogOpen}
@@ -507,5 +631,3 @@ export default function Home() {
     </div>
   );
 }
-
-    

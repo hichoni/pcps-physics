@@ -1,3 +1,4 @@
+
 import type React from 'react';
 import { useState, useEffect } from 'react';
 import type { Student, Exercise, RecordedExercise, ClassName } from '@/lib/types';
@@ -47,9 +48,9 @@ const ExerciseLogForm: React.FC<ExerciseLogFormProps> = ({ student, isOpen, onCl
         setStepsLogValue(currentEx.defaultSteps ?? 0);
         setDistanceLogValue(currentEx.defaultDistance ?? 0);
       }
-      setLogDate(new Date());
+      setLogDate(new Date()); // Reset to today when opening
     }
-  }, [student, isOpen, selectedExerciseId]); // Added selectedExerciseId dependency
+  }, [student, isOpen, selectedExerciseId]);
 
   useEffect(() => {
     // Reset values when selected exercise changes
@@ -90,7 +91,7 @@ const ExerciseLogForm: React.FC<ExerciseLogFormProps> = ({ student, isOpen, onCl
 
   if (!student) return null;
 
-  const todayStr = format(new Date(), "yyyy-MM-dd");
+  const todayStr = format(logDate, "yyyy-MM-dd"); // Use logDate for today's comparison
   const exercisesLoggedTodayForStudent = recordedExercises.filter(
     rec => rec.studentId === student.id && rec.date === todayStr && rec.exerciseId === selectedExercise.id
   );
@@ -100,13 +101,23 @@ const ExerciseLogForm: React.FC<ExerciseLogFormProps> = ({ student, isOpen, onCl
     const totalCount = exercisesLoggedTodayForStudent.reduce((sum, rec) => sum + (rec.countValue || 0), 0);
     const totalTime = exercisesLoggedTodayForStudent.reduce((sum, rec) => sum + (rec.timeValue || 0), 0);
     if (totalCount > 0 || totalTime > 0) {
-      totalLoggedTodayDisplay = `오늘 총 ${selectedExercise.koreanName} 기록: ${totalCount}${selectedExercise.countUnit || ''}, ${totalTime}${selectedExercise.timeUnit || ''}`;
+      let displayParts = [];
+      if (selectedExercise.countUnit && totalCount > 0) displayParts.push(`${totalCount}${selectedExercise.countUnit}`);
+      if (selectedExercise.timeUnit && totalTime > 0) displayParts.push(`${totalTime}${selectedExercise.timeUnit}`);
+      if (displayParts.length > 0) {
+        totalLoggedTodayDisplay = `오늘 총 ${selectedExercise.koreanName} 기록: ${displayParts.join(', ')}`;
+      }
     }
   } else if (selectedExercise.category === 'steps_distance') {
     const totalSteps = exercisesLoggedTodayForStudent.reduce((sum, rec) => sum + (rec.stepsValue || 0), 0);
     const totalDistance = exercisesLoggedTodayForStudent.reduce((sum, rec) => sum + (rec.distanceValue || 0), 0);
-     if (totalSteps > 0 || totalDistance > 0) {
-      totalLoggedTodayDisplay = `오늘 총 ${selectedExercise.koreanName} 기록: ${totalSteps}${selectedExercise.stepsUnit || ''}, ${totalDistance}${selectedExercise.distanceUnit || ''}`;
+    if (totalSteps > 0 || totalDistance > 0) {
+      let displayParts = [];
+      if (selectedExercise.stepsUnit && totalSteps > 0) displayParts.push(`${totalSteps}${selectedExercise.stepsUnit}`);
+      if (selectedExercise.distanceUnit && totalDistance > 0) displayParts.push(`${totalDistance}${selectedExercise.distanceUnit}`);
+      if (displayParts.length > 0) {
+        totalLoggedTodayDisplay = `오늘 총 ${selectedExercise.koreanName} 기록: ${displayParts.join(', ')}`;
+      }
     }
   }
 
@@ -141,67 +152,75 @@ const ExerciseLogForm: React.FC<ExerciseLogFormProps> = ({ student, isOpen, onCl
 
           {selectedExercise.category === 'count_time' && (
             <>
-              <div>
-                <label className="text-sm font-medium block mb-2">
-                  {selectedExercise.koreanName} ({selectedExercise.countUnit})
-                </label>
-                <div className="flex items-center justify-center space-x-4 bg-secondary/30 p-4 rounded-lg">
-                  <Button variant="ghost" size="icon" onClick={() => setCountLogValue(Math.max(selectedExercise.countStep ?? 0, countLogValue - (selectedExercise.countStep ?? 1)))} aria-label="횟수 감소">
-                    <MinusCircle className="h-8 w-8 text-primary" />
-                  </Button>
-                  <span className="text-4xl font-bold w-20 text-center">{countLogValue}</span>
-                  <Button variant="ghost" size="icon" onClick={() => setCountLogValue(countLogValue + (selectedExercise.countStep ?? 1))} aria-label="횟수 증가">
-                    <PlusCircle className="h-8 w-8 text-primary" />
-                  </Button>
+              {selectedExercise.countUnit && (
+                <div>
+                  <label className="text-sm font-medium block mb-2">
+                    {selectedExercise.koreanName} ({selectedExercise.countUnit})
+                  </label>
+                  <div className="flex items-center justify-center space-x-4 bg-secondary/30 p-4 rounded-lg">
+                    <Button variant="ghost" size="icon" onClick={() => setCountLogValue(Math.max(0, countLogValue - (selectedExercise.countStep ?? 1)))} aria-label="횟수 감소">
+                      <MinusCircle className="h-8 w-8 text-primary" />
+                    </Button>
+                    <span className="text-4xl font-bold w-20 text-center">{countLogValue}</span>
+                    <Button variant="ghost" size="icon" onClick={() => setCountLogValue(countLogValue + (selectedExercise.countStep ?? 1))} aria-label="횟수 증가">
+                      <PlusCircle className="h-8 w-8 text-primary" />
+                    </Button>
+                  </div>
                 </div>
-              </div>
-              <div>
-                <label className="text-sm font-medium block mb-2">
-                  {selectedExercise.koreanName} ({selectedExercise.timeUnit})
-                </label>
-                <div className="flex items-center justify-center space-x-4 bg-secondary/30 p-4 rounded-lg">
-                  <Button variant="ghost" size="icon" onClick={() => setTimeLogValue(Math.max(selectedExercise.timeStep ?? 0, timeLogValue - (selectedExercise.timeStep ?? 1)))} aria-label="시간 감소">
-                    <MinusCircle className="h-8 w-8 text-primary" />
-                  </Button>
-                  <span className="text-4xl font-bold w-20 text-center">{timeLogValue}</span>
-                  <Button variant="ghost" size="icon" onClick={() => setTimeLogValue(timeLogValue + (selectedExercise.timeStep ?? 1))} aria-label="시간 증가">
-                    <PlusCircle className="h-8 w-8 text-primary" />
-                  </Button>
+              )}
+              {selectedExercise.timeUnit && (
+                <div>
+                  <label className="text-sm font-medium block mb-2">
+                    {selectedExercise.koreanName} ({selectedExercise.timeUnit})
+                  </label>
+                  <div className="flex items-center justify-center space-x-4 bg-secondary/30 p-4 rounded-lg">
+                    <Button variant="ghost" size="icon" onClick={() => setTimeLogValue(Math.max(0, timeLogValue - (selectedExercise.timeStep ?? 1)))} aria-label="시간 감소">
+                      <MinusCircle className="h-8 w-8 text-primary" />
+                    </Button>
+                    <span className="text-4xl font-bold w-20 text-center">{timeLogValue}</span>
+                    <Button variant="ghost" size="icon" onClick={() => setTimeLogValue(timeLogValue + (selectedExercise.timeStep ?? 1))} aria-label="시간 증가">
+                      <PlusCircle className="h-8 w-8 text-primary" />
+                    </Button>
+                  </div>
                 </div>
-              </div>
+              )}
             </>
           )}
 
           {selectedExercise.category === 'steps_distance' && (
             <>
-              <div>
-                <label className="text-sm font-medium block mb-2">
-                  {selectedExercise.koreanName} ({selectedExercise.stepsUnit})
-                </label>
-                <div className="flex items-center justify-center space-x-4 bg-secondary/30 p-4 rounded-lg">
-                  <Button variant="ghost" size="icon" onClick={() => setStepsLogValue(Math.max(selectedExercise.stepsStep ?? 0, stepsLogValue - (selectedExercise.stepsStep ?? 1)))} aria-label="걸음 수 감소">
-                    <MinusCircle className="h-8 w-8 text-primary" />
-                  </Button>
-                  <span className="text-4xl font-bold w-20 text-center">{stepsLogValue}</span>
-                  <Button variant="ghost" size="icon" onClick={() => setStepsLogValue(stepsLogValue + (selectedExercise.stepsStep ?? 1))} aria-label="걸음 수 증가">
-                    <PlusCircle className="h-8 w-8 text-primary" />
-                  </Button>
+              {selectedExercise.stepsUnit && (
+                <div>
+                  <label className="text-sm font-medium block mb-2">
+                    {selectedExercise.koreanName} ({selectedExercise.stepsUnit})
+                  </label>
+                  <div className="flex items-center justify-center space-x-4 bg-secondary/30 p-4 rounded-lg">
+                    <Button variant="ghost" size="icon" onClick={() => setStepsLogValue(Math.max(0, stepsLogValue - (selectedExercise.stepsStep ?? 1)))} aria-label="걸음 수 감소">
+                      <MinusCircle className="h-8 w-8 text-primary" />
+                    </Button>
+                    <span className="text-4xl font-bold w-20 text-center">{stepsLogValue}</span>
+                    <Button variant="ghost" size="icon" onClick={() => setStepsLogValue(stepsLogValue + (selectedExercise.stepsStep ?? 1))} aria-label="걸음 수 증가">
+                      <PlusCircle className="h-8 w-8 text-primary" />
+                    </Button>
+                  </div>
                 </div>
-              </div>
-              <div>
-                <label className="text-sm font-medium block mb-2">
-                  {selectedExercise.koreanName} ({selectedExercise.distanceUnit})
-                </label>
-                <div className="flex items-center justify-center space-x-4 bg-secondary/30 p-4 rounded-lg">
-                  <Button variant="ghost" size="icon" onClick={() => setDistanceLogValue(Math.max(selectedExercise.distanceStep ?? 0, distanceLogValue - (selectedExercise.distanceStep ?? 1)))} aria-label="거리 감소">
-                    <MinusCircle className="h-8 w-8 text-primary" />
-                  </Button>
-                  <span className="text-4xl font-bold w-20 text-center">{distanceLogValue}</span>
-                  <Button variant="ghost" size="icon" onClick={() => setDistanceLogValue(distanceLogValue + (selectedExercise.distanceStep ?? 1))} aria-label="거리 증가">
-                    <PlusCircle className="h-8 w-8 text-primary" />
-                  </Button>
+              )}
+              {selectedExercise.distanceUnit && (
+                <div>
+                  <label className="text-sm font-medium block mb-2">
+                    {selectedExercise.koreanName} ({selectedExercise.distanceUnit})
+                  </label>
+                  <div className="flex items-center justify-center space-x-4 bg-secondary/30 p-4 rounded-lg">
+                    <Button variant="ghost" size="icon" onClick={() => setDistanceLogValue(Math.max(0, distanceLogValue - (selectedExercise.distanceStep ?? 1)))} aria-label="거리 감소">
+                      <MinusCircle className="h-8 w-8 text-primary" />
+                    </Button>
+                    <span className="text-4xl font-bold w-20 text-center">{distanceLogValue}</span>
+                    <Button variant="ghost" size="icon" onClick={() => setDistanceLogValue(distanceLogValue + (selectedExercise.distanceStep ?? 1))} aria-label="거리 증가">
+                      <PlusCircle className="h-8 w-8 text-primary" />
+                    </Button>
+                  </div>
                 </div>
-              </div>
+              )}
             </>
           )}
           {totalLoggedTodayDisplay && (
@@ -232,6 +251,7 @@ const ExerciseLogForm: React.FC<ExerciseLogFormProps> = ({ student, isOpen, onCl
                   onSelect={(date) => date && setLogDate(date)}
                   initialFocus
                   locale={ko}
+                  disabled={{ after: new Date() }} // Disable future dates
                 />
               </PopoverContent>
             </Popover>

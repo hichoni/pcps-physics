@@ -8,11 +8,10 @@
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
+import { db } from '@/lib/firebase';
+import { doc, getDoc } from 'firebase/firestore';
 
-// No input schema needed for a general recommendation for 3rd graders.
-// If student-specific recommendations are needed later, an input schema can be added.
-// export const RecommendStudentExerciseInputSchema = z.object({});
-// export type RecommendStudentExerciseInput = z.infer<typeof RecommendStudentExerciseInputSchema>;
+const RECOMMENDATIONS_DOC_PATH = "appConfig/exerciseRecommendationsDoc";
 
 const RecommendStudentExerciseOutputSchema = z.object({
   recommendationTitle: z.string().describe('제안된 운동의 이름 또는 팁의 제목 (예: "신나는 제자리 뛰기", "스쿼트 자세 바로잡기").'),
@@ -26,7 +25,6 @@ export async function recommendStudentExercise(): Promise<RecommendStudentExerci
 
 const prompt = ai.definePrompt({
   name: 'recommendStudentExercisePrompt',
-  // input: {schema: RecommendStudentExerciseInputSchema}, // No input for now
   output: {schema: RecommendStudentExerciseOutputSchema},
   prompt: `You are a friendly and encouraging physical education coach for 3rd-grade elementary school students in Korea.
 Your task is to provide one exercise recommendation or a helpful tip.
@@ -49,10 +47,31 @@ Example Output Structure:
 const recommendStudentExerciseFlow = ai.defineFlow(
   {
     name: 'recommendStudentExerciseFlow',
-    // inputSchema: RecommendStudentExerciseInputSchema, // No input for now
     outputSchema: RecommendStudentExerciseOutputSchema,
   },
   async () => { 
+    try {
+      const recommendationsDocRef = doc(db, RECOMMENDATIONS_DOC_PATH);
+      const recommendationsDocSnap = await getDoc(recommendationsDocRef);
+
+      if (recommendationsDocSnap.exists()) {
+        const data = recommendationsDocSnap.data();
+        if (data && data.list && Array.isArray(data.list) && data.list.length > 0) {
+          const recommendationsList: RecommendStudentExerciseOutput[] = data.list;
+          const randomIndex = Math.floor(Math.random() * recommendationsList.length);
+          // Validate the structure of the chosen recommendation
+          const chosenRecommendation = recommendationsList[randomIndex];
+          if (chosenRecommendation && typeof chosenRecommendation.recommendationTitle === 'string' && typeof chosenRecommendation.recommendationDetail === 'string') {
+            return chosenRecommendation;
+          }
+        }
+      }
+    } catch (error) {
+      console.warn("Error fetching recommendations from Firestore, falling back to AI generation:", error);
+      // Fall through to AI generation if Firestore fetch fails or data is invalid
+    }
+    
+    // Fallback to LLM generation if Firestore is empty, document doesn't exist, or chosen item is invalid
     const {output} = await prompt({}); 
     return output!;
   }
