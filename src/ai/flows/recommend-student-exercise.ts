@@ -14,7 +14,7 @@ import {z} from 'genkit';
 // export const RecommendStudentExerciseInputSchema = z.object({});
 // export type RecommendStudentExerciseInput = z.infer<typeof RecommendStudentExerciseInputSchema>;
 
-export const RecommendStudentExerciseOutputSchema = z.object({
+const RecommendStudentExerciseOutputSchema = z.object({
   recommendationTitle: z.string().describe('제안된 운동의 이름 또는 팁의 제목 (예: "신나는 제자리 뛰기", "스쿼트 자세 바로잡기").'),
   recommendationDetail: z.string().describe('운동 방법 또는 팁에 대한 자세한 설명 (한국어, 초등학교 3학년 대상).'),
 });
