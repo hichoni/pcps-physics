@@ -17,6 +17,16 @@ const LOCAL_STORAGE_STUDENT_KEY = 'studentApp_currentStudent';
 const LOCAL_STORAGE_GOALS_KEY_PREFIX = 'studentApp_goals_';
 const LOCAL_STORAGE_LOGS_KEY = 'physEdPalLogs_v2'; // Key for teacher app's logs
 
+// Moved from StudentHeader for use here
+const DEFAULT_POSITIVE_ADJECTIVES_KR = [
+  "별처럼 빛나는", "항상 긍정적인", "꿈을 향해 달리는", "세상을 밝히는",
+  "용감하고 씩씩한", "매일 성장하는", "사랑스러운", "창의적인", "지혜로운",
+  "친절한", "도전하는", "행복을 전하는", "자신감 넘치는", "에너지 넘치는",
+  "멋진", "희망찬", "빛나는", "슬기로운", "명랑한", "따뜻한 마음을 가진"
+];
+const COMPLIMENTS_STORAGE_KEY = 'physEdPalCompliments_v1';
+
+
 export default function StudentPage() {
   const [allStudents, setAllStudents] = useState<Student[]>([]);
   const [availableClasses, setAvailableClasses] = useState<ClassName[]>([]);
@@ -33,6 +43,8 @@ export default function StudentPage() {
   const [studentActivityLogs, setStudentActivityLogs] = useState<RecordedExercise[]>([]);
   const [recommendedExercise, setRecommendedExercise] = useState<RecommendStudentExerciseOutput | null>(null);
   const [isRecommendationLoading, setIsRecommendationLoading] = useState(false);
+  const [dailyCompliment, setDailyCompliment] = useState<string>('');
+
 
   const { toast } = useToast();
 
@@ -68,6 +80,26 @@ export default function StudentPage() {
       loadStudentGoals(currentStudent.id);
       loadStudentLogs(currentStudent.id);
       fetchRecommendation();
+
+      // Load and set daily compliment
+      let adjectiveList = DEFAULT_POSITIVE_ADJECTIVES_KR;
+      const savedCompliments = localStorage.getItem(COMPLIMENTS_STORAGE_KEY);
+      if (savedCompliments) {
+        try {
+          const parsedCompliments = JSON.parse(savedCompliments);
+          if (Array.isArray(parsedCompliments) && parsedCompliments.length > 0) {
+            adjectiveList = parsedCompliments;
+          }
+        } catch (e) {
+          console.error("Failed to parse compliments from localStorage:", e);
+        }
+      }
+      
+      const dayOfMonth = new Date().getDate();
+      const adjectiveIndex = (dayOfMonth - 1 + currentStudent.name.length) % adjectiveList.length;
+      const selectedAdjective = adjectiveList[adjectiveIndex] || adjectiveList[0] || ""; // Fallback
+      setDailyCompliment(selectedAdjective);
+
     } else {
       if (typeof window !== 'undefined') {
         localStorage.removeItem(LOCAL_STORAGE_STUDENT_KEY);
@@ -75,6 +107,7 @@ export default function StudentPage() {
       setStudentGoals({}); 
       setStudentActivityLogs([]);
       setRecommendedExercise(null);
+      setDailyCompliment('');
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentStudent]); 
@@ -225,21 +258,22 @@ export default function StudentPage() {
   return (
     <div className="flex flex-col min-h-screen">
       <StudentHeader 
-        studentNameBase={`${currentStudent.name} (${currentStudent.class} ${currentStudent.studentNumber}번)`} 
+        studentName={currentStudent.name} // Pass only the name
         gender={currentStudent.gender}
       />
       <main className="flex-grow container mx-auto p-4 sm:p-6 lg:p-8 space-y-8">
         
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 items-stretch">
-          <section className="lg:col-span-3 text-center bg-card p-6 sm:p-8 rounded-xl shadow-lg flex flex-col justify-center">
+          <section className="lg:col-span-3 bg-card p-6 sm:p-8 rounded-xl shadow-lg flex flex-col justify-center">
             <div>
-              <h2 className="text-2xl sm:text-3xl font-bold font-headline text-primary mb-3">
+              {dailyCompliment && <p className="text-lg sm:text-xl text-muted-foreground mb-1 text-center lg:text-left">{dailyCompliment}</p>}
+              <h2 className="text-2xl sm:text-3xl font-bold font-headline text-primary mb-3 text-center lg:text-left">
                 {currentStudent.name}님, 안녕하세요!
               </h2>
-              <p className="text-base sm:text-lg text-muted-foreground mb-6">
+              <p className="text-base sm:text-lg text-muted-foreground mb-6 text-center lg:text-left">
                 오늘도 즐겁게 운동하고 건강해져요! 어떤 활동을 계획하고 있나요?
               </p>
-              <div className="flex flex-col sm:flex-row gap-2 justify-center">
+              <div className="flex flex-col sm:flex-row gap-3 justify-center lg:justify-start">
                 <Button size="lg" className="rounded-lg py-3 px-6 text-lg flex-grow sm:flex-grow-0">
                   <PlusCircle className="mr-2 h-6 w-6" />
                   새로운 운동 기록하기
@@ -262,7 +296,7 @@ export default function StudentPage() {
             </CardHeader>
             <CardContent className="space-y-3 flex-grow flex flex-col">
               {hasEffectiveGoals ? (
-                <div className="flex items-center justify-center h-40 bg-secondary/20 rounded-lg p-2 flex-grow">
+                 <div className="flex items-center justify-center min-h-[10rem] bg-secondary/20 rounded-lg p-3 flex-grow">
                   <ul className="text-sm list-disc list-inside pl-2 text-left w-full overflow-y-auto max-h-full">
                     {EXERCISES.filter(ex => studentGoals[ex.id] && Object.values(studentGoals[ex.id]).some(v => v !== undefined && v > 0) ).map(exercise => {
                       const goal = studentGoals[exercise.id];
@@ -276,16 +310,16 @@ export default function StudentPage() {
                         if (goal?.distance) parts.push(`${goal.distance}${exercise.distanceUnit || ''}`);
                       }
                       goalText += parts.join(', ');
-                      return <li key={exercise.id} className="truncate" title={goalText}>{goalText}</li>;
+                      return <li key={exercise.id} className="truncate py-0.5" title={goalText}>{goalText}</li>;
                     })}
                   </ul>
                 </div>
               ) : (
-                <div className="flex items-center justify-center text-center py-4 flex-grow">
+                <div className="flex items-center justify-center text-center py-4 flex-grow min-h-[10rem] bg-secondary/20 rounded-lg">
                   <p className="text-muted-foreground">나의 운동 목표를 설정해봐요!</p>
                 </div>
               )}
-              <Button variant="outline" className="w-full rounded-lg mt-auto" onClick={() => setIsGoalsDialogOpen(true)}>목표 설정/확인</Button>
+              <Button variant="outline" className="w-full rounded-lg mt-auto py-3 text-base" onClick={() => setIsGoalsDialogOpen(true)}>목표 설정/확인</Button>
             </CardContent>
           </Card>
         </div>
@@ -300,7 +334,7 @@ export default function StudentPage() {
               <CardDescription>AI 코치가 추천하는 활동을 확인해보세요!</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
-              <div className="flex flex-col items-center justify-center h-40 bg-secondary/20 rounded-lg p-4 text-center overflow-y-auto">
+              <div className="flex flex-col items-center justify-center min-h-[10rem] bg-secondary/20 rounded-lg p-4 text-center overflow-y-auto">
                 {isRecommendationLoading ? (
                   <Loader2 className="h-8 w-8 animate-spin text-primary" />
                 ) : recommendedExercise ? (
@@ -329,15 +363,15 @@ export default function StudentPage() {
             </CardHeader>
             <CardContent className="space-y-3">
                {studentActivityLogs.length === 0 ? (
-                <div className="flex items-center justify-center text-center py-4 flex-grow">
+                <div className="flex items-center justify-center text-center py-4 flex-grow min-h-[10rem] bg-secondary/20 rounded-lg">
                   <p className="text-muted-foreground">오늘도 씩씩하게 운동을 시작해요 :D</p>
                 </div>
               ) : (
-                <div className="flex items-center justify-center h-40 bg-secondary/20 rounded-lg p-2 flex-grow">
+                <div className="flex items-center justify-center min-h-[10rem] bg-secondary/20 rounded-lg p-3 flex-grow">
                   <p className="text-foreground font-semibold">운동 기록 있음 (데이터 표시 영역)</p>
                 </div>
               )}
-              <Button variant="outline" className="w-full rounded-lg" disabled={studentActivityLogs.length === 0}>활동 내역 보기</Button>
+              <Button variant="outline" className="w-full rounded-lg py-3 text-base" disabled={studentActivityLogs.length === 0}>활동 내역 보기</Button>
             </CardContent>
           </Card>
         </div>
@@ -363,5 +397,6 @@ export default function StudentPage() {
     
 
     
+
 
 
