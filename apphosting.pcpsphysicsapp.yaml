@@ -1,0 +1,23 @@
+# Environment-specific settings for the 'pcpsphysicsapp' environment.
+# These values will be merged with and override apphosting.yaml for this environment.
+
+env:
+  - variable: NEXT_PUBLIC_FIREBASE_API_KEY
+    value: "YOUR_PHYSED_PAL_PROJECT_API_KEY" # 여기에 실제 "physEd Pal" 프로젝트의 API 키를 입력하세요.
+  - variable: NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
+    value: "YOUR_PHYSED_PAL_PROJECT_AUTH_DOMAIN" # 여기에 실제 "physEd Pal" 프로젝트의 Auth Domain을 입력하세요.
+  - variable: NEXT_PUBLIC_FIREBASE_PROJECT_ID
+    value: "YOUR_PHYSED_PAL_PROJECT_PROJECT_ID" # 여기에 실제 "physEd Pal" 프로젝트의 Project ID를 입력하세요.
+  - variable: NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
+    value: "YOUR_PHYSED_PAL_PROJECT_STORAGE_BUCKET" # 여기에 실제 "physEd Pal" 프로젝트의 Storage Bucket을 입력하세요.
+  - variable: NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
+    value: "YOUR_PHYSED_PAL_PROJECT_MESSAGING_SENDER_ID" # 여기에 실제 "physEd Pal" 프로젝트의 Messaging Sender ID를 입력하세요.
+  - variable: NEXT_PUBLIC_FIREBASE_APP_ID
+    value: "YOUR_PHYSED_PAL_PROJECT_APP_ID" # 여기에 실제 "physEd Pal" 프로젝트의 App ID를 입력하세요.
+  - variable: NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID
+    value: "YOUR_PHYSED_PAL_PROJECT_MEASUREMENT_ID" # (선택 사항) 여기에 실제 "physEd Pal" 프로젝트의 Measurement ID를 입력하세요.
+
+# You can also override other settings from apphosting.yaml here if needed, for example:
+# runConfig:
+#   minInstances: 1
+#   maxInstances: 5
