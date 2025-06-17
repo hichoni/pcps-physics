@@ -7,16 +7,17 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from '@/components/ui/button';
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dumbbell, Target, History, PlusCircle, LogOut, UserCheck, Loader2, AlertTriangle, KeyRound } from 'lucide-react';
+import { Dumbbell, Target, History, PlusCircle, LogOut, UserCheck, Loader2, AlertTriangle, KeyRound, Edit3 } from 'lucide-react';
 import type { Student, ClassName, Exercise, StudentGoal, RecordedExercise, Gender } from '@/lib/types';
 import { EXERCISES } from '@/data/mockData';
 import SetStudentGoalsDialog from '@/components/SetStudentGoalsDialog';
 import ExerciseLogForm from '@/components/ExerciseLogForm';
+import ChangeOwnPinDialog from '@/components/ChangeOwnPinDialog'; // 추가
 import { useToast } from "@/hooks/use-toast";
 import { recommendStudentExercise, RecommendStudentExerciseOutput } from '@/ai/flows/recommend-student-exercise';
 import { db } from '@/lib/firebase';
-import { collection, getDocs, doc, getDoc, setDoc, query, where, addDoc } from 'firebase/firestore';
-import { format } from 'date-fns'; // format import for activity log
+import { collection, getDocs, doc, getDoc, setDoc, query, where, addDoc, updateDoc } from 'firebase/firestore';
+import { format } from 'date-fns'; 
 import { ko } from 'date-fns/locale';
 
 
@@ -45,6 +46,7 @@ export default function StudentPage() {
 
   const [isGoalsDialogOpen, setIsGoalsDialogOpen] = useState(false);
   const [isLogFormOpen, setIsLogFormOpen] = useState(false);
+  const [isChangeOwnPinDialogOpen, setIsChangeOwnPinDialogOpen] = useState(false); // 추가
   const [studentGoals, setStudentGoals] = useState<StudentGoal>({});
   const [studentActivityLogs, setStudentActivityLogs] = useState<RecordedExercise[]>([]);
   const [recommendedExercise, setRecommendedExercise] = useState<RecommendStudentExerciseOutput | null>(null);
@@ -158,15 +160,15 @@ export default function StudentPage() {
       setLoginError("학생을 먼저 선택해주세요.");
       return;
     }
-    if (!studentForPinCheck.pin) {
+    if (!studentForPinCheck.pin) { // 이 경우는 교사가 PIN을 설정 안했을 때 (지금은 기본 0000이라 거의 발생 안함)
       setLoginError("PIN이 설정되지 않았습니다. 선생님께 문의하세요.");
       return;
     }
     if (enteredPin === studentForPinCheck.pin) {
       setCurrentStudent(studentForPinCheck);
       setLoginError(null);
-      setStudentForPinCheck(null);
-      setEnteredPin('');
+      setStudentForPinCheck(null); // PIN 입력 UI 숨기기 위해
+      setEnteredPin(''); // PIN 입력 필드 초기화
     } else {
       setLoginError("PIN 번호가 올바르지 않습니다. 다시 시도해주세요.");
       setEnteredPin('');
@@ -230,6 +232,21 @@ export default function StudentPage() {
     } catch (error) {
       console.error("Error saving exercise log for student: ", error);
       toast({ title: "기록 실패", description: "운동 기록 중 오류가 발생했어요. 다시 시도해주세요.", variant: "destructive" });
+    }
+  };
+
+  const handleSaveOwnNewPin = async (newPin: string) => {
+    if (currentStudent) {
+      try {
+        const studentDocRef = doc(db, "students", currentStudent.id);
+        await updateDoc(studentDocRef, { pin: newPin });
+        setCurrentStudent(prev => prev ? { ...prev, pin: newPin } : null);
+        toast({ title: "성공", description: "PIN이 성공적으로 변경되었습니다." });
+        setIsChangeOwnPinDialogOpen(false);
+      } catch (error) {
+        console.error("Error updating own PIN:", error);
+        toast({ title: "오류", description: "PIN 변경에 실패했습니다. 다시 시도해주세요.", variant: "destructive" });
+      }
     }
   };
   
@@ -363,16 +380,28 @@ export default function StudentPage() {
               <p className="text-base sm:text-lg text-muted-foreground mb-6 text-center lg:text-left">
                 오늘도 즐겁게 운동하고 건강해져요! 어떤 활동을 계획하고 있나요?
               </p>
-              <div className="flex flex-col sm:flex-row gap-3 justify-center lg:justify-start">
+              <div className="flex flex-col sm:flex-row gap-3 justify-center lg:justify-start items-center">
                 <Button size="lg" className="rounded-lg py-3 px-6 text-lg flex-grow sm:flex-grow-0" onClick={handleOpenLogForm}>
                   <PlusCircle className="mr-2 h-6 w-6" />
                   새로운 운동 기록하기
                 </Button>
+                {currentStudent.pin === "0000" && (
+                  <Button variant="outline" size="lg" className="rounded-lg py-3 px-6 text-lg border-accent text-accent hover:bg-accent/10 flex-grow sm:flex-grow-0" onClick={() => setIsChangeOwnPinDialogOpen(true)}>
+                    <Edit3 className="mr-2 h-5 w-5" />
+                    PIN 변경하기
+                  </Button>
+                )}
                 <Button variant="outline" size="lg" onClick={handleLogout} className="rounded-lg py-3 px-6 text-lg flex-grow sm:flex-grow-0">
                   <LogOut className="mr-2 h-6 w-6" />
                   다른 학생으로 로그인
                 </Button>
               </div>
+               {currentStudent.pin === "0000" && (
+                <p className="text-sm text-amber-600 dark:text-amber-400 mt-3 text-center lg:text-left">
+                  <AlertTriangle className="inline-block mr-1 h-4 w-4" />
+                  보안을 위해 초기 PIN "0000"을 변경해주세요.
+                </p>
+              )}
             </div>
           </section>
 
@@ -466,15 +495,18 @@ export default function StudentPage() {
                             if (!exerciseInfo) return null;
                             let valueDisplay = "";
                             if (exerciseInfo.category === 'count_time') {
-                                if (log.countValue) valueDisplay += `${log.countValue}${exerciseInfo.countUnit || ''} `;
-                                if (log.timeValue) valueDisplay += `${log.timeValue}${exerciseInfo.timeUnit || ''}`;
+                                if (log.countValue !== undefined && log.countValue > 0) valueDisplay += `${log.countValue}${exerciseInfo.countUnit || ''} `;
+                                if (log.timeValue !== undefined && log.timeValue > 0) valueDisplay += `${log.timeValue}${exerciseInfo.timeUnit || ''}`;
                             } else if (exerciseInfo.category === 'steps_distance') {
-                                if (log.stepsValue) valueDisplay += `${log.stepsValue}${exerciseInfo.stepsUnit || ''} `;
-                                if (log.distanceValue) valueDisplay += `${log.distanceValue}${exerciseInfo.distanceUnit || ''}`;
+                                if (log.stepsValue !== undefined && log.stepsValue > 0) valueDisplay += `${log.stepsValue}${exerciseInfo.stepsUnit || ''} `;
+                                if (log.distanceValue !== undefined && log.distanceValue > 0) valueDisplay += `${log.distanceValue}${exerciseInfo.distanceUnit || ''}`;
                             }
+                            valueDisplay = valueDisplay.trim();
+                            if (!valueDisplay) valueDisplay = "기록됨"; 
+
                             return (
                                 <div key={log.id} className="text-sm p-1.5 bg-background/50 rounded">
-                                    <span>{format(new Date(log.date), "MM/dd", { locale: ko })}: {exerciseInfo.koreanName} - {valueDisplay.trim()}</span>
+                                    <span>{format(new Date(log.date), "MM/dd", { locale: ko })}: {exerciseInfo.koreanName} - {valueDisplay}</span>
                                 </div>
                             );
                     })}
@@ -505,6 +537,14 @@ export default function StudentPage() {
           currentStudent={currentStudent}
           initialGoals={studentGoals}
         />
+
+        {currentStudent && (
+          <ChangeOwnPinDialog
+            isOpen={isChangeOwnPinDialogOpen}
+            onClose={() => setIsChangeOwnPinDialogOpen(false)}
+            onSave={handleSaveOwnNewPin}
+          />
+        )}
 
       </main>
       <footer className="text-center p-4 text-sm text-muted-foreground border-t">

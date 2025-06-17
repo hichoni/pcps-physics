@@ -4,13 +4,13 @@ import type { Student, RecordedExercise, Exercise as ExerciseType } from '@/lib/
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Activity, CheckCircle2, Trash2 } from 'lucide-react'; // UserCircle2 removed, Activity might be redundant if not logging here
+import { Activity, CheckCircle2, Trash2, KeyRound } from 'lucide-react'; 
 import { EXERCISES } from '@/data/mockData';
 
 interface StudentCardProps {
   student: Student;
-  // onLogExercise prop is removed
   onDeleteStudent: (student: Student) => void;
+  onManagePin: (student: Student) => void; // 추가
   recordedExercises: RecordedExercise[];
 }
 
@@ -26,22 +26,22 @@ const getInitials = (name: string) => {
 const formatLastExercise = (exercise: ExerciseType, log: RecordedExercise): string => {
   let parts = [];
   if (exercise.category === 'count_time') {
-    if (log.countValue !== undefined) parts.push(`${log.countValue}${exercise.countUnit}`);
-    if (log.timeValue !== undefined) parts.push(`${log.timeValue}${exercise.timeUnit}`);
+    if (log.countValue !== undefined && log.countValue > 0) parts.push(`${log.countValue}${exercise.countUnit}`);
+    if (log.timeValue !== undefined && log.timeValue > 0) parts.push(`${log.timeValue}${exercise.timeUnit}`);
   } else if (exercise.category === 'steps_distance') {
-    if (log.stepsValue !== undefined) parts.push(`${log.stepsValue}${exercise.stepsUnit}`);
-    if (log.distanceValue !== undefined) parts.push(`${log.distanceValue}${exercise.distanceUnit}`);
+    if (log.stepsValue !== undefined && log.stepsValue > 0) parts.push(`${log.stepsValue}${exercise.stepsUnit}`);
+    if (log.distanceValue !== undefined && log.distanceValue > 0) parts.push(`${log.distanceValue}${exercise.distanceUnit}`);
   }
   return parts.length > 0 ? `${exercise.koreanName}: ${parts.join(', ')}` : "운동 기록됨";
 };
 
-const StudentCard: React.FC<StudentCardProps> = ({ student, onDeleteStudent, recordedExercises }) => {
+const StudentCard: React.FC<StudentCardProps> = ({ student, onDeleteStudent, onManagePin, recordedExercises }) => {
   const placeholderAvatarUrl = `https://placehold.co/80x80.png?text=${getInitials(student.name)}&bg=87CEEB&fg=FFFFFF`;
   
   const today = new Date().toISOString().split('T')[0];
   const exercisesLoggedToday = recordedExercises
     .filter(rec => rec.studentId === student.id && rec.date === today)
-    .sort((a,b) => b.id.localeCompare(a.id)); // Assuming id is a string like Firestore ID
+    .sort((a,b) => (b.id && a.id) ? b.id.localeCompare(a.id) : 0);
 
   const getLastExerciseLogged = () => {
     if (exercisesLoggedToday.length === 0) return "오늘 기록된 운동 없음";
@@ -77,10 +77,13 @@ const StudentCard: React.FC<StudentCardProps> = ({ student, onDeleteStudent, rec
             {exercisesLoggedToday.length > 0 ? <CheckCircle2 className="h-5 w-5 text-accent" /> : <Activity className="h-5 w-5 text-muted-foreground/50" />}
             <p className="text-sm truncate" title={getLastExerciseLogged()}>{getLastExerciseLogged()}</p>
           </div>
+           <p className="text-xs text-muted-foreground mt-2">PIN: {student.pin}</p>
         </CardContent>
       </div>
-      <CardFooter className="p-4 bg-slate-50 dark:bg-slate-800/30 flex justify-end">
-        {/* Log exercise button is removed */}
+      <CardFooter className="p-4 bg-slate-50 dark:bg-slate-800/30 flex justify-end gap-2">
+        <Button onClick={() => onManagePin(student)} variant="outline" size="icon" className="rounded-lg py-3 h-auto px-3" aria-label={`${student.name} 학생 PIN 관리`}>
+          <KeyRound className="h-5 w-5" />
+        </Button>
         <Button onClick={() => onDeleteStudent(student)} variant="destructive" size="icon" className="rounded-lg py-3 h-auto px-3" aria-label={`${student.name} 학생 삭제`}>
           <Trash2 className="h-5 w-5" />
         </Button>
@@ -90,5 +93,3 @@ const StudentCard: React.FC<StudentCardProps> = ({ student, onDeleteStudent, rec
 };
 
 export default StudentCard;
-
-    

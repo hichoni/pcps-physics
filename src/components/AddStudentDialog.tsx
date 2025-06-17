@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import type { Gender } from "@/lib/types"; 
-import { UserPlus, Save, KeyRound } from 'lucide-react';
+import { UserPlus, Save } from 'lucide-react';
 
 interface AddStudentDialogProps {
   isOpen: boolean;
@@ -20,37 +20,19 @@ const AddStudentDialog: React.FC<AddStudentDialogProps> = ({ isOpen, onClose, on
   const [studentNumber, setStudentNumber] = useState<string>('');
   const [gender, setGender] = useState<Gender | undefined>(undefined);
   const [classNameInput, setClassNameInput] = useState<string>('');
-  const [pin, setPin] = useState<string>('');
-  const [pinError, setPinError] = useState<string | null>(null);
 
   const handleSave = () => {
     const num = parseInt(studentNumber, 10);
-    if (!/^\d{4}$/.test(pin)) {
-      setPinError("PIN은 4자리 숫자여야 합니다.");
-      return;
-    }
-    setPinError(null);
 
-    if (name.trim() && classNameInput.trim() && !isNaN(num) && num > 0 && gender && pin.trim()) {
-      onSave({ name: name.trim(), class: classNameInput.trim(), studentNumber: num, gender, pin: pin.trim() });
+    if (name.trim() && classNameInput.trim() && !isNaN(num) && num > 0 && gender) {
+      onSave({ name: name.trim(), class: classNameInput.trim(), studentNumber: num, gender, pin: "0000" }); // 기본 PIN "0000"
       setName('');
       setStudentNumber('');
       setGender(undefined);
       setClassNameInput('');
-      setPin('');
       onClose();
     } else {
-      alert("모든 필드를 올바르게 입력해주세요 (학생 이름, 학급 이름, 학번, 성별, PIN).");
-    }
-  };
-
-  const handlePinChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    if (/^\d*$/.test(value) && value.length <= 4) {
-      setPin(value);
-      if (value.length === 4) {
-        setPinError(null);
-      }
+      alert("모든 필드를 올바르게 입력해주세요 (학생 이름, 학급 이름, 학번, 성별).");
     }
   };
 
@@ -62,8 +44,6 @@ const AddStudentDialog: React.FC<AddStudentDialogProps> = ({ isOpen, onClose, on
         setStudentNumber('');
         setGender(undefined);
         setClassNameInput('');
-        setPin('');
-        setPinError(null);
       }
     }}>
       <DialogContent className="sm:max-w-[425px] p-0 rounded-xl">
@@ -73,7 +53,7 @@ const AddStudentDialog: React.FC<AddStudentDialogProps> = ({ isOpen, onClose, on
             새 학생 추가
           </DialogTitle>
           <DialogDescription>
-            새로운 학생의 이름, 학급, 학번, 성별, 그리고 로그인에 사용할 4자리 PIN을 입력해주세요.
+            새로운 학생의 이름, 학급, 학번, 성별을 입력해주세요. 초기 PIN은 "0000"으로 자동 설정됩니다.
           </DialogDescription>
         </DialogHeader>
         <div className="p-6 space-y-4">
@@ -121,23 +101,6 @@ const AddStudentDialog: React.FC<AddStudentDialogProps> = ({ isOpen, onClose, on
                 <Label htmlFor="female" className="text-base font-normal">여자</Label>
               </div>
             </RadioGroup>
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="pin" className="text-base">PIN (4자리 숫자)</Label>
-            <div className="flex items-center gap-2">
-                <KeyRound className="h-5 w-5 text-muted-foreground" />
-                <Input
-                  id="pin"
-                  type="password" 
-                  value={pin}
-                  onChange={handlePinChange}
-                  placeholder="예: 1234"
-                  maxLength={4}
-                  className="text-base py-3 rounded-lg tracking-widest"
-                  pattern="\d{4}"
-                />
-            </div>
-            {pinError && <p className="text-sm text-destructive">{pinError}</p>}
           </div>
         </div>
         <DialogFooter className="p-6 pt-4 bg-slate-50 dark:bg-slate-800/30">

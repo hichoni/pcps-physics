@@ -8,6 +8,7 @@ import StudentCard from '@/components/StudentCard';
 import ExerciseSummaryChart from '@/components/ExerciseSummaryChart';
 import AiSuggestionBox from '@/components/AiSuggestionBox';
 import AddStudentDialog from '@/components/AddStudentDialog';
+import ManageStudentPinDialog from '@/components/ManageStudentPinDialog'; // 추가
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import type { Student, ClassName, RecordedExercise, Exercise, Gender, TeacherExerciseRecommendation } from '@/lib/types';
 import { EXERCISES } from '@/data/mockData';
@@ -16,7 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Users, BarChart2, Lightbulb, ListChecks, UserPlus, Trash2, Sparkles, MessageSquarePlus, MessageSquareX, Loader2, Wand2 } from 'lucide-react';
+import { Users, BarChart2, Lightbulb, ListChecks, UserPlus, Trash2, Sparkles, MessageSquarePlus, MessageSquareX, Loader2, Wand2, KeyRound } from 'lucide-react';
 import { format } from 'date-fns';
 import { ko } from 'date-fns/locale';
 import { useToast } from "@/hooks/use-toast";
@@ -72,6 +73,9 @@ export default function Home() {
   const [newCompliment, setNewCompliment] = useState<string>('');
   const [newRecommendationTitle, setNewRecommendationTitle] = useState<string>('');
   const [newRecommendationDetail, setNewRecommendationDetail] = useState<string>('');
+
+  const [isManagePinDialogOpen, setIsManagePinDialogOpen] = useState(false);
+  const [studentForPinManage, setStudentForPinManage] = useState<Student | null>(null);
 
 
   const fetchStudents = useCallback(async () => {
@@ -180,12 +184,12 @@ export default function Home() {
   };
 
   const handleAddStudent = async (newStudentData: { name: string; class: string; studentNumber: number; gender: Gender; pin: string }) => {
+    // pin은 AddStudentDialog에서 "0000"으로 고정되어 전달됨
     try {
       const studentWithAvatarAndPin = {
-        ...newStudentData,
+        ...newStudentData, // pin: "0000"이 이미 포함됨
         class: newStudentData.class.trim(),
         avatarSeed: newStudentData.name, 
-        pin: newStudentData.pin,
       };
       const docRef = await addDoc(collection(db, "students"), studentWithAvatarAndPin);
       const newStudent = { ...studentWithAvatarAndPin, id: docRef.id };
@@ -339,6 +343,28 @@ export default function Home() {
     }
   };
 
+  const handleOpenManagePinDialog = (student: Student) => {
+    setStudentForPinManage(student);
+    setIsManagePinDialogOpen(true);
+  };
+
+  const handleSaveManagedPin = async (newPin: string) => {
+    if (studentForPinManage) {
+      try {
+        const studentDocRef = doc(db, "students", studentForPinManage.id);
+        await updateDoc(studentDocRef, { pin: newPin });
+        setStudents(prevStudents => 
+          prevStudents.map(s => s.id === studentForPinManage.id ? { ...s, pin: newPin } : s)
+        );
+        toast({ title: "성공", description: `${studentForPinManage.name} 학생의 PIN이 변경되었습니다.` });
+        setIsManagePinDialogOpen(false);
+        setStudentForPinManage(null);
+      } catch (error) {
+        console.error("Error updating student PIN:", error);
+        toast({ title: "오류", description: "학생 PIN 변경에 실패했습니다.", variant: "destructive" });
+      }
+    }
+  };
 
   const memoizedExerciseSummaryChart = useMemo(() => (
     <ExerciseSummaryChart recordedExercises={recordedExercises} students={students} />
@@ -427,6 +453,7 @@ export default function Home() {
                       key={student.id} 
                       student={student} 
                       onDeleteStudent={() => requestDeleteStudent(student)}
+                      onManagePin={() => handleOpenManagePinDialog(student)} // 추가
                       recordedExercises={recordedExercises}
                     />
                   ))}
@@ -604,6 +631,18 @@ export default function Home() {
           onClose={() => setIsAddStudentDialogOpen(false)}
           onSave={handleAddStudent}
         />
+
+        {studentForPinManage && (
+          <ManageStudentPinDialog
+            isOpen={isManagePinDialogOpen}
+            onClose={() => {
+              setIsManagePinDialogOpen(false);
+              setStudentForPinManage(null);
+            }}
+            onSave={handleSaveManagedPin}
+            studentName={studentForPinManage.name}
+          />
+        )}
 
         {studentToDelete && (
           <AlertDialog open={isConfirmDeleteDialogOpen} onOpenChange={setIsConfirmDeleteDialogOpen}>

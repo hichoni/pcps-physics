@@ -1,7 +1,7 @@
 
 import type React from 'react';
 
-export type ClassName = string; // Changed: ClassName is now a string
+export type ClassName = string; 
 
 export type Gender = 'male' | 'female';
 
@@ -12,7 +12,7 @@ export interface Student {
   studentNumber: number;
   gender: Gender;
   avatarSeed: string;
-  pin: string; // Added: 4-digit PIN for student login
+  pin: string; 
 }
 
 export type ExerciseCategory = 'count_time' | 'steps_distance';
@@ -23,19 +23,17 @@ export interface Exercise {
   icon: React.FC<React.SVGProps<SVGSVGElement> & { className?: string }>;
   category: ExerciseCategory;
 
-  // For 'count_time' category (스쿼트, 플랭크, 줄넘기)
-  countUnit?: string; // e.g., '회'
+  countUnit?: string; 
   defaultCount?: number;
   countStep?: number;
-  timeUnit?: string; // e.g., '분' or '초'
+  timeUnit?: string; 
   defaultTime?: number;
   timeStep?: number;
 
-  // For 'steps_distance' category (걷기/달리기)
-  stepsUnit?: string; // e.g., '걸음'
+  stepsUnit?: string; 
   defaultSteps?: number;
   stepsStep?: number;
-  distanceUnit?: string; // e.g., 'm' (미터)
+  distanceUnit?: string; 
   defaultDistance?: number;
   distanceStep?: number;
 
@@ -46,13 +44,13 @@ export interface RecordedExercise {
   id: string;
   studentId: string;
   exerciseId: string;
-  date: string; // ISO string YYYY-MM-DD
+  date: string; 
   
   countValue?: number;    
-  timeValue?: number;     // 단위: 운동에 따라 분 또는 초
+  timeValue?: number;     
   
   stepsValue?: number;    
-  distanceValue?: number; // 단위: m
+  distanceValue?: number; 
   
   className: ClassName;
 }
@@ -70,17 +68,15 @@ export interface DailyLog {
   value: number; 
 }
 
-// 학생별 운동 목표 타입
 export interface ExerciseGoal {
-  count?: number; // 목표 횟수
-  time?: number; // 목표 시간 (운동 단위에 따라 분 또는 초)
-  steps?: number; // 목표 걸음 수
-  distance?: number; // 목표 거리 (m)
+  count?: number; 
+  time?: number; 
+  steps?: number; 
+  distance?: number; 
 }
 
-export type StudentGoal = Record<string, ExerciseGoal>; // exerciseId를 키로 가짐
+export type StudentGoal = Record<string, ExerciseGoal>; 
 
-// 교사가 직접 관리하는 추천 운동/팁 타입 (RecommendStudentExerciseOutput과 동일 구조)
 export interface TeacherExerciseRecommendation {
   recommendationTitle: string;
   recommendationDetail: string;
