@@ -40,8 +40,8 @@ export default function StudentPage() {
   useEffect(() => {
     // Ensure this runs only on the client
     if (typeof window !== 'undefined') {
-      setAllStudents(STUDENTS_DATA); // Assuming STUDENTS_DATA is static or loaded client-side
-      setAvailableClasses(CLASSES);   // Assuming CLASSES is static or loaded client-side
+      setAllStudents(STUDENTS_DATA); 
+      setAvailableClasses(CLASSES);   
       
       let studentToLoad: Student | null = null;
       const storedStudent = localStorage.getItem(LOCAL_STORAGE_STUDENT_KEY);
@@ -56,14 +56,12 @@ export default function StudentPage() {
       
       if (studentToLoad) {
         setCurrentStudent(studentToLoad);
-        // loadStudentGoals and loadStudentLogs will be called in the other useEffect triggered by currentStudent change
       }
       setIsLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    // This effect runs when currentStudent changes, safely on client-side
     if (currentStudent) {
       if (typeof window !== 'undefined') {
         localStorage.setItem(LOCAL_STORAGE_STUDENT_KEY, JSON.stringify(currentStudent));
@@ -80,7 +78,7 @@ export default function StudentPage() {
       setRecommendedExercise(null);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentStudent]); // fetchRecommendation is called here, so it's fine
+  }, [currentStudent]); 
 
   useEffect(() => {
     if (selectedClass) {
@@ -224,27 +222,30 @@ export default function StudentPage() {
     <div className="flex flex-col min-h-screen">
       <StudentHeader studentName={`${currentStudent.name} (${currentStudent.class} ${currentStudent.studentNumber}번)`} />
       <main className="flex-grow container mx-auto p-4 sm:p-6 lg:p-8 space-y-8">
-        <section className="text-center bg-card p-6 sm:p-8 rounded-xl shadow-lg">
-          <h2 className="text-2xl sm:text-3xl font-bold font-headline text-primary mb-3">
-            {currentStudent.name}님, 안녕하세요!
-          </h2>
-          <p className="text-base sm:text-lg text-muted-foreground mb-6">
-            오늘도 즐겁게 운동하고 건강해져요! 어떤 활동을 계획하고 있나요?
-          </p>
-          <div className="flex flex-col sm:flex-row gap-2 justify-center">
-            <Button size="lg" className="rounded-lg py-3 px-6 text-lg flex-grow sm:flex-grow-0">
-              <PlusCircle className="mr-2 h-6 w-6" />
-              새로운 운동 기록하기
-            </Button>
-            <Button variant="outline" size="lg" onClick={handleLogout} className="rounded-lg py-3 px-6 text-lg flex-grow sm:flex-grow-0">
-              <LogOut className="mr-2 h-6 w-6" />
-              다른 학생으로 로그인
-            </Button>
-          </div>
-        </section>
+        
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 items-stretch">
+          <section className="lg:col-span-3 text-center bg-card p-6 sm:p-8 rounded-xl shadow-lg flex flex-col justify-center">
+            <div>
+              <h2 className="text-2xl sm:text-3xl font-bold font-headline text-primary mb-3">
+                {currentStudent.name}님, 안녕하세요!
+              </h2>
+              <p className="text-base sm:text-lg text-muted-foreground mb-6">
+                오늘도 즐겁게 운동하고 건강해져요! 어떤 활동을 계획하고 있나요?
+              </p>
+              <div className="flex flex-col sm:flex-row gap-2 justify-center">
+                <Button size="lg" className="rounded-lg py-3 px-6 text-lg flex-grow sm:flex-grow-0">
+                  <PlusCircle className="mr-2 h-6 w-6" />
+                  새로운 운동 기록하기
+                </Button>
+                <Button variant="outline" size="lg" onClick={handleLogout} className="rounded-lg py-3 px-6 text-lg flex-grow sm:flex-grow-0">
+                  <LogOut className="mr-2 h-6 w-6" />
+                  다른 학생으로 로그인
+                </Button>
+              </div>
+            </div>
+          </section>
 
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-          <Card className="shadow-md hover:shadow-lg transition-shadow rounded-xl">
+          <Card className="shadow-md hover:shadow-lg transition-shadow rounded-xl lg:col-span-2 flex flex-col">
             <CardHeader>
               <CardTitle className="flex items-center font-headline text-xl">
                 <Target className="mr-3 h-7 w-7 text-accent" />
@@ -252,8 +253,8 @@ export default function StudentPage() {
               </CardTitle>
               <CardDescription>목표를 설정하고 달성해봐요!</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="flex items-center justify-center h-40 bg-secondary/20 rounded-lg p-2">
+            <CardContent className="space-y-3 flex-grow flex flex-col">
+              <div className="flex items-center justify-center h-40 bg-secondary/20 rounded-lg p-2 flex-grow">
                 {Object.keys(studentGoals).length > 0 ? (
                   <ul className="text-sm list-disc list-inside pl-2 text-left w-full overflow-y-auto max-h-full">
                     {EXERCISES.filter(ex => studentGoals[ex.id] && Object.values(studentGoals[ex.id]).some(v => v !== undefined && v > 0) ).map(exercise => {
@@ -278,11 +279,13 @@ export default function StudentPage() {
                   <Image src="https://placehold.co/300x200.png" alt="나의 목표 이미지" width={300} height={200} className="rounded-md object-cover" data-ai-hint="goal achievement" />
                 )}
               </div>
-              <Button variant="outline" className="w-full rounded-lg" onClick={() => setIsGoalsDialogOpen(true)}>목표 설정/확인</Button>
+              <Button variant="outline" className="w-full rounded-lg mt-auto" onClick={() => setIsGoalsDialogOpen(true)}>목표 설정/확인</Button>
             </CardContent>
           </Card>
+        </div>
 
-          <Card className="shadow-md hover:shadow-lg transition-shadow rounded-xl lg:col-span-2">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <Card className="shadow-md hover:shadow-lg transition-shadow rounded-xl">
             <CardHeader>
               <CardTitle className="flex items-center font-headline text-xl">
                 <Dumbbell className="mr-3 h-7 w-7 text-primary" />
@@ -310,7 +313,7 @@ export default function StudentPage() {
             </CardContent>
           </Card>
 
-          <Card className="shadow-md hover:shadow-lg transition-shadow rounded-xl md:col-span-2 lg:col-span-3">
+          <Card className="shadow-md hover:shadow-lg transition-shadow rounded-xl">
             <CardHeader>
               <CardTitle className="flex items-center font-headline text-xl">
                 <History className="mr-3 h-7 w-7 text-destructive" />
