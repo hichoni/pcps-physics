@@ -8,3 +8,26 @@ runConfig:
   # Increase this value if you'd like to automatically spin up
   # more instances in response to increased traffic.
   maxInstances: 3
+
+# Environment variables available to the build and runtime environments.
+# These are populated from secrets in Google Cloud Secret Manager.
+# IMPORTANT: Replace YOUR_PROJECT_ID with your actual Google Cloud Project ID.
+# Also, replace the secret names (e.g., firebase-api-key) with the names you chose in Secret Manager.
+env:
+  - variable: NEXT_PUBLIC_FIREBASE_API_KEY
+    secret: projects/YOUR_PROJECT_ID/secrets/firebase-api-key/versions/latest
+  - variable: NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
+    secret: projects/YOUR_PROJECT_ID/secrets/firebase-auth-domain/versions/latest
+  - variable: NEXT_PUBLIC_FIREBASE_PROJECT_ID
+    secret: projects/YOUR_PROJECT_ID/secrets/firebase-project-id/versions/latest
+  - variable: NEXT_PROJECT_ID # For Genkit/AI features if needed separately by backend
+    secret: projects/YOUR_PROJECT_ID/secrets/firebase-project-id/versions/latest
+  - variable: NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
+    secret: projects/YOUR_PROJECT_ID/secrets/firebase-storage-bucket/versions/latest
+  - variable: NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
+    secret: projects/YOUR_PROJECT_ID/secrets/firebase-messaging-sender-id/versions/latest
+  - variable: NEXT_PUBLIC_FIREBASE_APP_ID
+    secret: projects/YOUR_PROJECT_ID/secrets/firebase-app-id/versions/latest
+  # Uncomment and configure if you created a secret for Measurement ID
+  # - variable: NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID
+  #   secret: projects/YOUR_PROJECT_ID/secrets/firebase-measurement-id/versions/latest
