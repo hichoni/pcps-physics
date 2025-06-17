@@ -1,16 +1,18 @@
 
 import type React from 'react';
 import type { Student, RecordedExercise, Exercise as ExerciseType } from '@/lib/types';
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Activity, CheckCircle2, Trash2, KeyRound } from 'lucide-react'; 
+import { Activity, CheckCircle2, Trash2, KeyRound, UserCircle } from 'lucide-react'; 
 import { EXERCISES } from '@/data/mockData';
+import { AVATAR_OPTIONS } from '@/data/avatarOptions';
+import { cn } from '@/lib/utils';
 
 interface StudentCardProps {
   student: Student;
   onDeleteStudent: (student: Student) => void;
-  onManagePin: (student: Student) => void; // 추가
+  onManagePin: (student: Student) => void;
   recordedExercises: RecordedExercise[];
 }
 
@@ -36,8 +38,6 @@ const formatLastExercise = (exercise: ExerciseType, log: RecordedExercise): stri
 };
 
 const StudentCard: React.FC<StudentCardProps> = ({ student, onDeleteStudent, onManagePin, recordedExercises }) => {
-  const placeholderAvatarUrl = `https://placehold.co/80x80.png?text=${getInitials(student.name)}&bg=87CEEB&fg=FFFFFF`;
-  
   const today = new Date().toISOString().split('T')[0];
   const exercisesLoggedToday = recordedExercises
     .filter(rec => rec.studentId === student.id && rec.date === today)
@@ -50,19 +50,20 @@ const StudentCard: React.FC<StudentCardProps> = ({ student, onDeleteStudent, onM
     return exerciseInfo ? formatLastExercise(exerciseInfo, lastLog) : "운동 기록됨";
   }
 
-  const avatarHint = student.gender === 'male' ? 'boy portrait' : 'girl portrait';
+  const SelectedAvatarIcon = AVATAR_OPTIONS.find(opt => opt.id === student.avatarSeed)?.icon;
 
   return (
     <Card className="w-full shadow-lg hover:shadow-xl transition-shadow duration-300 rounded-xl overflow-hidden flex flex-col justify-between">
       <div>
         <CardHeader className="flex flex-row items-center space-x-4 p-4 bg-secondary/30">
-          <Avatar className="h-16 w-16 border-2 border-primary">
-            <AvatarImage 
-              src={student.avatarSeed && !student.avatarSeed.startsWith('https://') ? placeholderAvatarUrl : student.avatarSeed} 
-              alt={student.name} 
-              data-ai-hint={avatarHint} 
-            />
-            <AvatarFallback className="text-xl bg-primary text-primary-foreground">{getInitials(student.name)}</AvatarFallback>
+          <Avatar className={cn("h-16 w-16 border-2 border-primary p-0.5", SelectedAvatarIcon ? 'bg-background' : 'bg-primary text-primary-foreground')}>
+            {SelectedAvatarIcon ? (
+              <SelectedAvatarIcon className="h-full w-full text-primary" />
+            ) : (
+              <AvatarFallback className="text-xl bg-transparent">
+                {getInitials(student.name)}
+              </AvatarFallback>
+            )}
           </Avatar>
           <div>
             <CardTitle className="text-xl font-headline">{student.name}</CardTitle>

@@ -12,7 +12,8 @@ import type { Student, ClassName, Exercise, StudentGoal, RecordedExercise, Gende
 import { EXERCISES } from '@/data/mockData';
 import SetStudentGoalsDialog from '@/components/SetStudentGoalsDialog';
 import ExerciseLogForm from '@/components/ExerciseLogForm';
-import ChangeOwnPinDialog from '@/components/ChangeOwnPinDialog'; // 추가
+import ChangeOwnPinDialog from '@/components/ChangeOwnPinDialog';
+import ChangeAvatarDialog from '@/components/ChangeAvatarDialog'; // 아바타 변경 다이얼로그 추가
 import { useToast } from "@/hooks/use-toast";
 import { recommendStudentExercise, RecommendStudentExerciseOutput } from '@/ai/flows/recommend-student-exercise';
 import { db } from '@/lib/firebase';
@@ -47,6 +48,7 @@ export default function StudentPage() {
   const [isGoalsDialogOpen, setIsGoalsDialogOpen] = useState(false);
   const [isLogFormOpen, setIsLogFormOpen] = useState(false);
   const [isChangeOwnPinDialogOpen, setIsChangeOwnPinDialogOpen] = useState(false); 
+  const [isChangeAvatarDialogOpen, setIsChangeAvatarDialogOpen] = useState(false); // 아바타 다이얼로그 상태
   const [studentGoals, setStudentGoals] = useState<StudentGoal>({});
   const [studentActivityLogs, setStudentActivityLogs] = useState<RecordedExercise[]>([]);
   const [recommendedExercise, setRecommendedExercise] = useState<RecommendStudentExerciseOutput | null>(null);
@@ -249,6 +251,21 @@ export default function StudentPage() {
       }
     }
   };
+
+  const handleSaveAvatar = async (newAvatarId: string) => {
+    if (currentStudent) {
+      try {
+        const studentDocRef = doc(db, "students", currentStudent.id);
+        await updateDoc(studentDocRef, { avatarSeed: newAvatarId });
+        setCurrentStudent(prev => prev ? { ...prev, avatarSeed: newAvatarId } : null);
+        toast({ title: "성공", description: "아바타가 변경되었습니다." });
+        setIsChangeAvatarDialogOpen(false);
+      } catch (error) {
+        console.error("Error updating avatar:", error);
+        toast({ title: "오류", description: "아바타 변경에 실패했습니다.", variant: "destructive" });
+      }
+    }
+  };
   
   const hasEffectiveGoals = useMemo(() => {
     return Object.keys(studentGoals).filter(exId => studentGoals[exId] && Object.values(studentGoals[exId]).some(v => v !== undefined && v > 0)).length > 0;
@@ -350,6 +367,9 @@ export default function StudentPage() {
         <StudentHeader 
           studentName={currentStudent.name} 
           gender={currentStudent.gender}
+          avatarId={currentStudent.avatarSeed}
+          onChangeAvatar={() => setIsChangeAvatarDialogOpen(true)}
+          dailyCompliment={dailyCompliment}
         />
         <main className="flex-grow container mx-auto p-4 sm:p-6 lg:p-8 flex justify-center items-center">
           <Loader2 className="h-12 w-12 animate-spin text-primary" />
@@ -367,12 +387,14 @@ export default function StudentPage() {
       <StudentHeader 
         studentName={currentStudent.name} 
         gender={currentStudent.gender}
+        avatarId={currentStudent.avatarSeed}
+        onChangeAvatar={() => setIsChangeAvatarDialogOpen(true)}
+        dailyCompliment={dailyCompliment}
       />
       <main className="flex-grow container mx-auto p-4 sm:p-6 lg:p-8 space-y-8">
         
         <section className="bg-card p-6 sm:p-8 rounded-xl shadow-lg flex flex-col justify-center">
           <div>
-            {dailyCompliment && <p className="text-lg sm:text-xl text-muted-foreground mb-1 text-center lg:text-left">{dailyCompliment}</p>}
             <h2 className="text-2xl sm:text-3xl font-bold font-headline text-primary mb-3 text-center lg:text-left">
               {currentStudent.name}님, 안녕하세요!
             </h2>
@@ -547,6 +569,15 @@ export default function StudentPage() {
           />
         )}
 
+        {currentStudent && (
+          <ChangeAvatarDialog
+            isOpen={isChangeAvatarDialogOpen}
+            onClose={() => setIsChangeAvatarDialogOpen(false)}
+            onSave={handleSaveAvatar}
+            currentAvatarId={currentStudent.avatarSeed}
+          />
+        )}
+
       </main>
       <footer className="text-center p-4 text-sm text-muted-foreground border-t">
         &copy; {new Date().getFullYear()} {currentStudent.name}의 운동기록장. 매일매일 건강하게!
@@ -554,5 +585,4 @@ export default function StudentPage() {
     </div>
   );
 }
-
     

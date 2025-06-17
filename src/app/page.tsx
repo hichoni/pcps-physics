@@ -184,12 +184,11 @@ export default function Home() {
   };
 
   const handleAddStudent = async (newStudentData: { name: string; class: string; studentNumber: number; gender: Gender; pin: string }) => {
-    // pin은 AddStudentDialog에서 "0000"으로 고정되어 전달됨
     try {
       const studentWithAvatarAndPin = {
-        ...newStudentData, // pin: "0000"이 이미 포함됨
+        ...newStudentData,
         class: newStudentData.class.trim(),
-        avatarSeed: newStudentData.name, 
+        avatarSeed: '', // Initialize avatarSeed as empty, student will choose later
       };
       const docRef = await addDoc(collection(db, "students"), studentWithAvatarAndPin);
       const newStudent = { ...studentWithAvatarAndPin, id: docRef.id };
@@ -453,7 +452,7 @@ export default function Home() {
                       key={student.id} 
                       student={student} 
                       onDeleteStudent={() => requestDeleteStudent(student)}
-                      onManagePin={() => handleOpenManagePinDialog(student)} // 추가
+                      onManagePin={() => handleOpenManagePinDialog(student)}
                       recordedExercises={recordedExercises}
                     />
                   ))}
