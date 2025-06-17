@@ -15,7 +15,7 @@ import ExerciseLogForm from '@/components/ExerciseLogForm';
 import ChangeOwnPinDialog from '@/components/ChangeOwnPinDialog';
 import ChangeAvatarDialog from '@/components/ChangeAvatarDialog';
 import JumpRopeCameraMode from '@/components/JumpRopeCameraMode';
-import StudentActivityChart from '@/components/StudentActivityChart'; // 그래프 컴포넌트
+import StudentActivityChart from '@/components/StudentActivityChart';
 import { useToast } from "@/hooks/use-toast";
 import { recommendStudentExercise, RecommendStudentExerciseOutput } from '@/ai/flows/recommend-student-exercise';
 import { db } from '@/lib/firebase';
@@ -102,7 +102,17 @@ export default function StudentPage() {
 
       const logsQuery = query(collection(db, "exerciseLogs"), where("studentId", "==", studentId));
       const logsSnapshot = await getDocs(logsQuery);
-      const logsList = logsSnapshot.docs.map(lDoc => ({ id: lDoc.id, ...lDoc.data(), date: (lDoc.data().date as any).toDate ? (lDoc.data().date as any).toDate().toISOString().split('T')[0] : lDoc.data().date  } as RecordedExercise));
+      const logsList = logsSnapshot.docs.map(lDoc => {
+        const data = lDoc.data();
+        // Ensure date is a string in "yyyy-MM-dd" format
+        let dateStr = data.date;
+        if (data.date && typeof data.date.toDate === 'function') { // Check if it's a Firestore Timestamp
+          dateStr = format(data.date.toDate(), "yyyy-MM-dd");
+        } else if (typeof data.date === 'string' && data.date.includes('T')) { // Check if it's an ISO string
+           dateStr = data.date.split('T')[0];
+        }
+        return { id: lDoc.id, ...data, date: dateStr } as RecordedExercise;
+      });
       setStudentActivityLogs(logsList);
       
       const complimentsDocRef = doc(db, COMPLIMENTS_DOC_PATH);
@@ -239,7 +249,9 @@ export default function StudentPage() {
     if (!currentStudent) return;
     try {
       const docRef = await addDoc(collection(db, "exerciseLogs"), logData);
-      setStudentActivityLogs(prev => [...prev, { ...logData, id: docRef.id }].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
+      // Ensure date is string "yyyy-MM-dd" when adding to local state
+      const newLogEntry = { ...logData, id: docRef.id, date: format(parseISO(logData.date), "yyyy-MM-dd") };
+      setStudentActivityLogs(prev => [...prev, newLogEntry].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
       toast({ title: "기록 완료!", description: "오늘의 운동이 성공적으로 기록되었어요! 참 잘했어요!" });
       setIsLogFormOpen(false); 
       setIsCameraModeOpen(false); 
@@ -539,19 +551,22 @@ export default function StudentPage() {
 
         <Card className="shadow-md hover:shadow-lg transition-shadow rounded-xl">
           <CardHeader>
-            <div className="flex justify-between items-center">
-              <CardTitle className="flex items-center font-headline text-xl">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+              <div className="flex items-center">
                 <History className="mr-3 h-7 w-7 text-destructive" />
-                나의 활동 내역
-              </CardTitle>
-              <div className="flex gap-2">
+                <div>
+                    <CardTitle className="font-headline text-xl">나의 활동 내역</CardTitle>
+                    <CardDescription>선택한 기간의 운동 기록을 확인하고, 최근 활동도 살펴봐요.</CardDescription>
+                </div>
+              </div>
+              <div className="flex gap-2 self-start sm:self-center shrink-0">
                 {(['today', 'week', 'month'] as const).map((frame) => (
                   <Button
                     key={frame}
                     variant={activityChartTimeFrame === frame ? 'default' : 'outline'}
                     size="sm"
                     onClick={() => setActivityChartTimeFrame(frame)}
-                    className="rounded-md"
+                    className="rounded-md px-3 py-1.5 text-xs sm:px-4 sm:py-2 sm:text-sm"
                   >
                     {frame === 'today' && '오늘'}
                     {frame === 'week' && '주간'}
@@ -560,22 +575,11 @@ export default function StudentPage() {
                 ))}
               </div>
             </div>
-            <CardDescription>선택한 기간의 운동 기록을 그래프로 확인하고, 최근 활동도 살펴봐요.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {studentActivityLogs.length === 0 ? (
-              <div className="flex items-center justify-center text-center py-10 min-h-[200px] bg-secondary/10 rounded-lg">
-                <div className="flex flex-col items-center">
-                  <BarChart3 className="h-12 w-12 text-muted-foreground mb-3" />
-                  <p className="text-muted-foreground">오늘도 씩씩하게 운동을 시작해요 :D</p>
-                  <p className="text-xs text-muted-foreground mt-1">운동을 기록하면 여기에 그래프가 표시됩니다.</p>
-                </div>
-              </div>
-            ) : (
-              <StudentActivityChart logs={studentActivityLogs} timeFrame={activityChartTimeFrame} />
-            )}
+            <StudentActivityChart logs={studentActivityLogs} timeFrame={activityChartTimeFrame} />
             
-            <h4 className="text-md font-semibold pt-4 border-t mt-6">최근 5개 활동:</h4>
+            <h4 className="text-md font-semibold pt-6 border-t mt-8">최근 5개 활동:</h4>
             {studentActivityLogs.length === 0 ? (
                 <p className="text-sm text-muted-foreground text-center py-2">기록된 활동이 없습니다.</p>
             ) : (
@@ -598,8 +602,8 @@ export default function StudentPage() {
                           if (!valueDisplay) valueDisplay = "기록됨"; 
 
                           return (
-                              <div key={log.id} className="p-1.5 bg-background/50 rounded">
-                                  <span>{format(new Date(log.date), "MM/dd (EEE)", { locale: ko })}: {exerciseInfo.koreanName} - {valueDisplay}</span>
+                              <div key={log.id} className="p-1.5 bg-background/50 rounded text-xs">
+                                  <span>{format(parseISO(log.date), "MM/dd (EEE)", { locale: ko })}: {exerciseInfo.koreanName} - {valueDisplay}</span>
                               </div>
                           );
                   })}
@@ -660,3 +664,4 @@ export default function StudentPage() {
   );
 }
     
+

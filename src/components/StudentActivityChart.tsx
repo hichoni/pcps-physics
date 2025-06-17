@@ -2,11 +2,9 @@
 'use client';
 
 import React from 'react';
-import { Bar, BarChart, CartesianGrid, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, Cell } from 'recharts';
-import { Card, CardContent } from "@/components/ui/card";
-import type { RecordedExercise } from '@/lib/types';
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import type { RecordedExercise, Exercise } from '@/lib/types';
 import { EXERCISES } from '@/data/mockData';
-import { ChartConfig, ChartContainer } from '@/components/ui/chart';
 import { 
   startOfWeek, 
   endOfWeek, 
@@ -16,30 +14,31 @@ import {
   isToday, 
   parseISO 
 } from 'date-fns';
+import { cn } from '@/lib/utils';
 
 interface StudentActivityChartProps {
   logs: RecordedExercise[];
   timeFrame: 'today' | 'week' | 'month';
 }
 
-const chartConfig = EXERCISES.reduce((acc, ex, index) => {
-  acc[ex.id] = { 
-    label: ex.koreanName, 
-    color: `hsl(var(--chart-${(index % 5) + 1}))` 
-  };
-  return acc;
-}, {} as Record<string, { label: string, color: string }>) satisfies ChartConfig;
+// Define a simple color mapping if not using full chartConfig for recharts
+const exerciseColors: Record<string, string> = {
+  'ex1': 'hsl(var(--chart-1))', // Squat - Blue
+  'ex2': 'hsl(var(--chart-2))', // Plank - Green
+  'ex3': 'hsl(var(--chart-3))', // Walk/Run - Yellow
+  'ex4': 'hsl(var(--chart-4))', // Jump Rope - Lighter Blue
+};
 
 const StudentActivityChart: React.FC<StudentActivityChartProps> = ({ logs, timeFrame }) => {
   const today = new Date();
 
   const filteredLogs = logs.filter(log => {
-    const logDate = parseISO(log.date);
+    const logDate = parseISO(log.date); // Ensure log.date is in "yyyy-MM-dd" or ISO format
     if (timeFrame === 'today') {
       return isToday(logDate);
     }
     if (timeFrame === 'week') {
-      const weekStart = startOfWeek(today, { weekStartsOn: 1 }); // Monday as start
+      const weekStart = startOfWeek(today, { weekStartsOn: 1 }); // Monday
       const weekEnd = endOfWeek(today, { weekStartsOn: 1 });
       return isWithinInterval(logDate, { start: weekStart, end: weekEnd });
     }
@@ -51,26 +50,26 @@ const StudentActivityChart: React.FC<StudentActivityChartProps> = ({ logs, timeF
     return false;
   });
 
-  const aggregatedData = EXERCISES.map(exercise => {
-    const logsForExercise = filteredLogs.filter(log => log.exerciseId === exercise.id);
+  const exerciseSummaries = EXERCISES.map((exercise: Exercise) => {
+    const logsForThisExercise = filteredLogs.filter(log => log.exerciseId === exercise.id);
     let totalValue = 0;
     let unit = '';
 
     switch (exercise.id) {
-      case 'ex1': // 스쿼트
-        totalValue = logsForExercise.reduce((sum, log) => sum + (log.countValue || 0), 0);
+      case 'ex1': // 스쿼트 (횟수)
+        totalValue = logsForThisExercise.reduce((sum, log) => sum + (log.countValue || 0), 0);
         unit = exercise.countUnit || '회';
         break;
-      case 'ex2': // 플랭크
-        totalValue = logsForExercise.reduce((sum, log) => sum + (log.timeValue || 0), 0);
+      case 'ex2': // 플랭크 (시간)
+        totalValue = logsForThisExercise.reduce((sum, log) => sum + (log.timeValue || 0), 0);
         unit = exercise.timeUnit || '초';
         break;
-      case 'ex3': // 걷기/달리기
-        totalValue = logsForExercise.reduce((sum, log) => sum + (log.distanceValue || 0), 0);
+      case 'ex3': // 걷기/달리기 (거리)
+        totalValue = logsForThisExercise.reduce((sum, log) => sum + (log.distanceValue || 0), 0);
         unit = exercise.distanceUnit || 'm';
         break;
-      case 'ex4': // 줄넘기
-        totalValue = logsForExercise.reduce((sum, log) => sum + (log.countValue || 0), 0);
+      case 'ex4': // 줄넘기 (횟수)
+        totalValue = logsForThisExercise.reduce((sum, log) => sum + (log.countValue || 0), 0);
         unit = exercise.countUnit || '회';
         break;
       default:
@@ -78,64 +77,50 @@ const StudentActivityChart: React.FC<StudentActivityChartProps> = ({ logs, timeF
         unit = '';
     }
     
+    const IconComponent = exercise.icon;
+
     return {
-      exerciseId: exercise.id,
-      name: exercise.koreanName, 
+      id: exercise.id,
+      name: exercise.koreanName,
+      IconComponent: IconComponent,
       value: totalValue,
       unit: unit,
-      fill: chartConfig[exercise.id]?.color || 'hsl(var(--chart-1))', // 각 바에 색상 적용
+      color: exerciseColors[exercise.id] || 'hsl(var(--foreground))',
     };
-  }).filter(item => item.value > 0); // 값이 있는 항목만 차트에 표시
+  });
 
-  if (filteredLogs.length === 0 || aggregatedData.length === 0) {
+  if (filteredLogs.length === 0) {
     return (
-      <div className="h-[300px] flex items-center justify-center text-muted-foreground bg-secondary/20 rounded-lg p-4">
-        이 기간 동안 기록된 운동 데이터가 없습니다.
+      <div className="min-h-[150px] flex items-center justify-center text-muted-foreground bg-secondary/10 rounded-lg p-4 text-center mt-4">
+        선택된 기간에 기록된 운동 데이터가 없습니다.
       </div>
     );
   }
 
   return (
-    <ChartContainer config={chartConfig} className="min-h-[300px] w-full">
-      <ResponsiveContainer width="100%" height={300}>
-        <BarChart data={aggregatedData} margin={{ top: 5, right: 20, left: -10, bottom: 5 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-          <XAxis 
-            dataKey="name" 
-            tick={{ fill: 'hsl(var(--foreground))', fontSize: 12 }} 
-            interval={0} // 모든 X축 레이블 표시
-            angle={-30} // 레이블 약간 기울이기 (겹침 방지)
-            textAnchor="end" // 기울어진 텍스트 정렬
-            height={50} // X축 높이 확보
-          />
-          <YAxis 
-            tickFormatter={(value) => `${value}`} 
-            tick={{ fill: 'hsl(var(--foreground))', fontSize: 12 }}
-            allowDecimals={false}
-          />
-          <Tooltip
-            content={({ active, payload, label }) => {
-              if (active && payload && payload.length) {
-                const data = payload[0].payload as { name: string; value: number; unit: string; exerciseId: string };
-                return (
-                  <div className="bg-background p-3 border rounded-lg shadow-lg text-sm">
-                    <p className="font-semibold text-base mb-1" style={{ color: chartConfig[data.exerciseId]?.color }}>{`${label}`}</p>
-                    <p>{`기록: ${data.value} ${data.unit}`}</p>
-                  </div>
-                );
-              }
-              return null;
-            }}
-            cursor={{ fill: 'hsl(var(--accent))', opacity: 0.3 }}
-          />
-          <Bar dataKey="value" radius={[4, 4, 0, 0]} barSize={Math.min(60, 300 / aggregatedData.length)} >
-            {aggregatedData.map((entry) => (
-              <Cell key={`cell-${entry.exerciseId}`} fill={entry.fill} />
-            ))}
-          </Bar>
-        </BarChart>
-      </ResponsiveContainer>
-    </ChartContainer>
+    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 pt-4">
+      {exerciseSummaries.map(summary => {
+        const IconComp = summary.IconComponent;
+        return (
+          <Card key={summary.id} className="shadow-sm rounded-xl hover:shadow-lg transition-shadow duration-200 ease-in-out">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                {summary.name}
+              </CardTitle>
+              <IconComp className="h-5 w-5" style={{ color: summary.color }} />
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold" style={{ color: summary.color }}>
+                {summary.value.toLocaleString()}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {summary.unit}
+              </p>
+            </CardContent>
+          </Card>
+        );
+      })}
+    </div>
   );
 };
 
