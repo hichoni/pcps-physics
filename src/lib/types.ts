@@ -68,5 +68,16 @@ export interface DailyLog {
   className: ClassName;
   studentId: string;
   exerciseId: string;
-  value: number; // This structure might need update if DailyLog is used with new exercise types
+  value: number; 
 }
+
+// 학생별 운동 목표 타입
+export interface ExerciseGoal {
+  count?: number; // 목표 횟수
+  time?: number; // 목표 시간 (분)
+  steps?: number; // 목표 걸음 수
+  distance?: number; // 목표 거리 (m)
+}
+
+export type StudentGoal = Record<string, ExerciseGoal>; // exerciseId를 키로 가짐
+
