@@ -14,6 +14,7 @@ import { EXERCISES } from '@/data/mockData';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Users, BarChart2, Lightbulb, ListChecks, UserPlus, Trash2, Sparkles, MessageSquarePlus, MessageSquareX, Loader2, Wand2 } from 'lucide-react';
 import { format } from 'date-fns';
@@ -115,7 +116,6 @@ export default function Home() {
         setCompliments(complimentsDocSnap.data().list);
       } else {
         setCompliments(DEFAULT_COMPLIMENTS);
-        // Only set if it doesn't exist, to avoid overwriting if it's just empty
         if (!complimentsDocSnap.exists()) {
             await setDoc(complimentsDocRef, { list: DEFAULT_COMPLIMENTS });
         }
@@ -137,8 +137,7 @@ export default function Home() {
       if (recommendationsDocSnap.exists() && recommendationsDocSnap.data().list) {
         setExerciseRecommendations(recommendationsDocSnap.data().list);
       } else {
-        setExerciseRecommendations([]); // Start with empty if not found
-        // Optionally create with a default if it doesn't exist at all
+        setExerciseRecommendations([]); 
         if (!recommendationsDocSnap.exists()) {
              await setDoc(recommendationsDocRef, { list: [] });
         }
@@ -180,15 +179,16 @@ export default function Home() {
     }
   };
 
-  const handleAddStudent = async (newStudentData: { name: string; class: string; studentNumber: number; gender: Gender }) => {
+  const handleAddStudent = async (newStudentData: { name: string; class: string; studentNumber: number; gender: Gender; pin: string }) => {
     try {
-      const studentWithAvatar = {
+      const studentWithAvatarAndPin = {
         ...newStudentData,
         class: newStudentData.class.trim(),
         avatarSeed: newStudentData.name, 
+        pin: newStudentData.pin,
       };
-      const docRef = await addDoc(collection(db, "students"), studentWithAvatar);
-      const newStudent = { ...studentWithAvatar, id: docRef.id };
+      const docRef = await addDoc(collection(db, "students"), studentWithAvatarAndPin);
+      const newStudent = { ...studentWithAvatarAndPin, id: docRef.id };
       setStudents(prevStudents => [...prevStudents, newStudent]);
 
       if (!dynamicClasses.includes(newStudent.class)) {
@@ -328,7 +328,6 @@ export default function Home() {
   const handleDeleteExerciseRecommendation = async (recommendationToDelete: TeacherExerciseRecommendation) => {
     try {
       const recommendationsDocRef = doc(db, RECOMMENDATIONS_DOC_PATH);
-      // Firestore arrayRemove works with the entire object for comparison
       await updateDoc(recommendationsDocRef, {
         list: arrayRemove(recommendationToDelete)
       });
@@ -416,7 +415,7 @@ export default function Home() {
                   </Button>
                 </div>
               )}
-              { students.length > 0 && studentsInClass.length === 0 && (
+              { students.length > 0 && studentsInClass.length === 0 && selectedClass && (
                  <p className="text-muted-foreground">
                   {selectedClass ? '이 학급에는 학생이 없습니다. 학생을 추가해주세요.' : '선택된 학급에 학생이 없습니다. 다른 학급을 선택하거나 이 학급에 학생을 추가해주세요.'}
                  </p>

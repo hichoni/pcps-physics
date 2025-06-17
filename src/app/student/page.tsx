@@ -5,17 +5,20 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import StudentHeader from '@/components/StudentHeader';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from '@/components/ui/button';
+import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dumbbell, Target, History, PlusCircle, LogOut, UserCheck, Loader2, AlertTriangle } from 'lucide-react';
+import { Dumbbell, Target, History, PlusCircle, LogOut, UserCheck, Loader2, AlertTriangle, KeyRound } from 'lucide-react';
 import type { Student, ClassName, Exercise, StudentGoal, RecordedExercise, Gender } from '@/lib/types';
 import { EXERCISES } from '@/data/mockData';
 import SetStudentGoalsDialog from '@/components/SetStudentGoalsDialog';
-import ExerciseLogForm from '@/components/ExerciseLogForm'; // Added import
+import ExerciseLogForm from '@/components/ExerciseLogForm';
 import { useToast } from "@/hooks/use-toast";
 import { recommendStudentExercise, RecommendStudentExerciseOutput } from '@/ai/flows/recommend-student-exercise';
 import { db } from '@/lib/firebase';
-import { collection, getDocs, doc, getDoc, setDoc, query, where, addDoc } from 'firebase/firestore'; // Added addDoc
-import { format } from 'date-fns';
+import { collection, getDocs, doc, getDoc, setDoc, query, where, addDoc } from 'firebase/firestore';
+import { format } from 'date-fns'; // format import for activity log
+import { ko } from 'date-fns/locale';
+
 
 const DEFAULT_POSITIVE_ADJECTIVES_KR = [
   "별처럼 빛나는", "항상 긍정적인", "꿈을 향해 달리는", "세상을 밝히는",
@@ -32,13 +35,16 @@ export default function StudentPage() {
   const [selectedClass, setSelectedClass] = useState<ClassName | ''>('');
   const [studentsInClass, setStudentsInClass] = useState<Student[]>([]);
   const [selectedStudentId, setSelectedStudentId] = useState<string | ''>('');
+  const [studentForPinCheck, setStudentForPinCheck] = useState<Student | null>(null);
+  const [enteredPin, setEnteredPin] = useState<string>('');
+  const [loginError, setLoginError] = useState<string | null>(null);
   const [currentStudent, setCurrentStudent] = useState<Student | null>(null);
   
   const [isLoadingLoginOptions, setIsLoadingLoginOptions] = useState(true);
   const [isLoadingStudentData, setIsLoadingStudentData] = useState(false);
 
   const [isGoalsDialogOpen, setIsGoalsDialogOpen] = useState(false);
-  const [isLogFormOpen, setIsLogFormOpen] = useState(false); // Added state for log form
+  const [isLogFormOpen, setIsLogFormOpen] = useState(false);
   const [studentGoals, setStudentGoals] = useState<StudentGoal>({});
   const [studentActivityLogs, setStudentActivityLogs] = useState<RecordedExercise[]>([]);
   const [recommendedExercise, setRecommendedExercise] = useState<RecommendStudentExerciseOutput | null>(null);
@@ -123,10 +129,49 @@ export default function StudentPage() {
     if (selectedClass && allStudents.length > 0) {
       setStudentsInClass(allStudents.filter(student => student.class === selectedClass).sort((a,b) => a.studentNumber - b.studentNumber));
       setSelectedStudentId(''); 
+      setStudentForPinCheck(null);
+      setEnteredPin('');
+      setLoginError(null);
     } else {
       setStudentsInClass([]);
     }
   }, [selectedClass, allStudents]);
+
+  const handleStudentSelect = (studentId: string) => {
+    setSelectedStudentId(studentId);
+    const student = allStudents.find(s => s.id === studentId);
+    setStudentForPinCheck(student || null);
+    setEnteredPin('');
+    setLoginError(null);
+  };
+
+  const handlePinChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    if (/^\d*$/.test(value) && value.length <= 4) {
+      setEnteredPin(value);
+      if (loginError) setLoginError(null);
+    }
+  };
+
+  const handleLoginAttempt = () => {
+    if (!studentForPinCheck) {
+      setLoginError("학생을 먼저 선택해주세요.");
+      return;
+    }
+    if (!studentForPinCheck.pin) {
+      setLoginError("PIN이 설정되지 않았습니다. 선생님께 문의하세요.");
+      return;
+    }
+    if (enteredPin === studentForPinCheck.pin) {
+      setCurrentStudent(studentForPinCheck);
+      setLoginError(null);
+      setStudentForPinCheck(null);
+      setEnteredPin('');
+    } else {
+      setLoginError("PIN 번호가 올바르지 않습니다. 다시 시도해주세요.");
+      setEnteredPin('');
+    }
+  };
 
   const fetchRecommendation = async () => {
     setIsRecommendationLoading(true);
@@ -156,21 +201,13 @@ export default function StudentPage() {
     }
   };
 
-  const handleLogin = () => {
-    if (selectedStudentId) {
-      const student = allStudents.find(s => s.id === selectedStudentId);
-      if (student) {
-        setCurrentStudent(student);
-      } else {
-        toast({ title: "오류", description: "선택한 학생 정보를 찾을 수 없습니다.", variant: "destructive" });
-      }
-    }
-  };
-
   const handleLogout = () => {
     setCurrentStudent(null);
     setSelectedClass('');
     setSelectedStudentId('');
+    setStudentForPinCheck(null);
+    setEnteredPin('');
+    setLoginError(null);
   };
 
   const handleOpenLogForm = () => {
@@ -187,7 +224,7 @@ export default function StudentPage() {
     if (!currentStudent) return;
     try {
       const docRef = await addDoc(collection(db, "exerciseLogs"), logData);
-      setStudentActivityLogs(prev => [...prev, { ...logData, id: docRef.id }]);
+      setStudentActivityLogs(prev => [...prev, { ...logData, id: docRef.id }].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
       toast({ title: "기록 완료!", description: "오늘의 운동이 성공적으로 기록되었어요! 참 잘했어요!" });
       setIsLogFormOpen(false);
     } catch (error) {
@@ -209,10 +246,10 @@ export default function StudentPage() {
       <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100 dark:bg-slate-900 p-4">
         <Card className="w-full max-w-md shadow-xl rounded-xl">
           <CardHeader className="text-center">
-            <CardTitle className="text-2xl font-bold font-headline text-primary">학생 선택</CardTitle>
-            <CardDescription>운동 기록을 시작하려면 학급과 이름을 선택하세요.</CardDescription>
+            <CardTitle className="text-2xl font-bold font-headline text-primary">학생 로그인</CardTitle>
+            <CardDescription>운동 기록을 시작하려면 학급, 이름, PIN을 입력하세요.</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-6">
+          <CardContent className="space-y-4">
             <div className="space-y-2">
               <label htmlFor="class-select" className="block text-sm font-medium text-gray-700 dark:text-gray-300">학급 선택</label>
               <Select 
@@ -235,7 +272,7 @@ export default function StudentPage() {
               <label htmlFor="student-select" className="block text-sm font-medium text-gray-700 dark:text-gray-300">학생 선택</label>
               <Select 
                 value={selectedStudentId} 
-                onValueChange={setSelectedStudentId} 
+                onValueChange={handleStudentSelect} 
                 disabled={availableClasses.length === 0 || !selectedClass || studentsInClass.length === 0}
               >
                 <SelectTrigger id="student-select" className="w-full text-base py-3 rounded-lg">
@@ -254,9 +291,35 @@ export default function StudentPage() {
                 </SelectContent>
               </Select>
             </div>
-            <Button onClick={handleLogin} disabled={!selectedStudentId} className="w-full py-3 text-lg rounded-lg">
+
+            {studentForPinCheck && (
+              <div className="space-y-2">
+                <label htmlFor="pin-input" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  PIN (4자리 숫자)
+                </label>
+                <div className="flex items-center gap-2">
+                    <KeyRound className="h-5 w-5 text-muted-foreground" />
+                    <Input
+                      id="pin-input"
+                      type="password"
+                      value={enteredPin}
+                      onChange={handlePinChange}
+                      maxLength={4}
+                      placeholder="PIN 입력"
+                      className="text-base py-3 rounded-lg tracking-widest flex-grow"
+                      onKeyDown={(e) => e.key === 'Enter' && handleLoginAttempt()}
+                    />
+                </div>
+              </div>
+            )}
+
+            {loginError && (
+              <p className="text-sm text-destructive text-center">{loginError}</p>
+            )}
+
+            <Button onClick={handleLoginAttempt} disabled={!selectedStudentId || (studentForPinCheck && enteredPin.length !== 4)} className="w-full py-3 text-lg rounded-lg">
               <UserCheck className="mr-2 h-5 w-5" />
-              운동 시작하기
+              로그인
             </Button>
           </CardContent>
         </Card>
@@ -403,15 +466,15 @@ export default function StudentPage() {
                             if (!exerciseInfo) return null;
                             let valueDisplay = "";
                             if (exerciseInfo.category === 'count_time') {
-                                if (log.countValue) valueDisplay += `${log.countValue}${exerciseInfo.countUnit} `;
-                                if (log.timeValue) valueDisplay += `${log.timeValue}${exerciseInfo.timeUnit}`;
+                                if (log.countValue) valueDisplay += `${log.countValue}${exerciseInfo.countUnit || ''} `;
+                                if (log.timeValue) valueDisplay += `${log.timeValue}${exerciseInfo.timeUnit || ''}`;
                             } else if (exerciseInfo.category === 'steps_distance') {
-                                if (log.stepsValue) valueDisplay += `${log.stepsValue}${exerciseInfo.stepsUnit} `;
-                                if (log.distanceValue) valueDisplay += `${log.distanceValue}${exerciseInfo.distanceUnit}`;
+                                if (log.stepsValue) valueDisplay += `${log.stepsValue}${exerciseInfo.stepsUnit || ''} `;
+                                if (log.distanceValue) valueDisplay += `${log.distanceValue}${exerciseInfo.distanceUnit || ''}`;
                             }
                             return (
                                 <div key={log.id} className="text-sm p-1.5 bg-background/50 rounded">
-                                    <span>{format(new Date(log.date), "MM/dd")}: {exerciseInfo.koreanName} - {valueDisplay.trim()}</span>
+                                    <span>{format(new Date(log.date), "MM/dd", { locale: ko })}: {exerciseInfo.koreanName} - {valueDisplay.trim()}</span>
                                 </div>
                             );
                     })}
@@ -450,5 +513,3 @@ export default function StudentPage() {
     </div>
   );
 }
-
-    

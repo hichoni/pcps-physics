@@ -12,6 +12,7 @@ export interface Student {
   studentNumber: number;
   gender: Gender;
   avatarSeed: string;
+  pin: string; // Added: 4-digit PIN for student login
 }
 
 export type ExerciseCategory = 'count_time' | 'steps_distance';
