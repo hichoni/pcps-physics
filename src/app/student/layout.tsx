@@ -1,7 +1,6 @@
 
 import type {Metadata} from 'next';
 import '../globals.css'; // Ensure globals.css is imported from the correct relative path
-import { Toaster } from "@/components/ui/toaster";
 
 export const metadata: Metadata = {
   title: '나의 운동 기록장 - 풍풍이',
@@ -19,10 +18,12 @@ export default function StudentLayout({
         The <head> content like fonts is now managed by the RootLayout (src/app/layout.tsx)
         or by Next.js's built-in <Head> component if needed for page-specific head tags within pages.
         The <body> tag is also rendered by the RootLayout.
+        Toaster is also handled by RootLayout.
         StudentLayout should only provide the content that goes *inside* the body.
       */}
       {children}
-      <Toaster />
     </>
   );
 }
+
+    
