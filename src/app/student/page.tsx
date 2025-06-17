@@ -14,6 +14,7 @@ import { useToast } from "@/hooks/use-toast";
 import { recommendStudentExercise, RecommendStudentExerciseOutput } from '@/ai/flows/recommend-student-exercise';
 import { db } from '@/lib/firebase';
 import { collection, getDocs, doc, getDoc, setDoc, query, where } from 'firebase/firestore';
+import { format } from 'date-fns'; // Added import for format
 
 const DEFAULT_POSITIVE_ADJECTIVES_KR = [
   "별처럼 빛나는", "항상 긍정적인", "꿈을 향해 달리는", "세상을 밝히는",
