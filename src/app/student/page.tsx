@@ -1,24 +1,19 @@
 
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import StudentHeader from '@/components/StudentHeader';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dumbbell, Target, History, PlusCircle, LogOut, UserCheck, Loader2, AlertTriangle } from 'lucide-react';
 import type { Student, ClassName, Exercise, StudentGoal, RecordedExercise, Gender } from '@/lib/types';
-import { EXERCISES } from '@/data/mockData'; // STUDENTS_DATA and CLASSES removed
+import { EXERCISES } from '@/data/mockData';
 import SetStudentGoalsDialog from '@/components/SetStudentGoalsDialog';
 import { useToast } from "@/hooks/use-toast";
 import { recommendStudentExercise, RecommendStudentExerciseOutput } from '@/ai/flows/recommend-student-exercise';
-
-const LOCAL_STORAGE_STUDENT_KEY = 'studentApp_currentStudent';
-const LOCAL_STORAGE_GOALS_KEY_PREFIX = 'studentApp_goals_';
-const LOCAL_STORAGE_LOGS_KEY = 'physEdPalLogs_v2'; // Key for teacher app's logs
-const LOCAL_STORAGE_ALL_STUDENTS_KEY = 'physEdPalStudents_v2'; // Key for all students data
-const LOCAL_STORAGE_ALL_CLASSES_KEY = 'physEdPalClasses_v1'; // Key for all classes data
-
+import { db } from '@/lib/firebase';
+import { collection, getDocs, doc, getDoc, setDoc, query, where } from 'firebase/firestore';
 
 const DEFAULT_POSITIVE_ADJECTIVES_KR = [
   "별처럼 빛나는", "항상 긍정적인", "꿈을 향해 달리는", "세상을 밝히는",
@@ -26,8 +21,7 @@ const DEFAULT_POSITIVE_ADJECTIVES_KR = [
   "친절한", "도전하는", "행복을 전하는", "자신감 넘치는", "에너지 넘치는",
   "멋진", "희망찬", "빛나는", "슬기로운", "명랑한", "따뜻한 마음을 가진"
 ];
-const COMPLIMENTS_STORAGE_KEY = 'physEdPalCompliments_v1';
-
+const COMPLIMENTS_DOC_PATH = "appConfig/complimentsDoc";
 
 export default function StudentPage() {
   const [allStudents, setAllStudents] = useState<Student[]>([]);
@@ -38,83 +32,95 @@ export default function StudentPage() {
   const [selectedStudentId, setSelectedStudentId] = useState<string | ''>('');
   const [currentStudent, setCurrentStudent] = useState<Student | null>(null);
   
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingLoginOptions, setIsLoadingLoginOptions] = useState(true);
+  const [isLoadingStudentData, setIsLoadingStudentData] = useState(false); // For data loaded after login
+
   const [isGoalsDialogOpen, setIsGoalsDialogOpen] = useState(false);
   const [studentGoals, setStudentGoals] = useState<StudentGoal>({});
-
   const [studentActivityLogs, setStudentActivityLogs] = useState<RecordedExercise[]>([]);
   const [recommendedExercise, setRecommendedExercise] = useState<RecommendStudentExerciseOutput | null>(null);
   const [isRecommendationLoading, setIsRecommendationLoading] = useState(false);
   const [dailyCompliment, setDailyCompliment] = useState<string>('');
 
-
   const { toast } = useToast();
 
-  useEffect(() => {
-    // Ensure this runs only on the client
-    if (typeof window !== 'undefined') {
-      const storedAllStudents = localStorage.getItem(LOCAL_STORAGE_ALL_STUDENTS_KEY);
-      setAllStudents(storedAllStudents ? JSON.parse(storedAllStudents) : []);
+  // Fetch initial data for login screen
+  const fetchLoginOptions = useCallback(async () => {
+    setIsLoadingLoginOptions(true);
+    try {
+      const studentsCollection = collection(db, "students");
+      const studentsSnapshot = await getDocs(studentsCollection);
+      const studentsList = studentsSnapshot.docs.map(sDoc => ({ id: sDoc.id, ...sDoc.data() } as Student));
+      setAllStudents(studentsList);
 
-      const storedAvailableClasses = localStorage.getItem(LOCAL_STORAGE_ALL_CLASSES_KEY);
-      setAvailableClasses(storedAvailableClasses ? JSON.parse(storedAvailableClasses) : []);
-      
-      let studentToLoad: Student | null = null;
-      const storedStudent = localStorage.getItem(LOCAL_STORAGE_STUDENT_KEY);
-      if (storedStudent) {
-        try {
-          studentToLoad = JSON.parse(storedStudent) as Student;
-        } catch (e) {
-          console.error("Failed to parse stored student:", e);
-          localStorage.removeItem(LOCAL_STORAGE_STUDENT_KEY);
-        }
-      }
-      
-      if (studentToLoad) {
-        setCurrentStudent(studentToLoad);
-      }
-      setIsLoading(false);
+      const classNames = Array.from(new Set(studentsList.map(s => s.class))).sort();
+      setAvailableClasses(classNames);
+
+    } catch (error) {
+      console.error("Error fetching login options:", error);
+      toast({ title: "오류", description: "학생 정보를 불러오는 데 실패했습니다.", variant: "destructive" });
+    } finally {
+      setIsLoadingLoginOptions(false);
     }
-  }, []);
+  }, [toast]);
+
+  useEffect(() => {
+    fetchLoginOptions();
+  }, [fetchLoginOptions]);
+
+  // Fetch data for logged-in student
+  const fetchStudentSpecificData = useCallback(async (studentId: string, studentName: string) => {
+    if (!studentId) return;
+    setIsLoadingStudentData(true);
+    try {
+      // Fetch Goals
+      const goalsDocRef = doc(db, "studentGoals", studentId);
+      const goalsDocSnap = await getDoc(goalsDocRef);
+      if (goalsDocSnap.exists()) {
+        setStudentGoals(goalsDocSnap.data().goals || {});
+      } else {
+        setStudentGoals({});
+      }
+
+      // Fetch Logs
+      const logsQuery = query(collection(db, "exerciseLogs"), where("studentId", "==", studentId));
+      const logsSnapshot = await getDocs(logsQuery);
+      setStudentActivityLogs(logsSnapshot.docs.map(lDoc => ({ id: lDoc.id, ...lDoc.data() } as RecordedExercise)));
+      
+      // Fetch Compliments (shared)
+      const complimentsDocRef = doc(db, COMPLIMENTS_DOC_PATH);
+      const complimentsDocSnap = await getDoc(complimentsDocRef);
+      let adjectiveList = DEFAULT_POSITIVE_ADJECTIVES_KR;
+      if (complimentsDocSnap.exists() && complimentsDocSnap.data().list && complimentsDocSnap.data().list.length > 0) {
+        adjectiveList = complimentsDocSnap.data().list;
+      }
+      const dayOfMonth = new Date().getDate();
+      const adjectiveIndex = (dayOfMonth - 1 + studentName.length) % adjectiveList.length;
+      setDailyCompliment(adjectiveList[adjectiveIndex] || adjectiveList[0] || "");
+
+      // Fetch AI Recommendation
+      fetchRecommendation();
+
+    } catch (error) {
+      console.error("Error fetching student specific data:", error);
+      toast({ title: "오류", description: "학생 데이터를 불러오는 데 실패했습니다.", variant: "destructive" });
+    } finally {
+      setIsLoadingStudentData(false);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [toast]); // fetchRecommendation should not be a dependency to avoid re-fetching on every compliment change
+
 
   useEffect(() => {
     if (currentStudent) {
-      if (typeof window !== 'undefined') {
-        localStorage.setItem(LOCAL_STORAGE_STUDENT_KEY, JSON.stringify(currentStudent));
-      }
-      loadStudentGoals(currentStudent.id);
-      loadStudentLogs(currentStudent.id);
-      fetchRecommendation();
-
-      let adjectiveList = DEFAULT_POSITIVE_ADJECTIVES_KR;
-      const savedCompliments = localStorage.getItem(COMPLIMENTS_STORAGE_KEY);
-      if (savedCompliments) {
-        try {
-          const parsedCompliments = JSON.parse(savedCompliments);
-          if (Array.isArray(parsedCompliments) && parsedCompliments.length > 0) {
-            adjectiveList = parsedCompliments;
-          }
-        } catch (e) {
-          console.error("Failed to parse compliments from localStorage:", e);
-        }
-      }
-      
-      const dayOfMonth = new Date().getDate();
-      const adjectiveIndex = (dayOfMonth - 1 + currentStudent.name.length) % adjectiveList.length;
-      const selectedAdjective = adjectiveList[adjectiveIndex] || adjectiveList[0] || ""; 
-      setDailyCompliment(selectedAdjective);
-
+      fetchStudentSpecificData(currentStudent.id, currentStudent.name);
     } else {
-      if (typeof window !== 'undefined') {
-        localStorage.removeItem(LOCAL_STORAGE_STUDENT_KEY);
-      }
       setStudentGoals({}); 
       setStudentActivityLogs([]);
       setRecommendedExercise(null);
       setDailyCompliment('');
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentStudent]); 
+  }, [currentStudent, fetchStudentSpecificData]); 
 
   useEffect(() => {
     if (selectedClass && allStudents.length > 0) {
@@ -125,39 +131,6 @@ export default function StudentPage() {
     }
   }, [selectedClass, allStudents]);
 
-  const loadStudentGoals = (studentId: string) => {
-    if (typeof window !== 'undefined') {
-      const storedGoals = localStorage.getItem(`${LOCAL_STORAGE_GOALS_KEY_PREFIX}${studentId}`);
-      if (storedGoals) {
-        try {
-          setStudentGoals(JSON.parse(storedGoals));
-        } catch (e) {
-          console.error("Failed to parse stored goals:", e);
-          setStudentGoals({});
-        }
-      } else {
-        setStudentGoals({});
-      }
-    }
-  };
-
-  const loadStudentLogs = (studentId: string) => {
-    if (typeof window !== 'undefined') {
-      const allLogsRaw = localStorage.getItem(LOCAL_STORAGE_LOGS_KEY);
-      if (allLogsRaw) {
-        try {
-          const allLogs: RecordedExercise[] = JSON.parse(allLogsRaw);
-          setStudentActivityLogs(allLogs.filter(log => log.studentId === studentId));
-        } catch (e) {
-          console.error("Failed to parse student logs:", e);
-          setStudentActivityLogs([]);
-        }
-      } else {
-        setStudentActivityLogs([]);
-      }
-    }
-  };
-
   const fetchRecommendation = async () => {
     setIsRecommendationLoading(true);
     try {
@@ -165,25 +138,26 @@ export default function StudentPage() {
       setRecommendedExercise(recommendation);
     } catch (error) {
       console.error("AI 추천 가져오기 오류:", error);
-      toast({
-        title: "AI 추천 오류",
-        description: "추천 운동을 가져오는 데 실패했어요. 나중에 다시 시도해 보세요.",
-        variant: "destructive",
-      });
+      // Only toast if it's not a silent failure
+      // toast({ title: "AI 추천 오류", description: "추천을 가져오지 못했어요.", variant: "destructive" });
       setRecommendedExercise(null); 
     } finally {
       setIsRecommendationLoading(false);
     }
   };
 
-  const handleSaveGoals = (newGoals: StudentGoal) => {
+  const handleSaveGoals = async (newGoals: StudentGoal) => {
     if (currentStudent) {
-      setStudentGoals(newGoals);
-      if (typeof window !== 'undefined') {
-        localStorage.setItem(`${LOCAL_STORAGE_GOALS_KEY_PREFIX}${currentStudent.id}`, JSON.stringify(newGoals));
+      try {
+        const goalsDocRef = doc(db, "studentGoals", currentStudent.id);
+        await setDoc(goalsDocRef, { goals: newGoals });
+        setStudentGoals(newGoals);
+        toast({ title: "성공", description: "운동 목표가 저장되었습니다." });
+        setIsGoalsDialogOpen(false);
+      } catch (error) {
+        console.error("Error saving goals: ", error);
+        toast({ title: "오류", description: "운동 목표 저장에 실패했습니다.", variant: "destructive" });
       }
-      toast({ title: "성공", description: "운동 목표가 저장되었습니다." });
-      setIsGoalsDialogOpen(false);
     }
   };
 
@@ -192,6 +166,8 @@ export default function StudentPage() {
       const student = allStudents.find(s => s.id === selectedStudentId);
       if (student) {
         setCurrentStudent(student);
+      } else {
+        toast({ title: "오류", description: "선택한 학생 정보를 찾을 수 없습니다.", variant: "destructive" });
       }
     }
   };
@@ -206,9 +182,8 @@ export default function StudentPage() {
     return Object.keys(studentGoals).filter(exId => studentGoals[exId] && Object.values(studentGoals[exId]).some(v => v !== undefined && v > 0)).length > 0;
   }, [studentGoals]);
 
-
-  if (isLoading) {
-    return <div className="flex justify-center items-center min-h-screen"><Loader2 className="h-8 w-8 animate-spin text-primary" /> 로딩 중...</div>;
+  if (isLoadingLoginOptions) {
+    return <div className="flex justify-center items-center min-h-screen"><Loader2 className="h-8 w-8 animate-spin text-primary" /> 학생 정보 로딩 중...</div>;
   }
 
   if (!currentStudent) {
@@ -270,6 +245,24 @@ export default function StudentPage() {
       </div>
     );
   }
+  
+  if (isLoadingStudentData) {
+     return (
+      <div className="flex flex-col min-h-screen">
+        <StudentHeader 
+          studentName={currentStudent.name} 
+          gender={currentStudent.gender}
+        />
+        <main className="flex-grow container mx-auto p-4 sm:p-6 lg:p-8 flex justify-center items-center">
+          <Loader2 className="h-12 w-12 animate-spin text-primary" />
+          <span className="ml-4 text-xl">{currentStudent.name} 학생의 데이터를 불러오는 중...</span>
+        </main>
+         <footer className="text-center p-4 text-sm text-muted-foreground border-t">
+          &copy; {new Date().getFullYear()} {currentStudent.name}의 운동기록장.
+        </footer>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -290,9 +283,9 @@ export default function StudentPage() {
                 오늘도 즐겁게 운동하고 건강해져요! 어떤 활동을 계획하고 있나요?
               </p>
               <div className="flex flex-col sm:flex-row gap-3 justify-center lg:justify-start">
-                <Button size="lg" className="rounded-lg py-3 px-6 text-lg flex-grow sm:flex-grow-0">
+                <Button size="lg" className="rounded-lg py-3 px-6 text-lg flex-grow sm:flex-grow-0" disabled={true} title="운동 기록 기능은 교사용 앱에서만 가능합니다.">
                   <PlusCircle className="mr-2 h-6 w-6" />
-                  새로운 운동 기록하기
+                  새로운 운동 기록하기 (교사용)
                 </Button>
                 <Button variant="outline" size="lg" onClick={handleLogout} className="rounded-lg py-3 px-6 text-lg flex-grow sm:flex-grow-0">
                   <LogOut className="mr-2 h-6 w-6" />
@@ -383,11 +376,32 @@ export default function StudentPage() {
                   <p className="text-muted-foreground">오늘도 씩씩하게 운동을 시작해요 :D</p>
                 </div>
               ) : (
-                <div className="flex items-center justify-center min-h-[10rem] bg-secondary/20 rounded-lg p-3 flex-grow">
-                  <p className="text-foreground font-semibold">운동 기록 있음 (데이터 표시 영역)</p>
+                 <div className="space-y-2 max-h-[200px] overflow-y-auto p-3 bg-secondary/20 rounded-lg">
+                    {studentActivityLogs
+                        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime() || (b.id && a.id ? b.id.localeCompare(a.id) : 0))
+                        .slice(0, 5) // Show recent 5 logs
+                        .map(log => {
+                            const exerciseInfo = EXERCISES.find(ex => ex.id === log.exerciseId);
+                            if (!exerciseInfo) return null;
+                            let valueDisplay = "";
+                            if (exerciseInfo.category === 'count_time') {
+                                if (log.countValue) valueDisplay += `${log.countValue}${exerciseInfo.countUnit} `;
+                                if (log.timeValue) valueDisplay += `${log.timeValue}${exerciseInfo.timeUnit}`;
+                            } else if (exerciseInfo.category === 'steps_distance') {
+                                if (log.stepsValue) valueDisplay += `${log.stepsValue}${exerciseInfo.stepsUnit} `;
+                                if (log.distanceValue) valueDisplay += `${log.distanceValue}${exerciseInfo.distanceUnit}`;
+                            }
+                            return (
+                                <div key={log.id} className="text-sm p-1.5 bg-background/50 rounded">
+                                    <span>{format(new Date(log.date), "MM/dd")}: {exerciseInfo.koreanName} - {valueDisplay.trim()}</span>
+                                </div>
+                            );
+                    })}
                 </div>
               )}
-              <Button variant="outline" className="w-full rounded-lg py-3 text-base" disabled={studentActivityLogs.length === 0}>활동 내역 보기</Button>
+              <Button variant="outline" className="w-full rounded-lg py-3 text-base" disabled={studentActivityLogs.length === 0}>
+                전체 활동 내역 보기 (개발 예정)
+              </Button>
             </CardContent>
           </Card>
         </div>

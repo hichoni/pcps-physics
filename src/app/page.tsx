@@ -1,7 +1,7 @@
 
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import Header from '@/components/Header';
 import ClassSelector from '@/components/ClassSelector';
 import StudentCard from '@/components/StudentCard';
@@ -10,16 +10,19 @@ import ExerciseSummaryChart from '@/components/ExerciseSummaryChart';
 import AiSuggestionBox from '@/components/AiSuggestionBox';
 import AddStudentDialog from '@/components/AddStudentDialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import type { Student, ClassName, RecordedExercise, Exercise, Gender } from '@/lib/types'; // ClassName is now string
-import { EXERCISES } from '@/data/mockData'; // CLASSES is removed from here for dynamic handling
+import type { Student, ClassName, RecordedExercise, Exercise, Gender } from '@/lib/types';
+import { EXERCISES } from '@/data/mockData';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Users, BarChart2, Lightbulb, ListChecks, UserPlus, Trash2, Sparkles, MessageSquarePlus, MessageSquareX } from 'lucide-react';
+import { Users, BarChart2, Lightbulb, ListChecks, UserPlus, Trash2, Sparkles, MessageSquarePlus, MessageSquareX, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ko } from 'date-fns/locale';
 import { useToast } from "@/hooks/use-toast";
-
+import { db } from '@/lib/firebase';
+import { 
+  collection, getDocs, addDoc, deleteDoc, doc, writeBatch, query, where, setDoc, getDoc, updateDoc, arrayUnion, arrayRemove 
+} from 'firebase/firestore';
 
 const formatExerciseValue = (exercise: Exercise, log: RecordedExercise): string => {
   let parts = [];
@@ -39,84 +42,95 @@ const DEFAULT_COMPLIMENTS = [
   "친절한", "도전하는", "행복을 전하는", "자신감 넘치는", "에너지 넘치는",
   "멋진", "희망찬", "빛나는", "슬기로운", "명랑한", "따뜻한 마음을 가진"
 ];
-const COMPLIMENTS_STORAGE_KEY = 'physEdPalCompliments_v1';
-const STUDENTS_STORAGE_KEY = 'physEdPalStudents_v2';
-const LOGS_STORAGE_KEY = 'physEdPalLogs_v2';
-const CLASSES_STORAGE_KEY = 'physEdPalClasses_v1';
+
+const COMPLIMENTS_DOC_PATH = "appConfig/complimentsDoc";
 
 export default function Home() {
-  const [selectedClass, setSelectedClass] = useState<ClassName | undefined>(undefined); // Default to 'all'
+  const [selectedClass, setSelectedClass] = useState<ClassName | undefined>(undefined);
   const { toast } = useToast();
   
-  const [students, setStudents] = useState<Student[]>(() => {
-    if (typeof window !== 'undefined') {
-      const savedStudents = localStorage.getItem(STUDENTS_STORAGE_KEY);
-      return savedStudents ? JSON.parse(savedStudents) : []; // Default to empty array
-    }
-    return [];
-  });
+  const [students, setStudents] = useState<Student[]>([]);
+  const [dynamicClasses, setDynamicClasses] = useState<ClassName[]>([]);
+  const [recordedExercises, setRecordedExercises] = useState<RecordedExercise[]>([]);
+  const [compliments, setCompliments] = useState<string[]>(DEFAULT_COMPLIMENTS);
 
-  const [dynamicClasses, setDynamicClasses] = useState<ClassName[]>(() => {
-    if (typeof window !== 'undefined') {
-      const savedClasses = localStorage.getItem(CLASSES_STORAGE_KEY);
-      return savedClasses ? JSON.parse(savedClasses) : []; // Default to empty array
-    }
-    return [];
-  });
+  const [isLoadingStudents, setIsLoadingStudents] = useState(true);
+  const [isLoadingLogs, setIsLoadingLogs] = useState(true);
+  const [isLoadingCompliments, setIsLoadingCompliments] = useState(true);
 
   const [studentsInClass, setStudentsInClass] = useState<Student[]>([]);
   const [selectedStudentForLog, setSelectedStudentForLog] = useState<Student | null>(null);
   const [isLogFormOpen, setIsLogFormOpen] = useState(false);
-  const [recordedExercises, setRecordedExercises] = useState<RecordedExercise[]>(() => {
-    if (typeof window !== 'undefined') {
-      const savedLogs = localStorage.getItem(LOGS_STORAGE_KEY);
-      return savedLogs ? JSON.parse(savedLogs) : [];
-    }
-    return [];
-  });
   const [activeTab, setActiveTab] = useState<string>("students");
   const [isAddStudentDialogOpen, setIsAddStudentDialogOpen] = useState(false);
   const [studentToDelete, setStudentToDelete] = useState<Student | null>(null);
   const [isConfirmDeleteDialogOpen, setIsConfirmDeleteDialogOpen] = useState(false);
-
-  const [compliments, setCompliments] = useState<string[]>(() => {
-    if (typeof window !== 'undefined') {
-      const savedCompliments = localStorage.getItem(COMPLIMENTS_STORAGE_KEY);
-      return savedCompliments ? JSON.parse(savedCompliments) : DEFAULT_COMPLIMENTS;
-    }
-    return DEFAULT_COMPLIMENTS;
-  });
   const [newCompliment, setNewCompliment] = useState<string>('');
 
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem(STUDENTS_STORAGE_KEY, JSON.stringify(students));
+  const fetchStudents = useCallback(async () => {
+    setIsLoadingStudents(true);
+    try {
+      const studentsCollection = collection(db, "students");
+      const studentsSnapshot = await getDocs(studentsCollection);
+      const studentsList = studentsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Student));
+      setStudents(studentsList);
+
+      const classNames = Array.from(new Set(studentsList.map(s => s.class))).sort();
+      setDynamicClasses(classNames);
+    } catch (error) {
+      console.error("Error fetching students: ", error);
+      toast({ title: "오류", description: "학생 목록을 불러오는 데 실패했습니다.", variant: "destructive"});
+    } finally {
+      setIsLoadingStudents(false);
     }
-  }, [students]);
+  }, [toast]);
+
+  const fetchLogs = useCallback(async () => {
+    setIsLoadingLogs(true);
+    try {
+      const logsCollection = collection(db, "exerciseLogs");
+      const logsSnapshot = await getDocs(logsCollection);
+      const logsList = logsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as RecordedExercise));
+      setRecordedExercises(logsList);
+    } catch (error) {
+      console.error("Error fetching logs: ", error);
+      toast({ title: "오류", description: "운동 기록을 불러오는 데 실패했습니다.", variant: "destructive"});
+    } finally {
+      setIsLoadingLogs(false);
+    }
+  }, [toast]);
+
+  const fetchCompliments = useCallback(async () => {
+    setIsLoadingCompliments(true);
+    try {
+      const complimentsDocRef = doc(db, COMPLIMENTS_DOC_PATH);
+      const complimentsDocSnap = await getDoc(complimentsDocRef);
+      if (complimentsDocSnap.exists() && complimentsDocSnap.data().list) {
+        setCompliments(complimentsDocSnap.data().list);
+      } else {
+        setCompliments(DEFAULT_COMPLIMENTS);
+        // Optionally create the document with default compliments if it doesn't exist
+        await setDoc(complimentsDocRef, { list: DEFAULT_COMPLIMENTS });
+      }
+    } catch (error) {
+      console.error("Error fetching compliments: ", error);
+      toast({ title: "오류", description: "칭찬 문구를 불러오는 데 실패했습니다.", variant: "destructive"});
+      setCompliments(DEFAULT_COMPLIMENTS); // Fallback to default
+    } finally {
+      setIsLoadingCompliments(false);
+    }
+  }, [toast]);
 
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem(LOGS_STORAGE_KEY, JSON.stringify(recordedExercises));
-    }
-  }, [recordedExercises]);
-
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem(COMPLIMENTS_STORAGE_KEY, JSON.stringify(compliments));
-    }
-  }, [compliments]);
-
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem(CLASSES_STORAGE_KEY, JSON.stringify(dynamicClasses));
-    }
-  }, [dynamicClasses]);
-
+    fetchStudents();
+    fetchLogs();
+    fetchCompliments();
+  }, [fetchStudents, fetchLogs, fetchCompliments]);
 
   useEffect(() => {
     if (selectedClass) {
       setStudentsInClass(students.filter(student => student.class === selectedClass).sort((a, b) => a.studentNumber - b.studentNumber));
-    } else { // 'all' classes
+    } else {
       setStudentsInClass(students.sort((a,b) => {
         const classCompare = a.class.localeCompare(b.class);
         if (classCompare !== 0) return classCompare;
@@ -124,7 +138,6 @@ export default function Home() {
       }));
     }
   }, [selectedClass, students]);
-
 
   const handleClassChange = (className: ClassName | 'all') => { 
     if (className === 'all') {
@@ -144,22 +157,35 @@ export default function Home() {
     setSelectedStudentForLog(null);
   };
 
-  const handleSaveExerciseLog = (log: Omit<RecordedExercise, 'id'>) => {
-    setRecordedExercises(prev => [...prev, { ...log, id: `log-${Date.now()}-${Math.random()}` }]);
+  const handleSaveExerciseLog = async (logData: Omit<RecordedExercise, 'id'>) => {
+    try {
+      const docRef = await addDoc(collection(db, "exerciseLogs"), logData);
+      setRecordedExercises(prev => [...prev, { ...logData, id: docRef.id }]);
+      toast({ title: "성공", description: "운동 기록이 저장되었습니다." });
+    } catch (error) {
+      console.error("Error saving exercise log: ", error);
+      toast({ title: "오류", description: "운동 기록 저장에 실패했습니다.", variant: "destructive"});
+    }
   };
 
-  const handleAddStudent = (newStudentData: { name: string; class: string; studentNumber: number; gender: Gender }) => {
-    const newStudent: Student = {
-      ...newStudentData,
-      class: newStudentData.class.trim() as ClassName, // Ensure it's type ClassName (string)
-      id: `s${Date.now()}${Math.random().toString(36).substring(2, 7)}`,
-      avatarSeed: newStudentData.name, 
-    };
-    setStudents(prevStudents => [...prevStudents, newStudent]);
+  const handleAddStudent = async (newStudentData: { name: string; class: string; studentNumber: number; gender: Gender }) => {
+    try {
+      const studentWithAvatar = {
+        ...newStudentData,
+        class: newStudentData.class.trim(),
+        avatarSeed: newStudentData.name, // Default avatar seed
+      };
+      const docRef = await addDoc(collection(db, "students"), studentWithAvatar);
+      const newStudent = { ...studentWithAvatar, id: docRef.id };
+      setStudents(prevStudents => [...prevStudents, newStudent]);
 
-    // Add class to dynamicClasses if it's new
-    if (!dynamicClasses.includes(newStudent.class)) {
-      setDynamicClasses(prevClasses => [...prevClasses, newStudent.class].sort());
+      if (!dynamicClasses.includes(newStudent.class)) {
+        setDynamicClasses(prevClasses => [...prevClasses, newStudent.class].sort());
+      }
+      toast({ title: "성공", description: "학생이 추가되었습니다." });
+    } catch (error) {
+      console.error("Error adding student: ", error);
+      toast({ title: "오류", description: "학생 추가에 실패했습니다.", variant: "destructive"});
     }
   };
 
@@ -168,21 +194,48 @@ export default function Home() {
     setIsConfirmDeleteDialogOpen(true);
   };
 
-  const confirmDeleteStudent = () => {
+  const confirmDeleteStudent = async () => {
     if (studentToDelete) {
-      setStudents(prevStudents => prevStudents.filter(s => s.id !== studentToDelete.id));
-      setRecordedExercises(prevLogs => prevLogs.filter(log => log.studentId !== studentToDelete.id));
-      // Optionally, remove class from dynamicClasses if no students are left in it
-      const remainingStudentsInClass = students.filter(s => s.class === studentToDelete.class && s.id !== studentToDelete.id);
-      if (remainingStudentsInClass.length === 0) {
-        setDynamicClasses(prevClasses => prevClasses.filter(c => c !== studentToDelete.class));
+      try {
+        const batch = writeBatch(db);
+        
+        // Delete student document
+        const studentDocRef = doc(db, "students", studentToDelete.id);
+        batch.delete(studentDocRef);
+
+        // Delete associated exercise logs
+        const logsQuery = query(collection(db, "exerciseLogs"), where("studentId", "==", studentToDelete.id));
+        const logsSnapshot = await getDocs(logsQuery);
+        logsSnapshot.forEach(logDoc => {
+          batch.delete(doc(db, "exerciseLogs", logDoc.id));
+        });
+        
+        // Delete associated student goals
+        const goalsDocRef = doc(db, "studentGoals", studentToDelete.id);
+        // Check if goal doc exists before attempting delete, or just try delete.
+        // For simplicity, we'll just attempt delete. If it doesn't exist, it's a no-op.
+        batch.delete(goalsDocRef);
+
+        await batch.commit();
+
+        setStudents(prevStudents => prevStudents.filter(s => s.id !== studentToDelete.id));
+        setRecordedExercises(prevLogs => prevLogs.filter(log => log.studentId !== studentToDelete.id));
+        
+        const remainingStudents = students.filter(s => s.id !== studentToDelete.id);
+        const updatedClassNames = Array.from(new Set(remainingStudents.map(s => s.class))).sort();
+        setDynamicClasses(updatedClassNames);
+
+        toast({ title: "성공", description: `${studentToDelete.name} 학생 정보가 삭제되었습니다.` });
+        setStudentToDelete(null);
+      } catch (error) {
+        console.error("Error deleting student: ", error);
+        toast({ title: "오류", description: "학생 정보 삭제에 실패했습니다.", variant: "destructive"});
       }
-      setStudentToDelete(null);
     }
     setIsConfirmDeleteDialogOpen(false);
   };
   
-  const handleAddCompliment = () => {
+  const handleAddCompliment = async () => {
     if (newCompliment.trim() === '') {
       toast({ title: "오류", description: "칭찬 문구를 입력해주세요.", variant: "destructive"});
       return;
@@ -191,14 +244,41 @@ export default function Home() {
       toast({ title: "오류", description: "이미 목록에 있는 칭찬 문구입니다.", variant: "destructive"});
       return;
     }
-    setCompliments(prev => [...prev, newCompliment.trim()]);
-    setNewCompliment('');
-    toast({ title: "성공", description: "칭찬 문구가 추가되었습니다."});
+    try {
+      const complimentsDocRef = doc(db, COMPLIMENTS_DOC_PATH);
+      await updateDoc(complimentsDocRef, {
+        list: arrayUnion(newCompliment.trim())
+      });
+      setCompliments(prev => [...prev, newCompliment.trim()]);
+      setNewCompliment('');
+      toast({ title: "성공", description: "칭찬 문구가 추가되었습니다."});
+    } catch (error) {
+      console.error("Error adding compliment: ", error);
+      const complimentsDocRef = doc(db, COMPLIMENTS_DOC_PATH);
+      const currentDoc = await getDoc(complimentsDocRef);
+      if (!currentDoc.exists()) {
+         await setDoc(complimentsDocRef, { list: [newCompliment.trim()] });
+         setCompliments([newCompliment.trim()]);
+         setNewCompliment('');
+         toast({ title: "성공", description: "칭찬 문구가 추가되었습니다."});
+      } else {
+        toast({ title: "오류", description: "칭찬 문구 추가에 실패했습니다.", variant: "destructive"});
+      }
+    }
   };
 
-  const handleDeleteCompliment = (complimentToDelete: string) => {
-    setCompliments(prev => prev.filter(c => c !== complimentToDelete));
-    toast({ title: "성공", description: "칭찬 문구가 삭제되었습니다."});
+  const handleDeleteCompliment = async (complimentToDelete: string) => {
+    try {
+      const complimentsDocRef = doc(db, COMPLIMENTS_DOC_PATH);
+      await updateDoc(complimentsDocRef, {
+        list: arrayRemove(complimentToDelete)
+      });
+      setCompliments(prev => prev.filter(c => c !== complimentToDelete));
+      toast({ title: "성공", description: "칭찬 문구가 삭제되었습니다."});
+    } catch (error) {
+      console.error("Error deleting compliment: ", error);
+      toast({ title: "오류", description: "칭찬 문구 삭제에 실패했습니다.", variant: "destructive"});
+    }
   };
 
   const memoizedExerciseSummaryChart = useMemo(() => (
@@ -207,6 +287,22 @@ export default function Home() {
 
   const memoizedAiSuggestionBox = useMemo(() => <AiSuggestionBox recordedExercises={recordedExercises} />, [recordedExercises]);
 
+  const isLoading = isLoadingStudents || isLoadingLogs || isLoadingCompliments;
+
+  if (isLoading) {
+    return (
+      <div className="flex flex-col min-h-screen bg-background">
+        <Header />
+        <main className="flex-grow container mx-auto p-4 sm:p-6 lg:p-8 flex justify-center items-center">
+          <Loader2 className="h-12 w-12 animate-spin text-primary" />
+          <span className="ml-4 text-xl">데이터를 불러오는 중입니다...</span>
+        </main>
+        <footer className="text-center p-4 text-sm text-muted-foreground border-t">
+          &copy; {new Date().getFullYear()} 풍풍이의 운동기록장.
+        </footer>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col min-h-screen bg-background">
@@ -248,7 +344,7 @@ export default function Home() {
                   <UserPlus className="mr-2 h-5 w-5" /> 학생 추가
                 </Button>
               </div>
-              {students.length === 0 && dynamicClasses.length === 0 && (
+              {students.length === 0 && (
                 <div className="text-center py-10 bg-card p-6 rounded-xl shadow-md">
                   <h3 className="text-xl font-semibold mb-2">풍풍이 운동기록장에 오신 것을 환영합니다!</h3>
                   <p className="text-muted-foreground mb-4">아직 등록된 학생이 없습니다. 첫 학생을 추가하여 시작해보세요.</p>
@@ -257,9 +353,9 @@ export default function Home() {
                   </Button>
                 </div>
               )}
-              { (students.length > 0 || dynamicClasses.length > 0) && studentsInClass.length === 0 && (
+              { students.length > 0 && studentsInClass.length === 0 && (
                  <p className="text-muted-foreground">
-                  {selectedClass ? '이 학급에는 학생이 없습니다. 학생을 추가해주세요.' : (students.length === 0 ? '등록된 학생이 없습니다. 학생을 추가해주세요.' : '선택된 학급에 학생이 없습니다. 다른 학급을 선택하거나 이 학급에 학생을 추가해주세요.')}
+                  {selectedClass ? '이 학급에는 학생이 없습니다. 학생을 추가해주세요.' : '선택된 학급에 학생이 없습니다. 다른 학급을 선택하거나 이 학급에 학생을 추가해주세요.'}
                  </p>
               )}
               {studentsInClass.length > 0 && (
@@ -280,12 +376,12 @@ export default function Home() {
           
           <TabsContent value="log" className="mt-6">
              <section aria-labelledby="activity-log-heading">
-                <h2 id="activity-log-heading" className="text-xl font-semibold mb-4 font-headline">최근 활동</h2>
+                <h2 id="activity-log-heading" className="text-xl font-semibold mb-4 font-headline">최근 활동 (최대 20개)</h2>
                 {recordedExercises.length > 0 ? (
                   <div className="space-y-3 max-h-[500px] overflow-y-auto bg-card p-4 rounded-xl shadow-md">
                     {recordedExercises
                       .filter(log => !selectedClass || log.className === selectedClass)
-                      .sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime() || b.id.localeCompare(a.id) )
+                      .sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime() || (b.id && a.id ? b.id.localeCompare(a.id) : 0) )
                       .slice(0, 20) 
                       .map(log => {
                         const student = students.find(s => s.id === log.studentId);
@@ -342,7 +438,8 @@ export default function Home() {
                     <MessageSquarePlus className="mr-2 h-5 w-5" /> 추가
                   </Button>
                 </div>
-                {compliments.length > 0 ? (
+                {isLoadingCompliments && <Loader2 className="mx-auto h-6 w-6 animate-spin text-primary" />}
+                {!isLoadingCompliments && compliments.length > 0 ? (
                   <div className="space-y-2 max-h-[300px] overflow-y-auto border p-3 rounded-lg bg-secondary/20">
                     {compliments.map((phrase, index) => (
                       <div key={index} className="flex justify-between items-center p-2 bg-background rounded-md shadow-sm">
@@ -360,7 +457,7 @@ export default function Home() {
                     ))}
                   </div>
                 ) : (
-                  <p className="text-sm text-muted-foreground text-center py-4">
+                 !isLoadingCompliments && <p className="text-sm text-muted-foreground text-center py-4">
                     아직 추가된 칭찬 문구가 없습니다. 위에서 추가해보세요!
                   </p>
                 )}
@@ -370,7 +467,6 @@ export default function Home() {
               </div>
             </section>
           </TabsContent>
-
         </Tabs>
 
         {selectedStudentForLog && (
@@ -395,7 +491,7 @@ export default function Home() {
               <AlertDialogHeader>
                 <AlertDialogTitle>학생 삭제 확인</AlertDialogTitle>
                 <AlertDialogDescription>
-                  <strong>{studentToDelete.name}</strong> ({studentToDelete.class} {studentToDelete.studentNumber}번) 학생을 정말 삭제하시겠습니까? 이 학생의 모든 운동 기록도 함께 삭제됩니다. 이 작업은 되돌릴 수 없습니다.
+                  <strong>{studentToDelete.name}</strong> ({studentToDelete.class} {studentToDelete.studentNumber}번) 학생을 정말 삭제하시겠습니까? 이 학생의 모든 운동 기록과 목표도 함께 삭제됩니다. 이 작업은 되돌릴 수 없습니다.
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
@@ -407,7 +503,6 @@ export default function Home() {
             </AlertDialogContent>
           </AlertDialog>
         )}
-
       </main>
       <footer className="text-center p-4 text-sm text-muted-foreground border-t">
         &copy; {new Date().getFullYear()} 풍풍이의 운동기록장. 학생들이 활동적으로 지낼 수 있도록!

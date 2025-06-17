@@ -1,11 +1,9 @@
 
-import type { Student, Exercise, ClassName } from '@/lib/types';
+import type { Exercise } from '@/lib/types'; // Student and ClassName removed
 import { Footprints } from 'lucide-react';
 import { SquatIcon, PlankIcon, JumpRopeIcon } from '@/components/icons';
 
-export const CLASSES: ClassName[] = []; // Changed: Empty array
-
-export const STUDENTS_DATA: Student[] = []; // Changed: Empty array
+// CLASSES and STUDENTS_DATA are removed as data will be managed in Firestore by the teacher.
 
 export const EXERCISES: Exercise[] = [
   { 
