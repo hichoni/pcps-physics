@@ -165,6 +165,11 @@ export default function StudentPage() {
     setSelectedClass('');
     setSelectedStudentId('');
   };
+  
+  const hasEffectiveGoals = useMemo(() => {
+    return Object.keys(studentGoals).filter(exId => studentGoals[exId] && Object.values(studentGoals[exId]).some(v => v !== undefined && v > 0)).length > 0;
+  }, [studentGoals]);
+
 
   if (isLoading) {
     return <div className="flex justify-center items-center min-h-screen"><Loader2 className="h-8 w-8 animate-spin text-primary" /> 로딩 중...</div>;
@@ -257,8 +262,8 @@ export default function StudentPage() {
               <CardDescription>목표를 설정하고 달성해봐요!</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3 flex-grow flex flex-col">
-              <div className="flex items-center justify-center h-40 bg-secondary/20 rounded-lg p-2 flex-grow">
-                {Object.keys(studentGoals).length > 0 ? (
+              {hasEffectiveGoals ? (
+                <div className="flex items-center justify-center h-40 bg-secondary/20 rounded-lg p-2 flex-grow">
                   <ul className="text-sm list-disc list-inside pl-2 text-left w-full overflow-y-auto max-h-full">
                     {EXERCISES.filter(ex => studentGoals[ex.id] && Object.values(studentGoals[ex.id]).some(v => v !== undefined && v > 0) ).map(exercise => {
                       const goal = studentGoals[exercise.id];
@@ -271,24 +276,23 @@ export default function StudentPage() {
                         if (goal?.steps) parts.push(`${goal.steps}${exercise.stepsUnit || ''}`);
                         if (goal?.distance) parts.push(`${goal.distance}${exercise.distanceUnit || ''}`);
                       }
-                      goalText += parts.join(', ') || "목표 미설정";
+                      goalText += parts.join(', ');
                       return <li key={exercise.id} className="truncate" title={goalText}>{goalText}</li>;
                     })}
-                    {Object.keys(studentGoals).filter(exId => studentGoals[exId] && Object.values(studentGoals[exId]).some(v => v !== undefined && v > 0)).length === 0 && (
-                      <p className="text-muted-foreground text-center">아직 설정된 목표가 없어요. 목표를 세워볼까요?</p>
-                    )}
                   </ul>
-                ) : (
-                  <Image src="https://placehold.co/300x200.png" alt="나의 목표 이미지" width={300} height={200} className="rounded-md object-cover" data-ai-hint="goal achievement" />
-                )}
-              </div>
+                </div>
+              ) : (
+                <div className="flex items-center justify-center text-center py-4 flex-grow">
+                  <p className="text-muted-foreground">나의 운동 목표를 설정해봐요!</p>
+                </div>
+              )}
               <Button variant="outline" className="w-full rounded-lg mt-auto" onClick={() => setIsGoalsDialogOpen(true)}>목표 설정/확인</Button>
             </CardContent>
           </Card>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <Card className="shadow-md hover:shadow-lg transition-shadow rounded-xl">
+          <Card className="shadow-md hover:shadow-lg transition-shadow rounded-xl lg:col-span-1">
             <CardHeader>
               <CardTitle className="flex items-center font-headline text-xl">
                 <Dumbbell className="mr-3 h-7 w-7 text-primary" />
@@ -316,7 +320,7 @@ export default function StudentPage() {
             </CardContent>
           </Card>
 
-          <Card className="shadow-md hover:shadow-lg transition-shadow rounded-xl">
+          <Card className="shadow-md hover:shadow-lg transition-shadow rounded-xl lg:col-span-1">
             <CardHeader>
               <CardTitle className="flex items-center font-headline text-xl">
                 <History className="mr-3 h-7 w-7 text-destructive" />
@@ -326,11 +330,11 @@ export default function StudentPage() {
             </CardHeader>
             <CardContent className="space-y-3">
                {studentActivityLogs.length === 0 ? (
-                <div className="text-center py-4">
+                <div className="flex items-center justify-center text-center py-4 flex-grow">
                   <p className="text-muted-foreground">아직 운동을 하지 않았네요.</p>
                 </div>
               ) : (
-                <div className="text-center py-4">
+                <div className="flex items-center justify-center h-40 bg-secondary/20 rounded-lg p-2 flex-grow">
                   <p className="text-foreground font-semibold">운동 기록 있음 (데이터 표시 영역)</p>
                 </div>
               )}
@@ -360,3 +364,4 @@ export default function StudentPage() {
     
 
     
+
