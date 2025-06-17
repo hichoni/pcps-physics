@@ -10,8 +10,8 @@ import ExerciseSummaryChart from '@/components/ExerciseSummaryChart';
 import AiSuggestionBox from '@/components/AiSuggestionBox';
 import AddStudentDialog from '@/components/AddStudentDialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import type { Student, ClassName, RecordedExercise, Exercise, Gender } from '@/lib/types';
-import { STUDENTS_DATA, CLASSES, EXERCISES } from '@/data/mockData';
+import type { Student, ClassName, RecordedExercise, Exercise, Gender } from '@/lib/types'; // ClassName is now string
+import { EXERCISES } from '@/data/mockData'; // CLASSES is removed from here for dynamic handling
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -40,17 +40,28 @@ const DEFAULT_COMPLIMENTS = [
   "멋진", "희망찬", "빛나는", "슬기로운", "명랑한", "따뜻한 마음을 가진"
 ];
 const COMPLIMENTS_STORAGE_KEY = 'physEdPalCompliments_v1';
+const STUDENTS_STORAGE_KEY = 'physEdPalStudents_v2';
+const LOGS_STORAGE_KEY = 'physEdPalLogs_v2';
+const CLASSES_STORAGE_KEY = 'physEdPalClasses_v1';
 
 export default function Home() {
-  const [selectedClass, setSelectedClass] = useState<ClassName | undefined>(CLASSES[0]);
+  const [selectedClass, setSelectedClass] = useState<ClassName | undefined>(undefined); // Default to 'all'
   const { toast } = useToast();
   
   const [students, setStudents] = useState<Student[]>(() => {
     if (typeof window !== 'undefined') {
-      const savedStudents = localStorage.getItem('physEdPalStudents_v2');
-      return savedStudents ? JSON.parse(savedStudents) : STUDENTS_DATA;
+      const savedStudents = localStorage.getItem(STUDENTS_STORAGE_KEY);
+      return savedStudents ? JSON.parse(savedStudents) : []; // Default to empty array
     }
-    return STUDENTS_DATA;
+    return [];
+  });
+
+  const [dynamicClasses, setDynamicClasses] = useState<ClassName[]>(() => {
+    if (typeof window !== 'undefined') {
+      const savedClasses = localStorage.getItem(CLASSES_STORAGE_KEY);
+      return savedClasses ? JSON.parse(savedClasses) : []; // Default to empty array
+    }
+    return [];
   });
 
   const [studentsInClass, setStudentsInClass] = useState<Student[]>([]);
@@ -58,7 +69,7 @@ export default function Home() {
   const [isLogFormOpen, setIsLogFormOpen] = useState(false);
   const [recordedExercises, setRecordedExercises] = useState<RecordedExercise[]>(() => {
     if (typeof window !== 'undefined') {
-      const savedLogs = localStorage.getItem('physEdPalLogs_v2');
+      const savedLogs = localStorage.getItem(LOGS_STORAGE_KEY);
       return savedLogs ? JSON.parse(savedLogs) : [];
     }
     return [];
@@ -79,13 +90,13 @@ export default function Home() {
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      localStorage.setItem('physEdPalStudents_v2', JSON.stringify(students));
+      localStorage.setItem(STUDENTS_STORAGE_KEY, JSON.stringify(students));
     }
   }, [students]);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      localStorage.setItem('physEdPalLogs_v2', JSON.stringify(recordedExercises));
+      localStorage.setItem(LOGS_STORAGE_KEY, JSON.stringify(recordedExercises));
     }
   }, [recordedExercises]);
 
@@ -95,11 +106,17 @@ export default function Home() {
     }
   }, [compliments]);
 
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(CLASSES_STORAGE_KEY, JSON.stringify(dynamicClasses));
+    }
+  }, [dynamicClasses]);
+
 
   useEffect(() => {
     if (selectedClass) {
       setStudentsInClass(students.filter(student => student.class === selectedClass).sort((a, b) => a.studentNumber - b.studentNumber));
-    } else {
+    } else { // 'all' classes
       setStudentsInClass(students.sort((a,b) => {
         const classCompare = a.class.localeCompare(b.class);
         if (classCompare !== 0) return classCompare;
@@ -131,13 +148,19 @@ export default function Home() {
     setRecordedExercises(prev => [...prev, { ...log, id: `log-${Date.now()}-${Math.random()}` }]);
   };
 
-  const handleAddStudent = (newStudentData: { name: string; class: ClassName; studentNumber: number; gender: Gender }) => {
+  const handleAddStudent = (newStudentData: { name: string; class: string; studentNumber: number; gender: Gender }) => {
     const newStudent: Student = {
       ...newStudentData,
+      class: newStudentData.class.trim() as ClassName, // Ensure it's type ClassName (string)
       id: `s${Date.now()}${Math.random().toString(36).substring(2, 7)}`,
       avatarSeed: newStudentData.name, 
     };
     setStudents(prevStudents => [...prevStudents, newStudent]);
+
+    // Add class to dynamicClasses if it's new
+    if (!dynamicClasses.includes(newStudent.class)) {
+      setDynamicClasses(prevClasses => [...prevClasses, newStudent.class].sort());
+    }
   };
 
   const requestDeleteStudent = (student: Student) => {
@@ -149,6 +172,11 @@ export default function Home() {
     if (studentToDelete) {
       setStudents(prevStudents => prevStudents.filter(s => s.id !== studentToDelete.id));
       setRecordedExercises(prevLogs => prevLogs.filter(log => log.studentId !== studentToDelete.id));
+      // Optionally, remove class from dynamicClasses if no students are left in it
+      const remainingStudentsInClass = students.filter(s => s.class === studentToDelete.class && s.id !== studentToDelete.id);
+      if (remainingStudentsInClass.length === 0) {
+        setDynamicClasses(prevClasses => prevClasses.filter(c => c !== studentToDelete.class));
+      }
       setStudentToDelete(null);
     }
     setIsConfirmDeleteDialogOpen(false);
@@ -188,7 +216,7 @@ export default function Home() {
           <h2 id="class-selection-heading" className="text-xl font-semibold mb-4 font-headline">
             학급 선택
           </h2>
-          <ClassSelector selectedClass={selectedClass} onClassChange={handleClassChange} allClasses={CLASSES} />
+          <ClassSelector selectedClass={selectedClass} onClassChange={handleClassChange} allClasses={dynamicClasses} />
         </section>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
@@ -220,7 +248,21 @@ export default function Home() {
                   <UserPlus className="mr-2 h-5 w-5" /> 학생 추가
                 </Button>
               </div>
-              {studentsInClass.length > 0 ? (
+              {students.length === 0 && dynamicClasses.length === 0 && (
+                <div className="text-center py-10 bg-card p-6 rounded-xl shadow-md">
+                  <h3 className="text-xl font-semibold mb-2">풍풍이 운동기록장에 오신 것을 환영합니다!</h3>
+                  <p className="text-muted-foreground mb-4">아직 등록된 학생이 없습니다. 첫 학생을 추가하여 시작해보세요.</p>
+                  <Button onClick={() => setIsAddStudentDialogOpen(true)} className="rounded-lg">
+                    <UserPlus className="mr-2 h-5 w-5" /> 첫 학생 추가하기
+                  </Button>
+                </div>
+              )}
+              { (students.length > 0 || dynamicClasses.length > 0) && studentsInClass.length === 0 && (
+                 <p className="text-muted-foreground">
+                  {selectedClass ? '이 학급에는 학생이 없습니다. 학생을 추가해주세요.' : (students.length === 0 ? '등록된 학생이 없습니다. 학생을 추가해주세요.' : '선택된 학급에 학생이 없습니다. 다른 학급을 선택하거나 이 학급에 학생을 추가해주세요.')}
+                 </p>
+              )}
+              {studentsInClass.length > 0 && (
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
                   {studentsInClass.map(student => (
                     <StudentCard 
@@ -232,10 +274,6 @@ export default function Home() {
                     />
                   ))}
                 </div>
-              ) : (
-                <p className="text-muted-foreground">
-                  {selectedClass ? '이 학급에는 학생이 없습니다. 학생을 추가해주세요.' : '등록된 학생이 없습니다. 학생을 추가해주세요.'}
-                </p>
               )}
             </section>
           </TabsContent>
@@ -349,7 +387,6 @@ export default function Home() {
           isOpen={isAddStudentDialogOpen}
           onClose={() => setIsAddStudentDialogOpen(false)}
           onSave={handleAddStudent}
-          allClasses={CLASSES}
         />
 
         {studentToDelete && (
@@ -378,4 +415,3 @@ export default function Home() {
     </div>
   );
 }
-    

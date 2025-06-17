@@ -1,9 +1,7 @@
 
 import type React from 'react';
 
-export type ClassName = '3학년 1반' | '3학년 2반' | '3학년 3반' | '3학년 4반' | '3학년 5반';
-
-export const ALL_CLASSES: ClassName[] = ['3학년 1반', '3학년 2반', '3학년 3반', '3학년 4반', '3학년 5반'];
+export type ClassName = string; // Changed: ClassName is now a string
 
 export type Gender = 'male' | 'female';
 
@@ -80,4 +78,3 @@ export interface ExerciseGoal {
 }
 
 export type StudentGoal = Record<string, ExerciseGoal>; // exerciseId를 키로 가짐
-

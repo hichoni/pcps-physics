@@ -5,35 +5,34 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import type { ClassName, Gender } from "@/lib/types";
+import type { Gender, ClassName } from "@/lib/types"; // ClassName is now string
 import { UserPlus, Save } from 'lucide-react';
 
 interface AddStudentDialogProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (newStudentData: { name: string; class: ClassName; studentNumber: number; gender: Gender }) => void;
-  allClasses: ClassName[];
+  onSave: (newStudentData: { name: string; class: string; studentNumber: number; gender: Gender }) => void;
+  // allClasses prop is no longer needed as class is an input
 }
 
-const AddStudentDialog: React.FC<AddStudentDialogProps> = ({ isOpen, onClose, onSave, allClasses }) => {
+const AddStudentDialog: React.FC<AddStudentDialogProps> = ({ isOpen, onClose, onSave }) => {
   const [name, setName] = useState('');
   const [studentNumber, setStudentNumber] = useState<string>('');
   const [gender, setGender] = useState<Gender | undefined>(undefined);
-  const [selectedClass, setSelectedClass] = useState<ClassName | undefined>(allClasses[0]);
+  const [classNameInput, setClassNameInput] = useState<string>(''); // Changed from selectedClass and Select
 
   const handleSave = () => {
     const num = parseInt(studentNumber, 10);
-    if (name.trim() && selectedClass && !isNaN(num) && num > 0 && gender) {
-      onSave({ name: name.trim(), class: selectedClass, studentNumber: num, gender });
+    if (name.trim() && classNameInput.trim() && !isNaN(num) && num > 0 && gender) {
+      onSave({ name: name.trim(), class: classNameInput.trim(), studentNumber: num, gender });
       setName('');
       setStudentNumber('');
       setGender(undefined);
-      // setSelectedClass(allClasses[0]); // Optionally reset class
+      setClassNameInput('');
       onClose();
     } else {
-      alert("모든 필드를 올바르게 입력해주세요 (학생 이름, 학급, 학번, 성별). 학번은 숫자여야 합니다.");
+      alert("모든 필드를 올바르게 입력해주세요 (학생 이름, 학급 이름, 학번, 성별). 학번은 숫자여야 합니다.");
     }
   };
 
@@ -46,7 +45,7 @@ const AddStudentDialog: React.FC<AddStudentDialogProps> = ({ isOpen, onClose, on
             새 학생 추가
           </DialogTitle>
           <DialogDescription>
-            새로운 학생의 이름, 학급, 학번, 성별을 입력해주세요.
+            새로운 학생의 이름, 학급 이름, 학번, 성별을 입력해주세요.
           </DialogDescription>
         </DialogHeader>
         <div className="p-6 space-y-4">
@@ -57,6 +56,16 @@ const AddStudentDialog: React.FC<AddStudentDialogProps> = ({ isOpen, onClose, on
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="예: 홍길동"
+              className="text-base py-3 rounded-lg"
+            />
+          </div>
+           <div className="space-y-2">
+            <Label htmlFor="className" className="text-base">학급 이름</Label>
+            <Input
+              id="className"
+              value={classNameInput}
+              onChange={(e) => setClassNameInput(e.target.value)}
+              placeholder="예: 3학년 1반"
               className="text-base py-3 rounded-lg"
             />
           </div>
@@ -84,24 +93,6 @@ const AddStudentDialog: React.FC<AddStudentDialogProps> = ({ isOpen, onClose, on
                 <Label htmlFor="female" className="text-base font-normal">여자</Label>
               </div>
             </RadioGroup>
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="studentClass" className="text-base">학급</Label>
-            <Select
-              value={selectedClass}
-              onValueChange={(value: ClassName) => setSelectedClass(value)}
-            >
-              <SelectTrigger id="studentClass" className="w-full text-base py-6 rounded-lg">
-                <SelectValue placeholder="학급 선택" />
-              </SelectTrigger>
-              <SelectContent>
-                {allClasses.map((className) => (
-                  <SelectItem key={className} value={className} className="text-base py-2">
-                    {className}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
           </div>
         </div>
         <DialogFooter className="p-6 pt-4 bg-slate-50 dark:bg-slate-800/30">

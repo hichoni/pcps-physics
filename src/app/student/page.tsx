@@ -7,8 +7,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dumbbell, Target, History, PlusCircle, LogOut, UserCheck, Loader2, AlertTriangle } from 'lucide-react';
-import type { Student, ClassName, Exercise, StudentGoal, ExerciseGoal, RecordedExercise, Gender } from '@/lib/types';
-import { STUDENTS_DATA, CLASSES, EXERCISES } from '@/data/mockData';
+import type { Student, ClassName, Exercise, StudentGoal, RecordedExercise, Gender } from '@/lib/types';
+import { EXERCISES } from '@/data/mockData'; // STUDENTS_DATA and CLASSES removed
 import SetStudentGoalsDialog from '@/components/SetStudentGoalsDialog';
 import { useToast } from "@/hooks/use-toast";
 import { recommendStudentExercise, RecommendStudentExerciseOutput } from '@/ai/flows/recommend-student-exercise';
@@ -16,8 +16,10 @@ import { recommendStudentExercise, RecommendStudentExerciseOutput } from '@/ai/f
 const LOCAL_STORAGE_STUDENT_KEY = 'studentApp_currentStudent';
 const LOCAL_STORAGE_GOALS_KEY_PREFIX = 'studentApp_goals_';
 const LOCAL_STORAGE_LOGS_KEY = 'physEdPalLogs_v2'; // Key for teacher app's logs
+const LOCAL_STORAGE_ALL_STUDENTS_KEY = 'physEdPalStudents_v2'; // Key for all students data
+const LOCAL_STORAGE_ALL_CLASSES_KEY = 'physEdPalClasses_v1'; // Key for all classes data
 
-// Moved from StudentHeader for use here
+
 const DEFAULT_POSITIVE_ADJECTIVES_KR = [
   "별처럼 빛나는", "항상 긍정적인", "꿈을 향해 달리는", "세상을 밝히는",
   "용감하고 씩씩한", "매일 성장하는", "사랑스러운", "창의적인", "지혜로운",
@@ -51,8 +53,11 @@ export default function StudentPage() {
   useEffect(() => {
     // Ensure this runs only on the client
     if (typeof window !== 'undefined') {
-      setAllStudents(STUDENTS_DATA); 
-      setAvailableClasses(CLASSES);   
+      const storedAllStudents = localStorage.getItem(LOCAL_STORAGE_ALL_STUDENTS_KEY);
+      setAllStudents(storedAllStudents ? JSON.parse(storedAllStudents) : []);
+
+      const storedAvailableClasses = localStorage.getItem(LOCAL_STORAGE_ALL_CLASSES_KEY);
+      setAvailableClasses(storedAvailableClasses ? JSON.parse(storedAvailableClasses) : []);
       
       let studentToLoad: Student | null = null;
       const storedStudent = localStorage.getItem(LOCAL_STORAGE_STUDENT_KEY);
@@ -81,7 +86,6 @@ export default function StudentPage() {
       loadStudentLogs(currentStudent.id);
       fetchRecommendation();
 
-      // Load and set daily compliment
       let adjectiveList = DEFAULT_POSITIVE_ADJECTIVES_KR;
       const savedCompliments = localStorage.getItem(COMPLIMENTS_STORAGE_KEY);
       if (savedCompliments) {
@@ -97,7 +101,7 @@ export default function StudentPage() {
       
       const dayOfMonth = new Date().getDate();
       const adjectiveIndex = (dayOfMonth - 1 + currentStudent.name.length) % adjectiveList.length;
-      const selectedAdjective = adjectiveList[adjectiveIndex] || adjectiveList[0] || ""; // Fallback
+      const selectedAdjective = adjectiveList[adjectiveIndex] || adjectiveList[0] || ""; 
       setDailyCompliment(selectedAdjective);
 
     } else {
@@ -113,7 +117,7 @@ export default function StudentPage() {
   }, [currentStudent]); 
 
   useEffect(() => {
-    if (selectedClass) {
+    if (selectedClass && allStudents.length > 0) {
       setStudentsInClass(allStudents.filter(student => student.class === selectedClass).sort((a,b) => a.studentNumber - b.studentNumber));
       setSelectedStudentId(''); 
     } else {
@@ -218,9 +222,13 @@ export default function StudentPage() {
           <CardContent className="space-y-6">
             <div className="space-y-2">
               <label htmlFor="class-select" className="block text-sm font-medium text-gray-700 dark:text-gray-300">학급 선택</label>
-              <Select value={selectedClass} onValueChange={(value) => setSelectedClass(value as ClassName)}>
+              <Select 
+                value={selectedClass} 
+                onValueChange={(value) => setSelectedClass(value as ClassName)}
+                disabled={availableClasses.length === 0}
+              >
                 <SelectTrigger id="class-select" className="w-full text-base py-3 rounded-lg">
-                  <SelectValue placeholder="학급을 선택하세요" />
+                  <SelectValue placeholder={availableClasses.length === 0 ? "선생님께서 아직 학급을 만들지 않으셨어요." : "학급을 선택하세요"} />
                 </SelectTrigger>
                 <SelectContent>
                   {availableClasses.map(cls => (
@@ -232,9 +240,17 @@ export default function StudentPage() {
             
             <div className="space-y-2">
               <label htmlFor="student-select" className="block text-sm font-medium text-gray-700 dark:text-gray-300">학생 선택</label>
-              <Select value={selectedStudentId} onValueChange={setSelectedStudentId} disabled={!selectedClass || studentsInClass.length === 0}>
+              <Select 
+                value={selectedStudentId} 
+                onValueChange={setSelectedStudentId} 
+                disabled={availableClasses.length === 0 || !selectedClass || studentsInClass.length === 0}
+              >
                 <SelectTrigger id="student-select" className="w-full text-base py-3 rounded-lg">
-                  <SelectValue placeholder={selectedClass ? (studentsInClass.length === 0 ? "이 학급에 학생 없음" : "학생을 선택하세요") : "학급을 먼저 선택하세요"} />
+                  <SelectValue placeholder={
+                     availableClasses.length === 0 ? "먼저 학급 정보가 필요합니다." :
+                    !selectedClass ? "학급을 먼저 선택하세요" : 
+                    (studentsInClass.length === 0 ? "이 학급에 학생 없음" : "학생을 선택하세요")
+                  } />
                 </SelectTrigger>
                 <SelectContent>
                   {studentsInClass.map(student => (
@@ -258,7 +274,7 @@ export default function StudentPage() {
   return (
     <div className="flex flex-col min-h-screen">
       <StudentHeader 
-        studentName={currentStudent.name} // Pass only the name
+        studentName={currentStudent.name} 
         gender={currentStudent.gender}
       />
       <main className="flex-grow container mx-auto p-4 sm:p-6 lg:p-8 space-y-8">
@@ -315,7 +331,7 @@ export default function StudentPage() {
                   </ul>
                 </div>
               ) : (
-                <div className="flex items-center justify-center text-center py-4 flex-grow min-h-[10rem] bg-secondary/20 rounded-lg">
+                 <div className="flex items-center justify-center text-center py-4 flex-grow min-h-[10rem] rounded-lg">
                   <p className="text-muted-foreground">나의 운동 목표를 설정해봐요!</p>
                 </div>
               )}
@@ -363,7 +379,7 @@ export default function StudentPage() {
             </CardHeader>
             <CardContent className="space-y-3">
                {studentActivityLogs.length === 0 ? (
-                <div className="flex items-center justify-center text-center py-4 flex-grow min-h-[10rem] bg-secondary/20 rounded-lg">
+                <div className="flex items-center justify-center text-center py-4 flex-grow min-h-[10rem] rounded-lg">
                   <p className="text-muted-foreground">오늘도 씩씩하게 운동을 시작해요 :D</p>
                 </div>
               ) : (
@@ -392,11 +408,3 @@ export default function StudentPage() {
     </div>
   );
 }
-    
-
-    
-
-    
-
-
-

@@ -3,25 +3,9 @@ import type { Student, Exercise, ClassName } from '@/lib/types';
 import { Footprints } from 'lucide-react';
 import { SquatIcon, PlankIcon, JumpRopeIcon } from '@/components/icons';
 
-export const CLASSES: ClassName[] = ['3학년 1반', '3학년 2반', '3학년 3반', '3학년 4반', '3학년 5반'];
+export const CLASSES: ClassName[] = []; // Changed: Empty array
 
-export const STUDENTS_DATA: Student[] = [
-  { id: 's1', name: '김민준', class: '3학년 1반', studentNumber: 1, gender: 'male', avatarSeed: 'Minjun' },
-  { id: 's2', name: '이서연', class: '3학년 1반', studentNumber: 2, gender: 'female', avatarSeed: 'Seoyeon' },
-  { id: 's3', name: '박도윤', class: '3학년 1반', studentNumber: 3, gender: 'male', avatarSeed: 'Doyun' },
-  { id: 's4', name: '최지우', class: '3학년 1반', studentNumber: 4, gender: 'female', avatarSeed: 'Jiwu' },
-  { id: 's5', name: '정하준', class: '3학년 2반', studentNumber: 1, gender: 'male', avatarSeed: 'Hajun' },
-  { id: 's6', name: '윤서아', class: '3학년 2반', studentNumber: 2, gender: 'female', avatarSeed: 'Seoa' },
-  { id: 's7', name: '강시우', class: '3학년 2반', studentNumber: 3, gender: 'male', avatarSeed: 'Siwoo' },
-  { id: 's8', name: '송하윤', class: '3학년 3반', studentNumber: 1, gender: 'female', avatarSeed: 'Hayun' },
-  { id: 's9', name: '임예준', class: '3학년 3반', studentNumber: 2, gender: 'male', avatarSeed: 'Yejun' },
-  { id: 's10', name: '오지아', class: '3학년 4반', studentNumber: 1, gender: 'female', avatarSeed: 'Jia' },
-  { id: 's11', name: '한주원', class: '3학년 4반', studentNumber: 2, gender: 'male', avatarSeed: 'Juho' },
-  { id: 's12', name: '문서윤', class: '3학년 5반', studentNumber: 1, gender: 'female', avatarSeed: 'Seoyun' },
-  { id: 's13', name: '배은우', class: '3학년 5반', studentNumber: 2, gender: 'male', avatarSeed: 'Eunwoo' },
-  { id: 's14', name: '조수아', class: '3학년 5반', studentNumber: 3, gender: 'female', avatarSeed: 'Sua' },
-  { id: 's15', name: '황유준', class: '3학년 1반', studentNumber: 5, gender: 'male', avatarSeed: 'Yujun' },
-];
+export const STUDENTS_DATA: Student[] = []; // Changed: Empty array
 
 export const EXERCISES: Exercise[] = [
   { 
