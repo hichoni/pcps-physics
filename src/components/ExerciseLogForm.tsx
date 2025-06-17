@@ -4,12 +4,12 @@ import { useState, useEffect } from 'react';
 import type { Student, Exercise, RecordedExercise, ClassName } from '@/lib/types';
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
-import { CardContent } from "@/components/ui/card"; // Added import
+import { CardContent } from "@/components/ui/card"; 
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { EXERCISES } from "@/data/mockData";
 import { cn } from "@/lib/utils";
-import { CalendarIcon, PlusCircle, MinusCircle, Save } from "lucide-react";
+import { CalendarIcon, PlusCircle, MinusCircle, Save, Camera } from "lucide-react"; // Camera 아이콘 추가
 import { format } from "date-fns";
 import { ko } from 'date-fns/locale';
 
@@ -19,16 +19,15 @@ interface ExerciseLogFormProps {
   onClose: () => void;
   onSave: (log: Omit<RecordedExercise, 'id'>) => void;
   recordedExercises: RecordedExercise[];
+  onSwitchToCameraMode?: (exerciseId: string) => void; // 새로운 prop 추가
 }
 
-const ExerciseLogForm: React.FC<ExerciseLogFormProps> = ({ student, isOpen, onClose, onSave, recordedExercises }) => {
+const ExerciseLogForm: React.FC<ExerciseLogFormProps> = ({ student, isOpen, onClose, onSave, recordedExercises, onSwitchToCameraMode }) => {
   const [selectedExerciseId, setSelectedExerciseId] = useState<string>(EXERCISES[0].id);
   
-  // States for 'count_time' category
   const [countLogValue, setCountLogValue] = useState<number>(EXERCISES[0].defaultCount ?? 0);
   const [timeLogValue, setTimeLogValue] = useState<number>(EXERCISES[0].defaultTime ?? 0);
 
-  // States for 'steps_distance' category
   const [stepsLogValue, setStepsLogValue] = useState<number>(EXERCISES[0].defaultSteps ?? 0);
   const [distanceLogValue, setDistanceLogValue] = useState<number>(EXERCISES[0].defaultDistance ?? 0);
   
@@ -39,7 +38,7 @@ const ExerciseLogForm: React.FC<ExerciseLogFormProps> = ({ student, isOpen, onCl
   useEffect(() => {
     if (student && isOpen) {
       const currentEx = EXERCISES.find(ex => ex.id === selectedExerciseId) || EXERCISES[0];
-      setSelectedExerciseId(currentEx.id); // Ensure selectedExerciseId is current
+      setSelectedExerciseId(currentEx.id); 
       
       if (currentEx.category === 'count_time') {
         setCountLogValue(currentEx.defaultCount ?? 0);
@@ -48,12 +47,11 @@ const ExerciseLogForm: React.FC<ExerciseLogFormProps> = ({ student, isOpen, onCl
         setStepsLogValue(currentEx.defaultSteps ?? 0);
         setDistanceLogValue(currentEx.defaultDistance ?? 0);
       }
-      setLogDate(new Date()); // Reset to today when opening
+      setLogDate(new Date()); 
     }
   }, [student, isOpen, selectedExerciseId]);
 
   useEffect(() => {
-    // Reset values when selected exercise changes
     const currentExerciseDetails = EXERCISES.find(ex => ex.id === selectedExerciseId);
     if (currentExerciseDetails) {
       if (currentExerciseDetails.category === 'count_time') {
@@ -91,7 +89,7 @@ const ExerciseLogForm: React.FC<ExerciseLogFormProps> = ({ student, isOpen, onCl
 
   if (!student) return null;
 
-  const todayStr = format(logDate, "yyyy-MM-dd"); // Use logDate for today's comparison
+  const todayStr = format(logDate, "yyyy-MM-dd");
   const exercisesLoggedTodayForStudent = recordedExercises.filter(
     rec => rec.studentId === student.id && rec.date === todayStr && rec.exerciseId === selectedExercise.id
   );
@@ -121,6 +119,7 @@ const ExerciseLogForm: React.FC<ExerciseLogFormProps> = ({ student, isOpen, onCl
     }
   }
 
+  const canUseCameraForExercise = selectedExercise.id === 'ex4' && onSwitchToCameraMode; // ex4 is jump rope
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
@@ -251,11 +250,22 @@ const ExerciseLogForm: React.FC<ExerciseLogFormProps> = ({ student, isOpen, onCl
                   onSelect={(date) => date && setLogDate(date)}
                   initialFocus
                   locale={ko}
-                  disabled={{ after: new Date() }} // Disable future dates
+                  disabled={{ after: new Date() }} 
                 />
               </PopoverContent>
             </Popover>
           </div>
+
+          {canUseCameraForExercise && (
+            <Button 
+              variant="secondary" 
+              className="w-full py-3 text-base rounded-lg mt-4"
+              onClick={() => onSwitchToCameraMode(selectedExercise.id)}
+            >
+              <Camera className="mr-2 h-5 w-5" /> AI 카메라로 기록 (줄넘기)
+            </Button>
+          )}
+
         </CardContent>
         <DialogFooter className="p-6 pt-4 bg-slate-50 dark:bg-slate-800/30">
           <DialogClose asChild>
@@ -271,3 +281,6 @@ const ExerciseLogForm: React.FC<ExerciseLogFormProps> = ({ student, isOpen, onCl
 };
 
 export default ExerciseLogForm;
+
+
+    

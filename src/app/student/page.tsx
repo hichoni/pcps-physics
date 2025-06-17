@@ -7,13 +7,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from '@/components/ui/button';
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dumbbell, Target, History, PlusCircle, LogOut, UserCheck, Loader2, AlertTriangle, KeyRound, Edit3 } from 'lucide-react';
+import { Dumbbell, Target, History, PlusCircle, LogOut, UserCheck, Loader2, AlertTriangle, KeyRound, Edit3, Camera } from 'lucide-react';
 import type { Student, ClassName, Exercise, StudentGoal, RecordedExercise, Gender } from '@/lib/types';
 import { EXERCISES } from '@/data/mockData';
 import SetStudentGoalsDialog from '@/components/SetStudentGoalsDialog';
 import ExerciseLogForm from '@/components/ExerciseLogForm';
 import ChangeOwnPinDialog from '@/components/ChangeOwnPinDialog';
-import ChangeAvatarDialog from '@/components/ChangeAvatarDialog'; // 아바타 변경 다이얼로그 추가
+import ChangeAvatarDialog from '@/components/ChangeAvatarDialog';
+import JumpRopeCameraMode from '@/components/JumpRopeCameraMode'; // 새로운 컴포넌트 임포트
 import { useToast } from "@/hooks/use-toast";
 import { recommendStudentExercise, RecommendStudentExerciseOutput } from '@/ai/flows/recommend-student-exercise';
 import { db } from '@/lib/firebase';
@@ -48,12 +49,16 @@ export default function StudentPage() {
   const [isGoalsDialogOpen, setIsGoalsDialogOpen] = useState(false);
   const [isLogFormOpen, setIsLogFormOpen] = useState(false);
   const [isChangeOwnPinDialogOpen, setIsChangeOwnPinDialogOpen] = useState(false); 
-  const [isChangeAvatarDialogOpen, setIsChangeAvatarDialogOpen] = useState(false); // 아바타 다이얼로그 상태
+  const [isChangeAvatarDialogOpen, setIsChangeAvatarDialogOpen] = useState(false);
   const [studentGoals, setStudentGoals] = useState<StudentGoal>({});
   const [studentActivityLogs, setStudentActivityLogs] = useState<RecordedExercise[]>([]);
   const [recommendedExercise, setRecommendedExercise] = useState<RecommendStudentExerciseOutput | null>(null);
   const [isRecommendationLoading, setIsRecommendationLoading] = useState(false);
   const [dailyCompliment, setDailyCompliment] = useState<string>('');
+
+  const [isCameraModeOpen, setIsCameraModeOpen] = useState(false);
+  const [cameraExerciseId, setCameraExerciseId] = useState<string | null>(null);
+
 
   const { toast } = useToast();
 
@@ -212,6 +217,8 @@ export default function StudentPage() {
     setStudentForPinCheck(null);
     setEnteredPin('');
     setLoginError(null);
+    setIsCameraModeOpen(false);
+    setCameraExerciseId(null);
   };
 
   const handleOpenLogForm = () => {
@@ -230,7 +237,9 @@ export default function StudentPage() {
       const docRef = await addDoc(collection(db, "exerciseLogs"), logData);
       setStudentActivityLogs(prev => [...prev, { ...logData, id: docRef.id }].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
       toast({ title: "기록 완료!", description: "오늘의 운동이 성공적으로 기록되었어요! 참 잘했어요!" });
-      setIsLogFormOpen(false);
+      setIsLogFormOpen(false); // 수동 기록 폼 닫기
+      setIsCameraModeOpen(false); // 카메라 모드도 닫기
+      setCameraExerciseId(null);
     } catch (error) {
       console.error("Error saving exercise log for student: ", error);
       toast({ title: "기록 실패", description: "운동 기록 중 오류가 발생했어요. 다시 시도해주세요.", variant: "destructive" });
@@ -265,6 +274,32 @@ export default function StudentPage() {
         toast({ title: "오류", description: "아바타 변경에 실패했습니다.", variant: "destructive" });
       }
     }
+  };
+
+  const handleSwitchToCameraMode = (exerciseId: string) => {
+    setCameraExerciseId(exerciseId);
+    setIsLogFormOpen(false); // 수동 입력 폼 닫기
+    setIsCameraModeOpen(true); // 카메라 모드 열기
+  };
+
+  const handleCloseCameraMode = () => {
+    setIsCameraModeOpen(false);
+    setCameraExerciseId(null);
+  };
+
+  const handleSaveFromCamera = (count: number) => {
+    if (currentStudent && cameraExerciseId === 'ex4') { // ex4 is jump rope
+      const logEntry: Omit<RecordedExercise, 'id'> = {
+        studentId: currentStudent.id,
+        exerciseId: cameraExerciseId,
+        date: format(new Date(), "yyyy-MM-dd"), // 카메라 사용은 현재 날짜로 기록
+        className: currentStudent.class as ClassName,
+        countValue: count,
+        timeValue: 0, // 줄넘기는 횟수만 카운트한다고 가정
+      };
+      handleSaveExerciseLog(logEntry);
+    }
+    handleCloseCameraMode();
   };
   
   const hasEffectiveGoals = useMemo(() => {
@@ -379,6 +414,15 @@ export default function StudentPage() {
           &copy; {new Date().getFullYear()} {currentStudent.name}의 운동기록장.
         </footer>
       </div>
+    );
+  }
+
+  if (isCameraModeOpen) {
+    return (
+      <JumpRopeCameraMode
+        onClose={handleCloseCameraMode}
+        onSave={handleSaveFromCamera}
+      />
     );
   }
 
@@ -549,6 +593,7 @@ export default function StudentPage() {
             onClose={handleCloseLogForm}
             onSave={handleSaveExerciseLog}
             recordedExercises={studentActivityLogs} 
+            onSwitchToCameraMode={handleSwitchToCameraMode}
           />
         )}
 
@@ -585,4 +630,6 @@ export default function StudentPage() {
     </div>
   );
 }
+    
+
     
