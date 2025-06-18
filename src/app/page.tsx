@@ -33,7 +33,7 @@ export default function WelcomePage() {
       </div>
 
       <footer className="mt-16 text-center text-sm text-muted-foreground">
-        &copy; {new Date().getFullYear()} PhysEd Pal. All rights reserved.
+        &copy; {new Date().getFullYear()} 풍풍이 체력탐험대 by 초니쌤. All rights reserved.
       </footer>
     </div>
   );
