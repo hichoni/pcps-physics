@@ -6,15 +6,7 @@
       "firebase.json",
       "**/.*",
       "**/node_modules/**"
-    ],
-    "rewrites": [
-      {
-        "source": "**",
-        "run": {
-          "serviceId": "pcps-physics",
-          "region": "asia-east1"
-        }
-      }
     ]
+    // "rewrites" section has been removed to stop forwarding traffic to App Hosting backend.
   }
 }

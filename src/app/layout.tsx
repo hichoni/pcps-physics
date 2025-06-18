@@ -1,9 +1,23 @@
-import type {Metadata} from 'next';
-import './globals.css'; // 기본 스타일 유지
+import type { Metadata } from 'next';
+import { Noto_Sans_KR, PT_Sans } from 'next/font/google';
+import './globals.css';
+import { Toaster } from '@/components/ui/toaster';
+
+const notoSansKR = Noto_Sans_KR({
+  subsets: ['latin'], // 'korean' subset is often included automatically with Noto Sans KR
+  weight: ['400', '500', '700'],
+  variable: '--font-noto-sans-kr',
+});
+
+const ptSans = PT_Sans({
+  subsets: ['latin'],
+  weight: ['400', '700'],
+  variable: '--font-pt-sans',
+});
 
 export const metadata: Metadata = {
-  title: '풍풍이 운동기록장 진단 페이지 V3',
-  description: '현재 앱을 진단 중입니다. V3',
+  title: '풍풍이 운동기록장',
+  description: '학생들의 신체 활동 기록 및 관리 플랫폼',
 };
 
 export default function RootLayout({
@@ -11,32 +25,14 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  console.log('[DIAGNOSTIC] RootLayout v3 rendering on server:', new Date().toISOString());
   return (
-    <html lang="ko">
+    <html lang="ko" className={`${notoSansKR.variable} ${ptSans.variable}`}>
       <head>
-        {/* Minimal head content */}
+        {/* Add any global head tags here, e.g., link rel="icon" */}
       </head>
-      <body>
-        <div
-          data-testid="simplified-root-layout-marker-v3"
-          style={{
-            position: 'fixed',
-            top: '5px',
-            left: '5px',
-            background: 'orange',
-            color: 'black',
-            padding: '2px 4px',
-            fontSize: '10px',
-            zIndex: 10000,
-            opacity: 0.85
-          }}
-        >
-          Simplified RootLayout V3 OK
-        </div>
-        <div style={{ border: '2px dashed darkblue', margin: '25px', padding: '10px', backgroundColor: 'rgba(200,200,255,0.1)' }}>
-          {children}
-        </div>
+      <body className="font-body">
+        {children}
+        <Toaster />
       </body>
     </html>
   );
