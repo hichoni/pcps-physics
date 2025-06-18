@@ -88,11 +88,11 @@ const ExerciseLogForm: React.FC<ExerciseLogFormProps> = ({ student, isOpen, onCl
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     if (event.target.files && event.target.files[0]) {
       const file = event.target.files[0];
-      if (file.size > 5 * 1024 * 1024) {
+      if (file.size > 5 * 1024 * 1024) { // 5MB limit
         toast({ title: "파일 크기 초과", description: "이미지 파일은 5MB를 넘을 수 없습니다.", variant: "destructive" });
         setSelectedFile(null);
         setFilePreview(null);
-        event.target.value = "";
+        event.target.value = ""; // Clear the input
         return;
       }
       setSelectedFile(file);
@@ -143,8 +143,12 @@ const ExerciseLogForm: React.FC<ExerciseLogFormProps> = ({ student, isOpen, onCl
                 description += ` (오류 코드: ${error.code})`;
                 if (error.code === 'storage/unauthorized') {
                     description = "이미지 업로드 권한이 없습니다. Firebase Storage 규칙을 확인해주세요. (오류 코드: storage/unauthorized)";
-                } else if (error.code === 'storage/bucket-not-found') {
-                    description = "저장소 버킷을 찾을 수 없습니다. Firebase 설정을 확인해주세요. (오류 코드: storage/bucket-not-found)";
+                } else if (error.code === 'storage/bucket-not-found' || error.code === 'storage/project-not-found') {
+                    description = "저장소 버킷 또는 프로젝트를 찾을 수 없습니다. Firebase 설정 및 Storage 초기화를 확인해주세요. (오류 코드: " + error.code + ")";
+                } else if (error.code === 'storage/canceled') {
+                    description = "이미지 업로드가 취소되었습니다.";
+                } else if (error.code === 'storage/unknown') {
+                    description = "알 수 없는 오류로 이미지 업로드에 실패했습니다. 네트워크 연결을 확인해주세요.";
                 }
               }
               toast({
@@ -152,24 +156,31 @@ const ExerciseLogForm: React.FC<ExerciseLogFormProps> = ({ student, isOpen, onCl
                 description: description,
                 variant: "destructive",
               });
-              reject(error);
+              reject(error); // Propagate the error to stop further execution
             },
             async () => {
-              imageUrl = await getDownloadURL(uploadTask.snapshot.ref);
-              resolve();
+              try {
+                imageUrl = await getDownloadURL(uploadTask.snapshot.ref);
+                resolve();
+              } catch (getUrlError: any) {
+                console.error("Get Download URL failed:", getUrlError);
+                toast({
+                  title: "URL 가져오기 실패",
+                  description: "업로드된 이미지의 URL을 가져오는 데 실패했습니다.",
+                  variant: "destructive",
+                });
+                reject(getUrlError);
+              }
             }
           );
         });
       } catch (error: any) {
-        // This catch block will handle rejections from the promise (e.g., if toast was already shown by the error callback)
-        // or other synchronous errors before the upload even starts.
-        // The toast is likely already shown by the 'error' callback of uploadTask.on.
-        // We just need to ensure the loading state is reset.
+        // This catch block handles rejections from the promise (e.g., if toast was already shown).
+        // Ensure loading state is reset if any error occurs during the upload process.
         setIsUploading(false);
         setUploadProgress(0);
-        return; // Stop further execution
+        return; // Stop further execution if upload failed
       }
-      // If upload was successful, reset loading state
       setIsUploading(false);
       setUploadProgress(0);
     }
@@ -184,14 +195,14 @@ const ExerciseLogForm: React.FC<ExerciseLogFormProps> = ({ student, isOpen, onCl
 
     if (selectedExercise.category === 'count_time') {
       logEntry.countValue = countLogValue;
-      logEntry.timeValue = timeValue;
+      logEntry.timeValue = timeLogValue; // Corrected from timeValue to timeLogValue
     } else if (selectedExercise.category === 'steps_distance') {
       logEntry.stepsValue = stepsLogValue;
       logEntry.distanceValue = distanceLogValue;
     }
 
     onSave(logEntry);
-    onClose();
+    onClose(); // Close dialog after saving
   };
 
   if (!student) return null;
@@ -281,11 +292,11 @@ const ExerciseLogForm: React.FC<ExerciseLogFormProps> = ({ student, isOpen, onCl
                     {selectedExercise.koreanName} ({selectedExercise.timeUnit})
                   </label>
                   <div className="flex items-center justify-center space-x-4 bg-secondary/30 p-4 rounded-lg">
-                    <Button variant="ghost" size="icon" onClick={() => setTimeLogValue(Math.max(0, timeValue - (selectedExercise.timeStep ?? 1)))} aria-label="시간 감소" disabled={isUploading}>
+                    <Button variant="ghost" size="icon" onClick={() => setTimeLogValue(Math.max(0, timeLogValue - (selectedExercise.timeStep ?? 1)))} aria-label="시간 감소" disabled={isUploading}>
                       <MinusCircle className="h-8 w-8 text-primary" />
                     </Button>
                     <span className="text-4xl font-bold w-20 text-center">{timeLogValue}</span>
-                    <Button variant="ghost" size="icon" onClick={() => setTimeLogValue(timeValue + (selectedExercise.timeStep ?? 1))} aria-label="시간 증가" disabled={isUploading}>
+                    <Button variant="ghost" size="icon" onClick={() => setTimeLogValue(timeLogValue + (selectedExercise.timeStep ?? 1))} aria-label="시간 증가" disabled={isUploading}>
                       <PlusCircle className="h-8 w-8 text-primary" />
                     </Button>
                   </div>
@@ -416,3 +427,4 @@ const ExerciseLogForm: React.FC<ExerciseLogFormProps> = ({ student, isOpen, onCl
 };
 
 export default ExerciseLogForm;
+    
