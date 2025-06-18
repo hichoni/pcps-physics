@@ -1,7 +1,8 @@
 
 import type { LucideIcon } from 'lucide-react';
 import { 
-  Smile, Cat, Dog, Bird, Turtle, Rabbit, Fish, BugPlay, Star, Sun, Moon, Rocket, Diamond, Leaf, Flower2, Heart, Cloud, Apple, Cherry, Ghost, Gamepad2, Sparkles, Pizza, ToyBrick, TreePine, CupSoda, Sandwich, Cookie
+  Smile, Cat, Dog, Bird, Turtle, Rabbit, Fish, BugPlay, Star, Sun, Moon, Rocket, Diamond, Leaf, Flower2, Heart, Cloud, Apple, Cherry, Ghost, Gamepad2, Sparkles, Pizza, ToyBrick, TreePine, CupSoda, Sandwich, Cookie,
+  BookOpen, GraduationCap, FlaskConical, Atom, Brain, Lightbulb, Globe, Microscope, Calculator // Educational Icons
 } from 'lucide-react';
 
 export interface AvatarOption {
@@ -39,4 +40,15 @@ export const AVATAR_OPTIONS: AvatarOption[] = [
   { id: 'soda', name: '음료수', icon: CupSoda },
   { id: 'sandwich', name: '샌드위치', icon: Sandwich },
   { id: 'cookie', name: '쿠키', icon: Cookie },
+  // Educational Icons
+  { id: 'bookopen', name: '책', icon: BookOpen },
+  { id: 'graduationcap', name: '학사모', icon: GraduationCap },
+  { id: 'flaskconical', name: '플라스크', icon: FlaskConical },
+  { id: 'atom', name: '원자', icon: Atom },
+  { id: 'brain', name: '뇌', icon: Brain },
+  { id: 'lightbulb', name: '전구', icon: Lightbulb },
+  { id: 'globe', name: '지구본', icon: Globe },
+  { id: 'microscope', name: '현미경', icon: Microscope },
+  { id: 'calculator', name: '계산기', icon: Calculator },
 ];
+
