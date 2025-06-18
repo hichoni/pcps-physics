@@ -11,7 +11,7 @@ import AddStudentDialog from '@/components/AddStudentDialog';
 import ManageStudentPinDialog from '@/components/ManageStudentPinDialog';
 import ManageCustomExerciseDialog from '@/components/ManageCustomExerciseDialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import type { Student, ClassName, RecordedExercise, CustomExercise as CustomExerciseType, Gender, TeacherExerciseRecommendation } from '@/lib/types';
+import type { Student, ClassName, RecordedExercise, CustomExercise as CustomExerciseType, Gender, TeacherExerciseRecommendation, StudentGoal } from '@/lib/types';
 import { EXERCISES_SEED_DATA } from '@/data/mockData';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -41,16 +41,7 @@ const formatExerciseValue = (exercise: CustomExerciseType | undefined, log: Reco
   } else if (exercise.id === 'walk_run') {
     return `${log.distanceValue || 0}${exercise.distanceUnit || 'm'}`;
   }
-  // Fallback for other exercises (if any, though current setup limits to 4)
-  let parts = [];
-  if (exercise.category === 'count_time') {
-    if (log.countValue !== undefined && exercise.countUnit) parts.push(`${log.countValue}${exercise.countUnit}`);
-    if (log.timeValue !== undefined && exercise.timeUnit) parts.push(`${log.timeValue}${exercise.timeUnit}`);
-  } else if (exercise.category === 'steps_distance') {
-    if (log.stepsValue !== undefined && exercise.stepsUnit) parts.push(`${log.stepsValue}${exercise.stepsUnit}`);
-    if (log.distanceValue !== undefined && exercise.distanceUnit) parts.push(`${log.distanceValue}${exercise.distanceUnit}`);
-  }
-  return parts.length > 0 ? `${parts.join(', ')}` : "기록됨";
+  return `${exercise.koreanName} 기록됨`; 
 };
 
 
@@ -87,6 +78,7 @@ export default function TeacherPage() {
   const [studentWelcomeMessage, setStudentWelcomeMessage] = useState<string>(DEFAULT_STUDENT_WELCOME_MSG);
   const [studentWelcomeMessageInput, setStudentWelcomeMessageInput] = useState<string>('');
   const [customExercises, setCustomExercises] = useState<CustomExerciseType[]>([]); 
+  const [allStudentGoals, setAllStudentGoals] = useState<Record<string, StudentGoal>>({});
 
   const [isLoadingStudents, setIsLoadingStudents] = useState(true);
   const [isLoadingLogs, setIsLoadingLogs] = useState(true);
@@ -94,11 +86,12 @@ export default function TeacherPage() {
   const [isLoadingRecommendations, setIsLoadingRecommendations] = useState(true);
   const [isLoadingWelcomeMessage, setIsLoadingWelcomeMessage] = useState(true);
   const [isLoadingCustomExercises, setIsLoadingCustomExercises] = useState(true);
+  const [isLoadingStudentGoals, setIsLoadingStudentGoals] = useState(true);
 
   const [isManageExerciseDialogOpen, setIsManageExerciseDialogOpen] = useState(false);
   const [exerciseToEdit, setExerciseToEdit] = useState<CustomExerciseType | null>(null);
-  const [exerciseToDelete, setExerciseToDelete] = useState<CustomExerciseType | null>(null);
-  const [isConfirmDeleteExerciseDialogOpen, setIsConfirmDeleteExerciseDialogOpen] = useState(false);
+  // const [exerciseToDelete, setExerciseToDelete] = useState<CustomExerciseType | null>(null); // 삭제 기능은 현재 비활성화
+  // const [isConfirmDeleteExerciseDialogOpen, setIsConfirmDeleteExerciseDialogOpen] = useState(false); // 삭제 기능은 현재 비활성화
 
   const [studentsInClass, setStudentsInClass] = useState<Student[]>([]);
   const [activeTab, setActiveTab] = useState<string>("students");
@@ -127,8 +120,8 @@ export default function TeacherPage() {
   const fetchStudents = useCallback(async () => {
     setIsLoadingStudents(true);
     try {
-      const studentsCollection = collection(db, "students");
-      const studentsSnapshot = await getDocs(studentsCollection);
+      const studentsCollectionRef = collection(db, "students");
+      const studentsSnapshot = await getDocs(studentsCollectionRef);
       const studentsList = studentsSnapshot.docs.map(sDoc => ({ id: sDoc.id, ...sDoc.data() } as Student));
       setStudents(studentsList);
       const classNames = Array.from(new Set(studentsList.map(s => s.class))).sort();
@@ -144,8 +137,8 @@ export default function TeacherPage() {
   const fetchLogs = useCallback(async () => {
     setIsLoadingLogs(true);
     try {
-      const logsCollection = collection(db, "exerciseLogs");
-      const logsSnapshot = await getDocs(logsCollection);
+      const logsCollectionRef = collection(db, "exerciseLogs");
+      const logsSnapshot = await getDocs(logsCollectionRef);
       const logsList = logsSnapshot.docs.map(lDoc => {
         const data = lDoc.data();
         let dateStr = data.date;
@@ -169,26 +162,50 @@ export default function TeacherPage() {
     }
   }, [toast]);
 
+  const fetchStudentGoalsData = useCallback(async () => {
+    setIsLoadingStudentGoals(true);
+    try {
+      const goalsCollectionRef = collection(db, "studentGoals");
+      const goalsSnapshot = await getDocs(goalsCollectionRef);
+      const goalsData: Record<string, StudentGoal> = {};
+      goalsSnapshot.forEach(docSnap => {
+        goalsData[docSnap.id] = (docSnap.data().goals || {}) as StudentGoal;
+      });
+      setAllStudentGoals(goalsData);
+    } catch (error) {
+      console.error("Error fetching student goals: ", error);
+      toast({ title: "오류", description: "학생 목표 정보를 불러오는 데 실패했습니다.", variant: "destructive" });
+    } finally {
+      setIsLoadingStudentGoals(false);
+    }
+  }, [toast]);
+
+
   const fetchCompliments = useCallback(async () => {
     setIsLoadingCompliments(true);
     try {
       const complimentsDocRef = doc(db, COMPLIMENTS_DOC_PATH);
       const unsub = onSnapshot(complimentsDocRef, (docSnap) => {
-        if (docSnap.exists() && docSnap.data().list) {
-          setCompliments(docSnap.data().list);
+        if (docSnap.exists() && docSnap.data()?.list) {
+          setCompliments(docSnap.data()?.list);
         } else {
           setCompliments(DEFAULT_COMPLIMENTS_LIST);
           if (!docSnap.exists()) {
               setDoc(complimentsDocRef, { list: DEFAULT_COMPLIMENTS_LIST });
           }
         }
+        setIsLoadingCompliments(false); 
+      }, (error) => {
+          console.error("Error in compliments snapshot: ", error);
+          toast({ title: "오류", description: "칭찬 문구 실시간 업데이트 중 오류 발생.", variant: "destructive"});
+          setCompliments(DEFAULT_COMPLIMENTS_LIST);
+          setIsLoadingCompliments(false);
       });
       return unsub;
-    } catch (error) {
-      console.error("Error fetching compliments: ", error);
+    } catch (error) { // Catch initial fetch error (though onSnapshot handles its own errors)
+      console.error("Error setting up compliments snapshot: ", error);
       toast({ title: "오류", description: "칭찬 문구를 불러오는 데 실패했습니다.", variant: "destructive"});
       setCompliments(DEFAULT_COMPLIMENTS_LIST);
-    } finally {
       setIsLoadingCompliments(false);
     }
   }, [toast]);
@@ -198,21 +215,26 @@ export default function TeacherPage() {
     try {
       const recommendationsDocRef = doc(db, RECOMMENDATIONS_DOC_PATH);
       const unsub = onSnapshot(recommendationsDocRef, (docSnap) => {
-        if (docSnap.exists() && docSnap.data().list) {
-          setExerciseRecommendations(docSnap.data().list);
+        if (docSnap.exists() && docSnap.data()?.list) {
+          setExerciseRecommendations(docSnap.data()?.list);
         } else {
           setExerciseRecommendations([]); 
           if (!docSnap.exists()) {
                setDoc(recommendationsDocRef, { list: [] });
           }
         }
+        setIsLoadingRecommendations(false);
+      }, (error) => {
+        console.error("Error in recommendations snapshot: ", error);
+        toast({ title: "오류", description: "추천 운동/팁 실시간 업데이트 중 오류 발생.", variant: "destructive"});
+        setExerciseRecommendations([]);
+        setIsLoadingRecommendations(false);
       });
       return unsub;
     } catch (error) {
-      console.error("Error fetching exercise recommendations: ", error);
+      console.error("Error setting up recommendations snapshot: ", error);
       toast({ title: "오류", description: "추천 운동/팁 목록을 불러오는 데 실패했습니다.", variant: "destructive"});
       setExerciseRecommendations([]);
-    } finally {
       setIsLoadingRecommendations(false);
     }
   }, [toast]);
@@ -222,22 +244,29 @@ export default function TeacherPage() {
     try {
       const welcomeMsgDocRef = doc(db, STUDENT_WELCOME_MESSAGE_DOC_PATH);
       const unsub = onSnapshot(welcomeMsgDocRef, (docSnap) => {
-        if (docSnap.exists() && docSnap.data().text) {
-          setStudentWelcomeMessage(docSnap.data().text);
-          setStudentWelcomeMessageInput(docSnap.data().text);
+        if (docSnap.exists() && docSnap.data()?.text) {
+          const message = docSnap.data()?.text;
+          setStudentWelcomeMessage(message);
+          setStudentWelcomeMessageInput(message);
         } else {
           setStudentWelcomeMessage(DEFAULT_STUDENT_WELCOME_MSG);
           setStudentWelcomeMessageInput(DEFAULT_STUDENT_WELCOME_MSG);
           setDoc(welcomeMsgDocRef, { text: DEFAULT_STUDENT_WELCOME_MSG });
         }
+        setIsLoadingWelcomeMessage(false);
+      }, (error) => {
+        console.error("Error in welcome message snapshot: ", error);
+        toast({ title: "오류", description: "학생 환영 메시지 실시간 업데이트 중 오류 발생.", variant: "destructive" });
+        setStudentWelcomeMessage(DEFAULT_STUDENT_WELCOME_MSG);
+        setStudentWelcomeMessageInput(DEFAULT_STUDENT_WELCOME_MSG);
+        setIsLoadingWelcomeMessage(false);
       });
       return unsub;
     } catch (error) {
-      console.error("Error fetching student welcome message:", error);
+      console.error("Error setting up welcome message snapshot:", error);
       toast({ title: "오류", description: "학생 환영 메시지를 불러오는 데 실패했습니다.", variant: "destructive" });
       setStudentWelcomeMessage(DEFAULT_STUDENT_WELCOME_MSG);
       setStudentWelcomeMessageInput(DEFAULT_STUDENT_WELCOME_MSG);
-    } finally {
       setIsLoadingWelcomeMessage(false);
     }
   }, [toast]);
@@ -249,11 +278,9 @@ export default function TeacherPage() {
       const unsub = onSnapshot(exercisesDocRef, (docSnap) => {
         if (docSnap.exists() && Array.isArray(docSnap.data()?.list)) {
           const exercisesFromDb = docSnap.data()?.list as CustomExerciseType[];
-          // Ensure only the 4 allowed exercises are used and correctly structured
           const allowedExerciseIds = ['squat', 'plank', 'walk_run', 'jump_rope'];
           let currentExercises = exercisesFromDb.filter(ex => allowedExerciseIds.includes(ex.id));
 
-          // If not all 4 are present, merge with seed data ensuring no duplicates by ID
           if (currentExercises.length < 4) {
             const tempExercises = [...currentExercises];
             EXERCISES_SEED_DATA.forEach(seedEx => {
@@ -262,34 +289,35 @@ export default function TeacherPage() {
               }
             });
             currentExercises = tempExercises.filter(ex => allowedExerciseIds.includes(ex.id));
-            // If still not 4, or if the structure from DB was wrong, just use seed.
              if (currentExercises.length < 4 || !currentExercises.every(ex => allowedExerciseIds.includes(ex.id))) {
-                setCustomExercises(EXERCISES_SEED_DATA.map(ex => ({...ex}))); // Use a copy
+                setCustomExercises(EXERCISES_SEED_DATA.map(ex => ({...ex}))); 
                 setDoc(exercisesDocRef, { list: EXERCISES_SEED_DATA.map(ex => ({...ex})) });
                 toast({ title: "알림", description: "운동 목록을 기본값으로 재설정했습니다."});
              } else {
                 setCustomExercises(currentExercises);
-                // Optionally update Firestore if merged list is different and desired
-                // setDoc(exercisesDocRef, { list: currentExercises }); 
              }
           } else {
              setCustomExercises(currentExercises);
           }
 
         } else {
-          // Firestore에 데이터가 없으면 EXERCISES_SEED_DATA로 초기화
-          const seedDataCopy = EXERCISES_SEED_DATA.map(ex => ({...ex})); // Ensure a fresh copy
+          const seedDataCopy = EXERCISES_SEED_DATA.map(ex => ({...ex})); 
           setDoc(exercisesDocRef, { list: seedDataCopy });
           setCustomExercises(seedDataCopy);
           toast({ title: "알림", description: "기본 운동 목록으로 초기화되었습니다."});
         }
+        setIsLoadingCustomExercises(false);
+      }, (error) => {
+         console.error("Error in custom exercises snapshot: ", error);
+         toast({ title: "오류", description: "운동 목록 실시간 업데이트 중 오류 발생.", variant: "destructive"});
+         setCustomExercises(EXERCISES_SEED_DATA.map(ex => ({...ex})));
+         setIsLoadingCustomExercises(false);
       });
       return unsub;
     } catch (error) {
-      console.error("Error fetching custom exercises: ", error);
+      console.error("Error setting up custom exercises snapshot: ", error);
       toast({ title: "오류", description: "운동 목록을 불러오는 데 실패했습니다.", variant: "destructive"});
-      setCustomExercises(EXERCISES_SEED_DATA.map(ex => ({...ex}))); // Use a copy
-    } finally {
+      setCustomExercises(EXERCISES_SEED_DATA.map(ex => ({...ex}))); 
       setIsLoadingCustomExercises(false);
     }
   }, [toast]);
@@ -300,6 +328,7 @@ export default function TeacherPage() {
     if (isAuthenticated) {
       fetchStudents();
       fetchLogs();
+      fetchStudentGoalsData();
       fetchCompliments().then(unsub => unsub && unsubscribers.push(unsub));
       fetchExerciseRecommendations().then(unsub => unsub && unsubscribers.push(unsub));
       fetchStudentWelcomeMessage().then(unsub => unsub && unsubscribers.push(unsub));
@@ -308,7 +337,7 @@ export default function TeacherPage() {
     return () => {
       unsubscribers.forEach(unsub => unsub());
     };
-  }, [isAuthenticated, fetchStudents, fetchLogs, fetchCompliments, fetchExerciseRecommendations, fetchStudentWelcomeMessage, fetchCustomExercises]);
+  }, [isAuthenticated, fetchStudents, fetchLogs, fetchStudentGoalsData, fetchCompliments, fetchExerciseRecommendations, fetchStudentWelcomeMessage, fetchCustomExercises]);
 
   useEffect(() => {
     if (selectedClass) {
@@ -343,6 +372,11 @@ export default function TeacherPage() {
       if (!dynamicClasses.includes(newStudent.class)) {
         setDynamicClasses(prevClasses => [...prevClasses, newStudent.class].sort());
       }
+      // Add an empty goal object for the new student
+      setAllStudentGoals(prevGoals => ({...prevGoals, [newStudent.id]: {}}));
+      const studentGoalsDocRef = doc(db, "studentGoals", newStudent.id);
+      await setDoc(studentGoalsDocRef, { goals: {} });
+
       toast({ title: "성공", description: "학생이 추가되었습니다." });
     } catch (error) {
       console.error("Error adding student: ", error);
@@ -371,6 +405,11 @@ export default function TeacherPage() {
         await batch.commit();
         setStudents(prevStudents => prevStudents.filter(s => s.id !== studentToDelete.id));
         setRecordedExercises(prevLogs => prevLogs.filter(log => log.studentId !== studentToDelete.id));
+        setAllStudentGoals(prevGoals => {
+            const newGoals = {...prevGoals};
+            delete newGoals[studentToDelete.id];
+            return newGoals;
+        });
         const remainingStudents = students.filter(s => s.id !== studentToDelete.id);
         const updatedClassNames = Array.from(new Set(remainingStudents.map(s => s.class))).sort();
         setDynamicClasses(updatedClassNames);
@@ -486,23 +525,20 @@ export default function TeacherPage() {
          return;
       }
       
-      if (exerciseToEdit) { // 수정 모드
+      if (exerciseToEdit) { 
         const index = currentExercises.findIndex(ex => ex.id === exerciseToEdit.id);
         if (index > -1) {
           currentExercises[index] = exerciseData;
-        } else { // Should not happen if editing existing
+        } else { 
            currentExercises.push(exerciseData);
         }
-      } else { // 추가 모드는 사실상 비활성화 (기존 4개만 수정 가능)
-         // This case should ideally not be reached if UI prevents adding new ones.
-         // For safety, if it is, ensure it's one of the allowed IDs.
+      } else { 
          if (allowedIds.includes(exerciseData.id)) {
             const existingIndex = currentExercises.findIndex(ex => ex.id === exerciseData.id);
             if (existingIndex > -1) currentExercises[existingIndex] = exerciseData;
             else currentExercises.push(exerciseData);
          }
       }
-      // Filter again to be absolutely sure
       currentExercises = currentExercises.filter(ex => allowedIds.includes(ex.id));
       
       await setDoc(exercisesDocRef, { list: currentExercises });
@@ -515,9 +551,21 @@ export default function TeacherPage() {
     }
   };
 
-  // Deleting custom exercises is disabled as we now have a fixed set of 4.
-  // const requestDeleteCustomExercise = (exercise: CustomExerciseType) => { ... };
-  // const confirmDeleteCustomExercise = async () => { ... };
+  const openAddExerciseDialog = () => {
+    const exercisesDocRef = doc(db, CUSTOM_EXERCISES_DOC_PATH);
+    const seedDataCopy = EXERCISES_SEED_DATA.map(ex => ({...ex}));
+    setDoc(exercisesDocRef, { list: seedDataCopy })
+        .then(() => {
+            setCustomExercises(seedDataCopy); 
+            toast({title: "성공", description: "운동 목록이 기본값으로 초기화되었습니다."});
+        })
+        .catch(() => toast({title: "오류", description: "운동 목록 초기화에 실패했습니다.", variant: "destructive"}));
+  };
+
+  const openEditExerciseDialog = (exercise: CustomExerciseType) => {
+    setExerciseToEdit(exercise);
+    setIsManageExerciseDialogOpen(true);
+  };
 
   const handleOpenManagePinDialog = (student: Student) => {
     setStudentForPinManage(student);
@@ -542,31 +590,13 @@ export default function TeacherPage() {
     }
   };
   
-  // "새 운동 추가" 버튼은 비활성화 또는 기능 변경 (예: "기본 운동으로 초기화")
-  const openAddExerciseDialog = () => {
-    // Now, this button will be used to reset exercises to default seed data
-    const exercisesDocRef = doc(db, CUSTOM_EXERCISES_DOC_PATH);
-    const seedDataCopy = EXERCISES_SEED_DATA.map(ex => ({...ex}));
-    setDoc(exercisesDocRef, { list: seedDataCopy })
-        .then(() => {
-            setCustomExercises(seedDataCopy); // Update local state immediately
-            toast({title: "성공", description: "운동 목록이 기본값으로 초기화되었습니다."});
-        })
-        .catch(() => toast({title: "오류", description: "운동 목록 초기화에 실패했습니다.", variant: "destructive"}));
-  };
-
-  const openEditExerciseDialog = (exercise: CustomExerciseType) => {
-    setExerciseToEdit(exercise);
-    setIsManageExerciseDialogOpen(true);
-  };
-
   const memoizedExerciseSummaryChart = useMemo(() => (
     <ExerciseSummaryChart recordedExercises={recordedExercises} students={students} customExercises={customExercises} />
   ), [recordedExercises, students, customExercises]);
 
   const memoizedAiSuggestionBox = useMemo(() => <AiSuggestionBox recordedExercises={recordedExercises} />, [recordedExercises]);
 
-  const isLoading = isLoadingStudents || isLoadingLogs || isLoadingCompliments || isLoadingRecommendations || isLoadingWelcomeMessage || isLoadingCustomExercises;
+  const isLoading = isLoadingStudents || isLoadingLogs || isLoadingCompliments || isLoadingRecommendations || isLoadingWelcomeMessage || isLoadingCustomExercises || isLoadingStudentGoals;
 
   if (!isAuthenticated) {
     return (
@@ -711,8 +741,9 @@ export default function TeacherPage() {
                       student={student} 
                       onDeleteStudent={() => requestDeleteStudent(student)}
                       onManagePin={() => handleOpenManagePinDialog(student)}
-                      recordedExercises={recordedExercises}
+                      recordedExercises={recordedExercises.filter(log => log.studentId === student.id)}
                       customExercises={customExercises}
+                      studentGoals={allStudentGoals[student.id] || {}}
                     />
                   ))}
                 </div>
@@ -885,13 +916,12 @@ export default function TeacherPage() {
               ) : (
                 <div className="space-y-4">
                   {customExercises.map((ex) => {
-                    const Icon = Edit; // Placeholder, actual icon is in student view. ManageCustomExerciseDialog will handle icon selection for editing.
+                    const Icon = Edit; 
                     return (
                        <Card key={ex.id} className="shadow-sm">
                         <CardHeader className="flex flex-row justify-between items-start">
                           <div>
                             <UICardTitle className="text-lg flex items-center">
-                              {/* <Icon className="mr-2 h-5 w-5 text-primary" /> */}
                               {ex.koreanName}
                             </UICardTitle>
                             <UICardDescription className="text-xs">
@@ -905,11 +935,6 @@ export default function TeacherPage() {
                             <Button variant="ghost" size="icon" onClick={() => openEditExerciseDialog(ex)} aria-label="운동 수정">
                               <Edit className="h-4 w-4" />
                             </Button>
-                            {/* 삭제 버튼 비활성화
-                            <Button variant="ghost" size="icon" onClick={() => requestDeleteCustomExercise(ex)} aria-label="운동 삭제" className="text-destructive hover:text-destructive/80" disabled>
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                            */}
                           </div>
                         </CardHeader>
                         <CardContent className="text-xs space-y-1 pl-6 pr-6 pb-4">
@@ -1125,28 +1150,6 @@ export default function TeacherPage() {
             </AlertDialogContent>
           </AlertDialog>
         )}
-
-        {/* 운동 삭제 다이얼로그는 현재 사용 안 함 (4개 고정)
-        {exerciseToDelete && (
-            <AlertDialog open={isConfirmDeleteExerciseDialogOpen} onOpenChange={setIsConfirmDeleteExerciseDialogOpen}>
-                <AlertDialogContent>
-                <AlertDialogHeader>
-                    <AlertDialogTitle>운동 삭제 확인</AlertDialogTitle>
-                    <AlertDialogDescription>
-                    <strong>{exerciseToDelete.koreanName}</strong> 운동을 정말 삭제하시겠습니까?
-                    </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                    <AlertDialogCancel onClick={() => setIsConfirmDeleteExerciseDialogOpen(false)}>취소</AlertDialogCancel>
-                    <AlertDialogAction onClick={confirmDeleteCustomExercise} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-                    <Trash2 className="mr-2 h-4 w-4" /> 삭제
-                    </AlertDialogAction>
-                </AlertDialogFooter>
-                </AlertDialogContent>
-            </AlertDialog>
-        )}
-        */}
-
       </main>
       <footer className="text-center p-4 text-sm text-muted-foreground border-t">
         &copy; {new Date().getFullYear()} 풍풍이의 운동기록장. 학생들이 활동적으로 지낼 수 있도록!

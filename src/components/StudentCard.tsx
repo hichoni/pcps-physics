@@ -1,13 +1,14 @@
 
 import type React from 'react';
-import type { Student, RecordedExercise, CustomExercise as CustomExerciseType } from '@/lib/types';
+import type { Student, RecordedExercise, CustomExercise as CustomExerciseType, Exercise as ExerciseType, StudentGoal } from '@/lib/types';
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Activity, CheckCircle2, Trash2, KeyRound } from 'lucide-react'; 
+import { Trash2, KeyRound } from 'lucide-react'; 
 import { AVATAR_OPTIONS } from '@/data/avatarOptions';
 import { cn } from '@/lib/utils';
 import { getIconByName } from '@/lib/iconMap';
+import StudentActivityChart from './StudentActivityChart';
 
 interface StudentCardProps {
   student: Student;
@@ -15,6 +16,7 @@ interface StudentCardProps {
   onManagePin: (student: Student) => void;
   recordedExercises: RecordedExercise[];
   customExercises: CustomExerciseType[];
+  studentGoals: StudentGoal;
 }
 
 const getInitials = (name: string) => {
@@ -26,69 +28,60 @@ const getInitials = (name: string) => {
   return initials;
 };
 
-const formatLastExercise = (exercise: CustomExerciseType | undefined, log: RecordedExercise): string => {
-  if (!exercise) return "운동 기록됨 (정보 없음)";
-  
-  if (exercise.id === 'squat' || exercise.id === 'jump_rope') {
-    return `${exercise.koreanName}: ${log.countValue || 0}${exercise.countUnit || '회'}`;
-  } else if (exercise.id === 'plank') {
-    return `${exercise.koreanName}: ${log.timeValue || 0}${exercise.timeUnit || '초'}`;
-  } else if (exercise.id === 'walk_run') {
-    return `${exercise.koreanName}: ${log.distanceValue || 0}${exercise.distanceUnit || 'm'}`;
-  }
-  return `${exercise.koreanName} 기록됨`; // Fallback
+const convertCustomToInternalExercise = (customEx: CustomExerciseType): ExerciseType => {
+  return {
+    ...customEx,
+    icon: getIconByName(customEx.iconName), 
+  };
 };
 
-const StudentCard: React.FC<StudentCardProps> = ({ student, onDeleteStudent, onManagePin, recordedExercises, customExercises }) => {
-  const today = new Date().toISOString().split('T')[0];
-  const exercisesLoggedToday = recordedExercises
-    .filter(rec => rec.studentId === student.id && rec.date === today)
-    .sort((a,b) => (b.id && a.id) ? b.id.localeCompare(a.id) : 0);
-
-  const getLastExerciseLogged = () => {
-    if (exercisesLoggedToday.length === 0) return "오늘 기록된 운동 없음";
-    const lastLog = exercisesLoggedToday[0]; 
-    const exerciseInfo = customExercises.find(ex => ex.id === lastLog.exerciseId);
-    return formatLastExercise(exerciseInfo, lastLog);
-  }
-
+const StudentCard: React.FC<StudentCardProps> = ({ student, onDeleteStudent, onManagePin, recordedExercises, customExercises, studentGoals }) => {
+  
   const SelectedAvatarIcon = AVATAR_OPTIONS.find(opt => opt.id === student.avatarSeed)?.icon || getIconByName(null);
+  const availableExercisesForChart: ExerciseType[] = customExercises.map(convertCustomToInternalExercise);
 
   return (
     <Card className="w-full shadow-lg hover:shadow-xl transition-shadow duration-300 rounded-xl overflow-hidden flex flex-col justify-between">
       <div>
         <CardHeader className="flex flex-row items-center space-x-4 p-4 bg-secondary/30">
-          <Avatar className={cn("h-16 w-16 border-2 border-primary p-0.5", SelectedAvatarIcon ? 'bg-background' : 'bg-primary text-primary-foreground')}>
+          <Avatar className={cn("h-12 w-12 border-2 border-primary p-0.5", SelectedAvatarIcon ? 'bg-background' : 'bg-primary text-primary-foreground')}>
             {student.avatarSeed && AVATAR_OPTIONS.find(opt => opt.id === student.avatarSeed) ? (
               <SelectedAvatarIcon className="h-full w-full text-primary" />
             ) : (
-              <AvatarFallback className="text-xl bg-transparent">
+              <AvatarFallback className="text-lg bg-transparent">
                 {getInitials(student.name)}
               </AvatarFallback>
             )}
           </Avatar>
           <div>
-            <CardTitle className="text-xl font-headline">{student.name}</CardTitle>
-            <CardDescription className="text-sm text-muted-foreground">
+            <CardTitle className="text-lg font-headline">{student.name}</CardTitle>
+            <CardDescription className="text-xs text-muted-foreground">
               {student.class} {student.studentNumber}번 ({student.gender === 'male' ? '남' : '여'})
             </CardDescription>
+            <p className="text-xs text-muted-foreground mt-0.5">PIN: {student.pin}</p>
           </div>
         </CardHeader>
-        <CardContent className="p-4">
-          <div className="text-sm text-muted-foreground mb-2">최근 활동:</div>
-          <div className="flex items-center gap-2">
-            {exercisesLoggedToday.length > 0 ? <CheckCircle2 className="h-5 w-5 text-accent" /> : <Activity className="h-5 w-5 text-muted-foreground/50" />}
-            <p className="text-sm truncate" title={getLastExerciseLogged()}>{getLastExerciseLogged()}</p>
-          </div>
-           <p className="text-xs text-muted-foreground mt-2">PIN: {student.pin}</p>
+        <CardContent className="p-2 pt-1">
+          {availableExercisesForChart.length > 0 ? (
+            <StudentActivityChart
+              logs={recordedExercises}
+              selectedStudent={student}
+              students={[student]}
+              availableExercises={availableExercisesForChart}
+              timeFrame="today" // 학생 카드에서는 '오늘' 기준으로 간략히 표시
+              studentGoals={studentGoals}
+            />
+          ) : (
+            <p className="text-xs text-muted-foreground text-center py-4">운동 목록이 설정되지 않았습니다.</p>
+          )}
         </CardContent>
       </div>
-      <CardFooter className="p-4 bg-slate-50 dark:bg-slate-800/30 flex justify-end gap-2">
-        <Button onClick={() => onManagePin(student)} variant="outline" size="icon" className="rounded-lg py-3 h-auto px-3" aria-label={`${student.name} 학생 PIN 관리`}>
-          <KeyRound className="h-5 w-5" />
+      <CardFooter className="p-3 bg-slate-50 dark:bg-slate-800/30 flex justify-end gap-2">
+        <Button onClick={() => onManagePin(student)} variant="outline" size="icon" className="rounded-lg py-2 h-auto px-2.5" aria-label={`${student.name} 학생 PIN 관리`}>
+          <KeyRound className="h-4 w-4" />
         </Button>
-        <Button onClick={() => onDeleteStudent(student)} variant="destructive" size="icon" className="rounded-lg py-3 h-auto px-3" aria-label={`${student.name} 학생 삭제`}>
-          <Trash2 className="h-5 w-5" />
+        <Button onClick={() => onDeleteStudent(student)} variant="destructive" size="icon" className="rounded-lg py-2 h-auto px-2.5" aria-label={`${student.name} 학생 삭제`}>
+          <Trash2 className="h-4 w-4" />
         </Button>
       </CardFooter>
     </Card>
