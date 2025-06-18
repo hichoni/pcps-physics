@@ -23,18 +23,22 @@ export interface Exercise {
   koreanName: string; 
   icon: LucideIcon; 
   iconName: string; 
-  category: ExerciseCategory;
+  category: ExerciseCategory; // 카테고리는 유지하되, 실제 사용은 아래 필드에 따름
 
+  // 스쿼트, 줄넘기용
   countUnit?: string; 
   defaultCount?: number;
   countStep?: number;
+
+  // 플랭크용
   timeUnit?: string; 
   defaultTime?: number;
   timeStep?: number;
 
-  stepsUnit?: string; 
-  defaultSteps?: number;
-  stepsStep?: number;
+  // 걷기/달리기용
+  stepsUnit?: string; // 사용 안 함 (단순화를 위해 거리만)
+  defaultSteps?: number; // 사용 안 함
+  stepsStep?: number; // 사용 안 함
   distanceUnit?: string; 
   defaultDistance?: number;
   distanceStep?: number;
@@ -52,13 +56,15 @@ export interface CustomExercise {
   countUnit?: string; 
   defaultCount?: number;
   countStep?: number;
+
   timeUnit?: string; 
   defaultTime?: number;
   timeStep?: number;
 
-  stepsUnit?: string; 
+  stepsUnit?: string;
   defaultSteps?: number;
   stepsStep?: number;
+
   distanceUnit?: string; 
   defaultDistance?: number;
   distanceStep?: number;
@@ -72,11 +78,12 @@ export interface RecordedExercise {
   exerciseId: string; // CustomExercise의 id와 매칭
   date: string; 
   
-  countValue?: number;    
-  timeValue?: number;     
+  // exerciseId에 따라 아래 값 중 하나만 사용됨
+  countValue?: number;    // 스쿼트, 줄넘기
+  timeValue?: number;     // 플랭크
+  distanceValue?: number; // 걷기/달리기 (m 단위)
   
-  stepsValue?: number;    
-  distanceValue?: number; 
+  stepsValue?: number;    // 사용 안 함 (걷기/달리기에서 거리로 통일)
   
   className: ClassName;
   imageUrl?: string; 
@@ -95,10 +102,13 @@ export interface DailyLog {
   value: number; 
 }
 
+// 각 운동 ID에 대해 해당 운동의 주 목표 값만 저장
+// 예: studentGoals['squat'] = { count: 20 }
+// 예: studentGoals['plank'] = { time: 60 }
 export interface ExerciseGoal {
   count?: number; 
   time?: number; 
-  steps?: number; 
+  // steps?: number; // 사용 안 함
   distance?: number; 
 }
 

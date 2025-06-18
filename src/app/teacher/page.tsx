@@ -9,9 +9,9 @@ import ExerciseSummaryChart from '@/components/ExerciseSummaryChart';
 import AiSuggestionBox from '@/components/AiSuggestionBox';
 import AddStudentDialog from '@/components/AddStudentDialog';
 import ManageStudentPinDialog from '@/components/ManageStudentPinDialog';
-import ManageCustomExerciseDialog from '@/components/ManageCustomExerciseDialog'; // 새 컴포넌트
+import ManageCustomExerciseDialog from '@/components/ManageCustomExerciseDialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import type { Student, ClassName, RecordedExercise, CustomExercise as CustomExerciseType, Gender, TeacherExerciseRecommendation } from '@/lib/types'; // Exercise -> CustomExerciseType
+import type { Student, ClassName, RecordedExercise, CustomExercise as CustomExerciseType, Gender, TeacherExerciseRecommendation } from '@/lib/types';
 import { EXERCISES_SEED_DATA } from '@/data/mockData';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -19,9 +19,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Users, BarChart2, Lightbulb, ListChecks, UserPlus, Trash2, Sparkles, MessageSquarePlus, MessageSquareX, Loader2, Wand2, KeyRound, LogIn, Image as ImageIcon, Edit, Settings2, School, PlusCircle, Edit3 } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle as UICardTitle, CardDescription as UICardDescription, CardFooter } from '@/components/ui/card'; // CardTitle, CardDescription 이름 충돌 방지
+import { Card, CardContent, CardHeader, CardTitle as UICardTitle, CardDescription as UICardDescription } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { format, parseISO, isToday } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 import { ko } from 'date-fns/locale';
 import { useToast } from "@/hooks/use-toast";
 import { db } from '@/lib/firebase';
@@ -29,11 +29,19 @@ import {
   collection, getDocs, addDoc, deleteDoc, doc, writeBatch, query, where, setDoc, getDoc, updateDoc, arrayUnion, arrayRemove, onSnapshot 
 } from 'firebase/firestore';
 import NextImage from 'next/image';
-import { getIconByName } from '@/lib/iconMap'; // 아이콘 매핑 함수
-import { v4 as uuidv4 } from 'uuid'; // UUID 생성
+// import { getIconByName } from '@/lib/iconMap'; // Not needed directly here
+import { v4 as uuidv4 } from 'uuid';
 
 const formatExerciseValue = (exercise: CustomExerciseType | undefined, log: RecordedExercise): string => {
   if (!exercise) return "알 수 없는 운동";
+  if (exercise.id === 'squat' || exercise.id === 'jump_rope') {
+    return `${log.countValue || 0}${exercise.countUnit || '회'}`;
+  } else if (exercise.id === 'plank') {
+    return `${log.timeValue || 0}${exercise.timeUnit || '초'}`;
+  } else if (exercise.id === 'walk_run') {
+    return `${log.distanceValue || 0}${exercise.distanceUnit || 'm'}`;
+  }
+  // Fallback for other exercises (if any, though current setup limits to 4)
   let parts = [];
   if (exercise.category === 'count_time') {
     if (log.countValue !== undefined && exercise.countUnit) parts.push(`${log.countValue}${exercise.countUnit}`);
@@ -44,6 +52,7 @@ const formatExerciseValue = (exercise: CustomExerciseType | undefined, log: Reco
   }
   return parts.length > 0 ? `${parts.join(', ')}` : "기록됨";
 };
+
 
 const DEFAULT_COMPLIMENTS_LIST = [
   "별처럼 빛나는", "항상 긍정적인", "꿈을 향해 달리는", "세상을 밝히는",
@@ -239,11 +248,39 @@ export default function TeacherPage() {
       const exercisesDocRef = doc(db, CUSTOM_EXERCISES_DOC_PATH);
       const unsub = onSnapshot(exercisesDocRef, (docSnap) => {
         if (docSnap.exists() && Array.isArray(docSnap.data()?.list)) {
-          setCustomExercises(docSnap.data()?.list || []);
+          const exercisesFromDb = docSnap.data()?.list as CustomExerciseType[];
+          // Ensure only the 4 allowed exercises are used and correctly structured
+          const allowedExerciseIds = ['squat', 'plank', 'walk_run', 'jump_rope'];
+          let currentExercises = exercisesFromDb.filter(ex => allowedExerciseIds.includes(ex.id));
+
+          // If not all 4 are present, merge with seed data ensuring no duplicates by ID
+          if (currentExercises.length < 4) {
+            const tempExercises = [...currentExercises];
+            EXERCISES_SEED_DATA.forEach(seedEx => {
+              if (!tempExercises.find(ex => ex.id === seedEx.id)) {
+                tempExercises.push({...seedEx});
+              }
+            });
+            currentExercises = tempExercises.filter(ex => allowedExerciseIds.includes(ex.id));
+            // If still not 4, or if the structure from DB was wrong, just use seed.
+             if (currentExercises.length < 4 || !currentExercises.every(ex => allowedExerciseIds.includes(ex.id))) {
+                setCustomExercises(EXERCISES_SEED_DATA.map(ex => ({...ex}))); // Use a copy
+                setDoc(exercisesDocRef, { list: EXERCISES_SEED_DATA.map(ex => ({...ex})) });
+                toast({ title: "알림", description: "운동 목록을 기본값으로 재설정했습니다."});
+             } else {
+                setCustomExercises(currentExercises);
+                // Optionally update Firestore if merged list is different and desired
+                // setDoc(exercisesDocRef, { list: currentExercises }); 
+             }
+          } else {
+             setCustomExercises(currentExercises);
+          }
+
         } else {
           // Firestore에 데이터가 없으면 EXERCISES_SEED_DATA로 초기화
-          setDoc(exercisesDocRef, { list: EXERCISES_SEED_DATA.map(ex => ({...ex})) });
-          setCustomExercises(EXERCISES_SEED_DATA.map(ex => ({...ex})));
+          const seedDataCopy = EXERCISES_SEED_DATA.map(ex => ({...ex})); // Ensure a fresh copy
+          setDoc(exercisesDocRef, { list: seedDataCopy });
+          setCustomExercises(seedDataCopy);
           toast({ title: "알림", description: "기본 운동 목록으로 초기화되었습니다."});
         }
       });
@@ -251,7 +288,7 @@ export default function TeacherPage() {
     } catch (error) {
       console.error("Error fetching custom exercises: ", error);
       toast({ title: "오류", description: "운동 목록을 불러오는 데 실패했습니다.", variant: "destructive"});
-      setCustomExercises(EXERCISES_SEED_DATA.map(ex => ({...ex})));
+      setCustomExercises(EXERCISES_SEED_DATA.map(ex => ({...ex}))); // Use a copy
     } finally {
       setIsLoadingCustomExercises(false);
     }
@@ -301,8 +338,6 @@ export default function TeacherPage() {
         avatarSeed: '', 
       };
       const docRef = await addDoc(collection(db, "students"), studentWithAvatarAndPin);
-      // No need to manually update state if using onSnapshot for students (but fetchStudents is not using onSnapshot)
-      // So, we'll manually update for now or switch fetchStudents to onSnapshot
       const newStudent = { ...studentWithAvatarAndPin, id: docRef.id };
       setStudents(prevStudents => [...prevStudents, newStudent].sort((a,b) => a.class.localeCompare(b.class) || a.studentNumber - b.studentNumber));
       if (!dynamicClasses.includes(newStudent.class)) {
@@ -334,8 +369,6 @@ export default function TeacherPage() {
         const goalsDocRef = doc(db, "studentGoals", studentToDelete.id);
         batch.delete(goalsDocRef);
         await batch.commit();
-        // State update will be handled by onSnapshot if fetchStudents is converted
-        // For now, manual update:
         setStudents(prevStudents => prevStudents.filter(s => s.id !== studentToDelete.id));
         setRecordedExercises(prevLogs => prevLogs.filter(log => log.studentId !== studentToDelete.id));
         const remainingStudents = students.filter(s => s.id !== studentToDelete.id);
@@ -444,25 +477,36 @@ export default function TeacherPage() {
   const handleSaveCustomExercise = async (exerciseData: CustomExerciseType) => {
     try {
       const exercisesDocRef = doc(db, CUSTOM_EXERCISES_DOC_PATH);
-      const currentExercises = [...customExercises];
+      let currentExercises = [...customExercises];
+      const allowedIds = ['squat', 'plank', 'walk_run', 'jump_rope'];
+
+      if (!allowedIds.includes(exerciseData.id) && !exerciseToEdit) {
+         toast({ title: "오류", description: "새로운 운동은 추가할 수 없습니다. 기존 4가지 운동만 수정 가능합니다.", variant: "destructive"});
+         setIsManageExerciseDialogOpen(false);
+         return;
+      }
       
       if (exerciseToEdit) { // 수정 모드
         const index = currentExercises.findIndex(ex => ex.id === exerciseToEdit.id);
         if (index > -1) {
           currentExercises[index] = exerciseData;
+        } else { // Should not happen if editing existing
+           currentExercises.push(exerciseData);
         }
-      } else { // 추가 모드
-         if (customExercises.length >= 6) {
-          toast({ title: "제한 초과", description: "운동은 최대 6개까지 추가할 수 있습니다.", variant: "destructive" });
-          setIsManageExerciseDialogOpen(false);
-          setExerciseToEdit(null);
-          return;
-        }
-        currentExercises.push({ ...exerciseData, id: uuidv4() });
+      } else { // 추가 모드는 사실상 비활성화 (기존 4개만 수정 가능)
+         // This case should ideally not be reached if UI prevents adding new ones.
+         // For safety, if it is, ensure it's one of the allowed IDs.
+         if (allowedIds.includes(exerciseData.id)) {
+            const existingIndex = currentExercises.findIndex(ex => ex.id === exerciseData.id);
+            if (existingIndex > -1) currentExercises[existingIndex] = exerciseData;
+            else currentExercises.push(exerciseData);
+         }
       }
+      // Filter again to be absolutely sure
+      currentExercises = currentExercises.filter(ex => allowedIds.includes(ex.id));
       
       await setDoc(exercisesDocRef, { list: currentExercises });
-      toast({ title: "성공", description: `운동이 ${exerciseToEdit ? '수정' : '추가'}되었습니다.` });
+      toast({ title: "성공", description: `운동이 ${exerciseToEdit ? '수정' : '업데이트'}되었습니다.` });
       setIsManageExerciseDialogOpen(false);
       setExerciseToEdit(null);
     } catch (error) {
@@ -471,26 +515,9 @@ export default function TeacherPage() {
     }
   };
 
-  const requestDeleteCustomExercise = (exercise: CustomExerciseType) => {
-    setExerciseToDelete(exercise);
-    setIsConfirmDeleteExerciseDialogOpen(true);
-  };
-
-  const confirmDeleteCustomExercise = async () => {
-    if (exerciseToDelete) {
-      try {
-        const exercisesDocRef = doc(db, CUSTOM_EXERCISES_DOC_PATH);
-        const updatedExercises = customExercises.filter(ex => ex.id !== exerciseToDelete.id);
-        await setDoc(exercisesDocRef, { list: updatedExercises });
-        toast({ title: "성공", description: `${exerciseToDelete.koreanName} 운동이 삭제되었습니다.` });
-      } catch (error) {
-        console.error("Error deleting custom exercise: ", error);
-        toast({ title: "오류", description: "운동 삭제에 실패했습니다.", variant: "destructive"});
-      }
-    }
-    setIsConfirmDeleteExerciseDialogOpen(false);
-    setExerciseToDelete(null);
-  };
+  // Deleting custom exercises is disabled as we now have a fixed set of 4.
+  // const requestDeleteCustomExercise = (exercise: CustomExerciseType) => { ... };
+  // const confirmDeleteCustomExercise = async () => { ... };
 
   const handleOpenManagePinDialog = (student: Student) => {
     setStudentForPinManage(student);
@@ -515,20 +542,23 @@ export default function TeacherPage() {
     }
   };
   
+  // "새 운동 추가" 버튼은 비활성화 또는 기능 변경 (예: "기본 운동으로 초기화")
   const openAddExerciseDialog = () => {
-    if (customExercises.length >= 6) {
-      toast({ title: "제한 초과", description: "운동은 최대 6개까지 추가할 수 있습니다.", variant: "destructive" });
-      return;
-    }
-    setExerciseToEdit(null);
-    setIsManageExerciseDialogOpen(true);
+    // Now, this button will be used to reset exercises to default seed data
+    const exercisesDocRef = doc(db, CUSTOM_EXERCISES_DOC_PATH);
+    const seedDataCopy = EXERCISES_SEED_DATA.map(ex => ({...ex}));
+    setDoc(exercisesDocRef, { list: seedDataCopy })
+        .then(() => {
+            setCustomExercises(seedDataCopy); // Update local state immediately
+            toast({title: "성공", description: "운동 목록이 기본값으로 초기화되었습니다."});
+        })
+        .catch(() => toast({title: "오류", description: "운동 목록 초기화에 실패했습니다.", variant: "destructive"}));
   };
 
   const openEditExerciseDialog = (exercise: CustomExerciseType) => {
     setExerciseToEdit(exercise);
     setIsManageExerciseDialogOpen(true);
   };
-
 
   const memoizedExerciseSummaryChart = useMemo(() => (
     <ExerciseSummaryChart recordedExercises={recordedExercises} students={students} customExercises={customExercises} />
@@ -682,7 +712,7 @@ export default function TeacherPage() {
                       onDeleteStudent={() => requestDeleteStudent(student)}
                       onManagePin={() => handleOpenManagePinDialog(student)}
                       recordedExercises={recordedExercises}
-                      customExercises={customExercises} // Pass customExercises
+                      customExercises={customExercises}
                     />
                   ))}
                 </div>
@@ -839,61 +869,60 @@ export default function TeacherPage() {
               <div className="flex justify-between items-center mb-6">
                 <h2 id="exercise-management-heading" className="text-xl font-semibold font-headline flex items-center">
                   <Settings2 className="mr-3 h-6 w-6 text-primary" />
-                  학생 운동 목록 관리 (최대 6개)
+                  학생 운동 목록 관리 (4개 고정)
                 </h2>
-                <Button onClick={openAddExerciseDialog} disabled={customExercises.length >= 6} className="rounded-lg">
-                  <PlusCircle className="mr-2 h-5 w-5" /> 새 운동 추가
+                <Button onClick={openAddExerciseDialog} className="rounded-lg">
+                  <PlusCircle className="mr-2 h-5 w-5" /> 운동 목록 초기화
                 </Button>
               </div>
               {isLoadingCustomExercises ? (
                  <div className="flex justify-center py-4"><Loader2 className="h-6 w-6 animate-spin text-primary" /> 운동 목록 로딩 중...</div>
               ) : customExercises.length === 0 ? (
                 <div className="text-center py-6">
-                    <p className="text-muted-foreground mb-3">등록된 운동이 없습니다. 새 운동을 추가해주세요.</p>
-                    <Button onClick={() => { // Firestore에 시드 데이터로 초기화
-                        const exercisesDocRef = doc(db, CUSTOM_EXERCISES_DOC_PATH);
-                        setDoc(exercisesDocRef, { list: EXERCISES_SEED_DATA.map(ex => ({...ex, id: uuidv4()})) })
-                            .then(() => toast({title: "성공", description: "기본 운동 목록으로 초기화되었습니다."}))
-                            .catch(() => toast({title: "오류", description: "초기화에 실패했습니다.", variant: "destructive"}));
-                    }}>기본 운동 목록으로 초기화</Button>
+                    <p className="text-muted-foreground mb-3">운동 목록이 없습니다. 기본 운동 목록으로 초기화해주세요.</p>
+                     <Button onClick={openAddExerciseDialog}>기본 운동 목록으로 초기화</Button>
                 </div>
               ) : (
                 <div className="space-y-4">
                   {customExercises.map((ex) => {
-                    const Icon = getIconByName(ex.iconName);
+                    const Icon = Edit; // Placeholder, actual icon is in student view. ManageCustomExerciseDialog will handle icon selection for editing.
                     return (
                        <Card key={ex.id} className="shadow-sm">
                         <CardHeader className="flex flex-row justify-between items-start">
                           <div>
                             <UICardTitle className="text-lg flex items-center">
-                              <Icon className="mr-2 h-5 w-5 text-primary" />
+                              {/* <Icon className="mr-2 h-5 w-5 text-primary" /> */}
                               {ex.koreanName}
                             </UICardTitle>
-                            <UICardDescription className="text-xs">{ex.category === 'count_time' ? '횟수/시간 기반' : '걸음/거리 기반'}</UICardDescription>
+                            <UICardDescription className="text-xs">
+                                {ex.id === 'squat' && `주요 지표: ${ex.countUnit || '회'}`}
+                                {ex.id === 'plank' && `주요 지표: ${ex.timeUnit || '초'}`}
+                                {ex.id === 'walk_run' && `주요 지표: ${ex.distanceUnit || 'm'}`}
+                                {ex.id === 'jump_rope' && `주요 지표: ${ex.countUnit || '회'}`}
+                            </UICardDescription>
                           </div>
                           <div className="flex gap-2">
-                            <Button variant="ghost" size="icon" onClick={() => openEditExerciseDialog(ex)} aria-label="운동 수정 (개발중)">
+                            <Button variant="ghost" size="icon" onClick={() => openEditExerciseDialog(ex)} aria-label="운동 수정">
                               <Edit className="h-4 w-4" />
                             </Button>
-                            <Button variant="ghost" size="icon" onClick={() => requestDeleteCustomExercise(ex)} aria-label="운동 삭제" className="text-destructive hover:text-destructive/80">
+                            {/* 삭제 버튼 비활성화
+                            <Button variant="ghost" size="icon" onClick={() => requestDeleteCustomExercise(ex)} aria-label="운동 삭제" className="text-destructive hover:text-destructive/80" disabled>
                               <Trash2 className="h-4 w-4" />
                             </Button>
+                            */}
                           </div>
                         </CardHeader>
                         <CardContent className="text-xs space-y-1 pl-6 pr-6 pb-4">
-                          <p>아이콘 이름: {ex.iconName}</p>
-                          {ex.countUnit && <p>{ex.countUnit}: 기본 {ex.defaultCount ?? 0}, 증가폭 {ex.countStep ?? 0}</p>}
-                          {ex.timeUnit && <p>{ex.timeUnit}: 기본 {ex.defaultTime ?? 0}, 증가폭 {ex.timeStep ?? 0}</p>}
-                          {ex.stepsUnit && <p>{ex.stepsUnit}: 기본 {ex.defaultSteps ?? 0}, 증가폭 {ex.stepsStep ?? 0}</p>}
-                          {ex.distanceUnit && <p>{ex.distanceUnit}: 기본 {ex.defaultDistance ?? 0}, 증가폭 {ex.distanceStep ?? 0}</p>}
-                          <p>AI 힌트: {ex.dataAiHint}</p>
+                          <p>아이콘: {ex.iconName}</p>
+                          {ex.id === 'squat' && <p>{ex.countUnit}: 기본 {ex.defaultCount ?? 0}, 증가폭 {ex.countStep ?? 0}</p>}
+                          {ex.id === 'plank' && <p>{ex.timeUnit}: 기본 {ex.defaultTime ?? 0}, 증가폭 {ex.timeStep ?? 0}</p>}
+                          {ex.id === 'walk_run' && <p>{ex.distanceUnit}: 기본 {ex.defaultDistance ?? 0}, 증가폭 {ex.distanceStep ?? 0}</p>}
+                          {ex.id === 'jump_rope' && <p>{ex.countUnit}: 기본 {ex.defaultCount ?? 0}, 증가폭 {ex.countStep ?? 0}</p>}
+                          <p>AI 이미지 힌트: {ex.dataAiHint}</p>
                         </CardContent>
                        </Card>
                     );
                   })}
-                   <p className="text-xs text-muted-foreground mt-4">
-                    * 운동 수정 기능은 현재 개발 중입니다. 삭제 후 새로 추가해주세요.
-                  </p>
                 </div>
               )}
             </section>
@@ -1097,13 +1126,14 @@ export default function TeacherPage() {
           </AlertDialog>
         )}
 
+        {/* 운동 삭제 다이얼로그는 현재 사용 안 함 (4개 고정)
         {exerciseToDelete && (
             <AlertDialog open={isConfirmDeleteExerciseDialogOpen} onOpenChange={setIsConfirmDeleteExerciseDialogOpen}>
                 <AlertDialogContent>
                 <AlertDialogHeader>
                     <AlertDialogTitle>운동 삭제 확인</AlertDialogTitle>
                     <AlertDialogDescription>
-                    <strong>{exerciseToDelete.koreanName}</strong> 운동을 정말 삭제하시겠습니까? 이 운동과 관련된 학생들의 목표 설정 및 기록에는 영향을 주지 않지만, 더 이상 이 운동을 기록하거나 목표로 설정할 수 없게 됩니다.
+                    <strong>{exerciseToDelete.koreanName}</strong> 운동을 정말 삭제하시겠습니까?
                     </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
@@ -1115,6 +1145,7 @@ export default function TeacherPage() {
                 </AlertDialogContent>
             </AlertDialog>
         )}
+        */}
 
       </main>
       <footer className="text-center p-4 text-sm text-muted-foreground border-t">

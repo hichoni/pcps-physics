@@ -5,18 +5,16 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Activity, CheckCircle2, Trash2, KeyRound } from 'lucide-react'; 
-// import { EXERCISES } from '@/data/mockData'; // Replaced by customExercises prop
 import { AVATAR_OPTIONS } from '@/data/avatarOptions';
 import { cn } from '@/lib/utils';
 import { getIconByName } from '@/lib/iconMap';
-
 
 interface StudentCardProps {
   student: Student;
   onDeleteStudent: (student: Student) => void;
   onManagePin: (student: Student) => void;
   recordedExercises: RecordedExercise[];
-  customExercises: CustomExerciseType[]; // Add customExercises prop
+  customExercises: CustomExerciseType[];
 }
 
 const getInitials = (name: string) => {
@@ -30,15 +28,15 @@ const getInitials = (name: string) => {
 
 const formatLastExercise = (exercise: CustomExerciseType | undefined, log: RecordedExercise): string => {
   if (!exercise) return "운동 기록됨 (정보 없음)";
-  let parts = [];
-  if (exercise.category === 'count_time') {
-    if (log.countValue !== undefined && log.countValue > 0) parts.push(`${log.countValue}${exercise.countUnit || ''}`);
-    if (log.timeValue !== undefined && log.timeValue > 0) parts.push(`${log.timeValue}${exercise.timeUnit || ''}`);
-  } else if (exercise.category === 'steps_distance') {
-    if (log.stepsValue !== undefined && log.stepsValue > 0) parts.push(`${log.stepsValue}${exercise.stepsUnit || ''}`);
-    if (log.distanceValue !== undefined && log.distanceValue > 0) parts.push(`${log.distanceValue}${exercise.distanceUnit || ''}`);
+  
+  if (exercise.id === 'squat' || exercise.id === 'jump_rope') {
+    return `${exercise.koreanName}: ${log.countValue || 0}${exercise.countUnit || '회'}`;
+  } else if (exercise.id === 'plank') {
+    return `${exercise.koreanName}: ${log.timeValue || 0}${exercise.timeUnit || '초'}`;
+  } else if (exercise.id === 'walk_run') {
+    return `${exercise.koreanName}: ${log.distanceValue || 0}${exercise.distanceUnit || 'm'}`;
   }
-  return parts.length > 0 ? `${exercise.koreanName}: ${parts.join(', ')}` : `${exercise.koreanName} 기록됨`;
+  return `${exercise.koreanName} 기록됨`; // Fallback
 };
 
 const StudentCard: React.FC<StudentCardProps> = ({ student, onDeleteStudent, onManagePin, recordedExercises, customExercises }) => {
@@ -54,7 +52,7 @@ const StudentCard: React.FC<StudentCardProps> = ({ student, onDeleteStudent, onM
     return formatLastExercise(exerciseInfo, lastLog);
   }
 
-  const SelectedAvatarIcon = AVATAR_OPTIONS.find(opt => opt.id === student.avatarSeed)?.icon || getIconByName(null); // Fallback to default icon
+  const SelectedAvatarIcon = AVATAR_OPTIONS.find(opt => opt.id === student.avatarSeed)?.icon || getIconByName(null);
 
   return (
     <Card className="w-full shadow-lg hover:shadow-xl transition-shadow duration-300 rounded-xl overflow-hidden flex flex-col justify-between">

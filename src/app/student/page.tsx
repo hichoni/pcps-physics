@@ -7,9 +7,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from '@/components/ui/button';
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dumbbell, Target, History, PlusCircle, LogOut, UserCheck, Loader2, AlertTriangle, KeyRound, Edit3, Camera, ImageIcon, CheckSquare, Flag, Heart, Star as GoalStarIcon } from 'lucide-react';
+import { Dumbbell, Target, History, PlusCircle, LogOut, UserCheck, Loader2, AlertTriangle, KeyRound, Edit3, Camera, ImageIcon, CheckSquare } from 'lucide-react';
 import type { Student, ClassName, RecordedExercise, Gender, StudentGoal, CustomExercise as CustomExerciseType, Exercise as ExerciseType } from '@/lib/types';
-import { EXERCISES_SEED_DATA } from '@/data/mockData'; // Seed data for fallback
+import { EXERCISES_SEED_DATA } from '@/data/mockData'; 
 import SetStudentGoalsDialog from '@/components/SetStudentGoalsDialog';
 import ExerciseLogForm from '@/components/ExerciseLogForm';
 import ChangeOwnPinDialog from '@/components/ChangeOwnPinDialog';
@@ -37,11 +37,10 @@ const STUDENT_WELCOME_MESSAGE_DOC_PATH = "appConfig/studentWelcomeMessageDoc";
 const DEFAULT_STUDENT_WELCOME_MESSAGE = "오늘도 즐겁게 운동하고 건강해져요! 어떤 활동을 계획하고 있나요?";
 const CUSTOM_EXERCISES_DOC_PATH = "appConfig/customExercisesDoc";
 
-// CustomExerciseType (Firestore) to ExerciseType (App internal)
 const convertCustomToInternalExercise = (customEx: CustomExerciseType): ExerciseType => {
   return {
     ...customEx,
-    icon: getIconByName(customEx.iconName), // Map iconName to LucideIcon component
+    icon: getIconByName(customEx.iconName), 
   };
 };
 
@@ -74,7 +73,6 @@ export default function StudentPage() {
   
   const [availableExercises, setAvailableExercises] = useState<ExerciseType[]>([]);
 
-
   const [isCameraModeOpen, setIsCameraModeOpen] = useState(false);
   const [cameraExerciseId, setCameraExerciseId] = useState<string | null>(null);
 
@@ -89,10 +87,8 @@ export default function StudentPage() {
       const studentsSnapshot = await getDocs(studentsCollection);
       const studentsList = studentsSnapshot.docs.map(sDoc => ({ id: sDoc.id, ...sDoc.data() } as Student));
       setAllStudents(studentsList);
-
       const classNames = Array.from(new Set(studentsList.map(s => s.class))).sort();
       setAvailableClasses(classNames);
-
     } catch (error) {
       console.error("Error fetching login options:", error);
       toast({ title: "오류", description: "학생 정보를 불러오는 데 실패했습니다.", variant: "destructive" });
@@ -105,16 +101,33 @@ export default function StudentPage() {
     fetchLoginOptions();
   }, [fetchLoginOptions]);
   
-  // Fetch custom exercises from Firestore
   useEffect(() => {
     setIsLoadingExercises(true);
     const exercisesDocRef = doc(db, CUSTOM_EXERCISES_DOC_PATH);
     const unsubscribe = onSnapshot(exercisesDocRef, (docSnap) => {
       if (docSnap.exists() && Array.isArray(docSnap.data()?.list)) {
         const customExercisesFromDb = docSnap.data()?.list as CustomExerciseType[];
-        setAvailableExercises(customExercisesFromDb.map(convertCustomToInternalExercise));
+        // Filter to ensure only the 4 allowed exercises are used, and they have correct IDs
+        const allowedExercises = customExercisesFromDb
+          .filter(ex => ['squat', 'plank', 'walk_run', 'jump_rope'].includes(ex.id))
+          .map(convertCustomToInternalExercise);
+        
+        if (allowedExercises.length < 4 && customExercisesFromDb.length > 0) {
+            // If DB has exercises but not the 4 core ones with correct IDs, try to find by name from DB and map, then seed if necessary
+            const seededByName = EXERCISES_SEED_DATA.map(seedEx => {
+                const dbMatch = customExercisesFromDb.find(dbEx => dbEx.koreanName === seedEx.koreanName);
+                return dbMatch ? convertCustomToInternalExercise(dbMatch) : convertCustomToInternalExercise(seedEx);
+            });
+            setAvailableExercises(seededByName);
+             toast({ title: "알림", description: "운동 목록을 조정했습니다. 일부 운동은 기본값으로 설정될 수 있습니다.", variant: "default" });
+        } else if (allowedExercises.length === 4) {
+            setAvailableExercises(allowedExercises);
+        }
+         else { // Fallback to seed data if Firestore has no list or document doesn't exist or not enough allowed exercises
+          toast({ title: "알림", description: "기본 운동 목록을 사용합니다. 교사가 운동 목록을 설정할 수 있습니다.", variant: "default" });
+          setAvailableExercises(EXERCISES_SEED_DATA.map(convertCustomToInternalExercise));
+        }
       } else {
-        // Fallback to seed data if Firestore has no list or document doesn't exist
         toast({ title: "알림", description: "기본 운동 목록을 사용합니다. 교사가 운동 목록을 설정할 수 있습니다.", variant: "default" });
         setAvailableExercises(EXERCISES_SEED_DATA.map(convertCustomToInternalExercise));
       }
@@ -125,20 +138,17 @@ export default function StudentPage() {
       setAvailableExercises(EXERCISES_SEED_DATA.map(convertCustomToInternalExercise));
       setIsLoadingExercises(false);
     });
-    return () => unsubscribe(); // Cleanup listener on component unmount
+    return () => unsubscribe();
   }, [toast]);
-
 
   const fetchStudentSpecificData = useCallback(async (studentId: string, studentName: string) => {
     if (!studentId) return;
     setIsLoadingStudentData(true);
     try {
-      // Goals
       const goalsDocRef = doc(db, "studentGoals", studentId);
       const goalsDocSnap = await getDoc(goalsDocRef);
       setStudentGoals(goalsDocSnap.exists() ? (goalsDocSnap.data().goals || {}) : {});
 
-      // Logs
       const logsQuery = query(collection(db, "exerciseLogs"), where("studentId", "==", studentId));
       const logsSnapshot = await getDocs(logsQuery);
       const logsList = logsSnapshot.docs.map(lDoc => {
@@ -153,7 +163,6 @@ export default function StudentPage() {
       });
       setStudentActivityLogs(logsList);
       
-      // Compliments
       const complimentsDocRef = doc(db, COMPLIMENTS_DOC_PATH);
       const complimentsDocSnap = await getDoc(complimentsDocRef);
       let adjectiveList = DEFAULT_POSITIVE_ADJECTIVES_KR;
@@ -164,7 +173,6 @@ export default function StudentPage() {
       const adjectiveIndex = (dayOfMonth - 1 + studentName.length) % adjectiveList.length;
       setDailyCompliment(adjectiveList[adjectiveIndex] || adjectiveList[0] || "");
 
-      // Welcome Message
       const welcomeMsgDocRef = doc(db, STUDENT_WELCOME_MESSAGE_DOC_PATH); 
       const welcomeMsgDocSnap = await getDoc(welcomeMsgDocRef);
       if (welcomeMsgDocSnap.exists() && welcomeMsgDocSnap.data().text) {
@@ -172,9 +180,7 @@ export default function StudentPage() {
       } else {
         setStudentWelcomeMessage(DEFAULT_STUDENT_WELCOME_MESSAGE);
       }
-
       fetchRecommendation();
-
     } catch (error) {
       console.error("Error fetching student specific data:", error);
       toast({ title: "오류", description: "학생 데이터를 불러오는 데 실패했습니다.", variant: "destructive" });
@@ -182,7 +188,6 @@ export default function StudentPage() {
       setIsLoadingStudentData(false);
     }
   }, [toast]);
-
 
   useEffect(() => {
     if (currentStudent) {
@@ -356,16 +361,14 @@ export default function StudentPage() {
 
   const handleSaveFromCamera = (count: number) => {
     if (currentStudent && cameraExerciseId) { 
-      // 줄넘기 ID ('ex4' 대신 cameraExerciseId 사용)
       const exerciseDetails = availableExercises.find(ex => ex.id === cameraExerciseId);
-      if (exerciseDetails && exerciseDetails.koreanName.includes("줄넘기")) { // 줄넘기 운동인지 이름으로 확인 (더 나은 방법은 ID 고정 또는 태그 사용)
+      if (exerciseDetails && exerciseDetails.id === 'jump_rope') { // 줄넘기 운동 ID로 직접 확인
         const logEntry: Omit<RecordedExercise, 'id'> = {
           studentId: currentStudent.id,
           exerciseId: cameraExerciseId,
           date: format(new Date(), "yyyy-MM-dd"), 
           className: currentStudent.class as ClassName,
           countValue: count,
-          timeValue: 0, 
         };
         handleSaveExerciseLog(logEntry);
       } else {
@@ -376,8 +379,17 @@ export default function StudentPage() {
   };
   
   const hasEffectiveGoals = useMemo(() => {
-    return Object.keys(studentGoals).filter(exId => studentGoals[exId] && Object.values(studentGoals[exId]).some(v => v !== undefined && v > 0)).length > 0;
-  }, [studentGoals]);
+    return Object.keys(studentGoals).filter(exId => {
+      const goal = studentGoals[exId];
+      if (!goal) return false;
+      const exercise = availableExercises.find(e => e.id === exId);
+      if (!exercise) return false;
+      if ((exercise.id === 'squat' || exercise.id === 'jump_rope') && goal.count && goal.count > 0) return true;
+      if (exercise.id === 'plank' && goal.time && goal.time > 0) return true;
+      if (exercise.id === 'walk_run' && goal.distance && goal.distance > 0) return true;
+      return false;
+    }).length > 0;
+  }, [studentGoals, availableExercises]);
 
   const latestTodayImage = useMemo(() => {
     if (!currentStudent) return null;
@@ -396,55 +408,34 @@ export default function StudentPage() {
     if (!exercise) return "";
 
     const goal = studentGoals[exerciseId];
-    if (!goal || Object.values(goal).every(v => v === undefined || v === 0)) {
-      return ""; 
-    }
+    if (!goal) return "";
 
     const logsForToday = studentActivityLogs.filter(log => log.studentId === currentStudent.id && log.exerciseId === exerciseId && isToday(parseISO(log.date)));
     
-    let achievedText = "";
-    let goalText = "";
-    let percentageText = "";
-
-    if (exercise.category === 'count_time') {
-      const totalCountAchieved = logsForToday.reduce((sum, log) => sum + (log.countValue || 0), 0);
-      const totalTimeAchieved = logsForToday.reduce((sum, log) => sum + (log.timeValue || 0), 0);
-
-      if (goal.count && exercise.countUnit) {
-        const percent = goal.count > 0 ? Math.min(100, Math.round((totalCountAchieved / goal.count) * 100)) : (totalCountAchieved > 0 ? 100 : 0);
-        achievedText = `${totalCountAchieved}${exercise.countUnit}`;
-        goalText = `${goal.count}${exercise.countUnit}`;
-        percentageText = ` (${percent}%)`;
-      } else if (goal.time && exercise.timeUnit) { // 'else if' to prioritize count if both present
-        const percent = goal.time > 0 ? Math.min(100, Math.round((totalTimeAchieved / goal.time) * 100)) : (totalTimeAchieved > 0 ? 100 : 0);
-        achievedText = `${totalTimeAchieved}${exercise.timeUnit}`;
-        goalText = `${goal.time}${exercise.timeUnit}`;
-        percentageText = ` (${percent}%)`;
-      }
-    } else if (exercise.category === 'steps_distance') {
-      const totalStepsAchieved = logsForToday.reduce((sum, log) => sum + (log.stepsValue || 0), 0);
-      const totalDistanceAchieved = logsForToday.reduce((sum, log) => sum + (log.distanceValue || 0), 0);
-
-      if (goal.steps && exercise.stepsUnit) {
-        const percent = goal.steps > 0 ? Math.min(100, Math.round((totalStepsAchieved / goal.steps) * 100)) : (totalStepsAchieved > 0 ? 100 : 0);
-        achievedText = `${totalStepsAchieved}${exercise.stepsUnit}`;
-        goalText = `${goal.steps}${exercise.stepsUnit}`;
-        percentageText = ` (${percent}%)`;
-      } else if (goal.distance && exercise.distanceUnit) {
-        const percent = goal.distance > 0 ? Math.min(100, Math.round((totalDistanceAchieved / goal.distance) * 100)) : (totalDistanceAchieved > 0 ? 100 : 0);
-        achievedText = `${totalDistanceAchieved}${exercise.distanceUnit}`;
-        goalText = `${goal.distance}${exercise.distanceUnit}`;
-        percentageText = ` (${percent}%)`;
-      }
-    }
+    let achievedValue = 0;
+    let goalValue = 0;
+    let unit = "";
     
-    if (achievedText && goalText) {
-      return `오늘 ${achievedText} / 목표 ${goalText}${percentageText}`;
+    if (exercise.id === 'squat' || exercise.id === 'jump_rope') {
+      achievedValue = logsForToday.reduce((sum, log) => sum + (log.countValue || 0), 0);
+      goalValue = goal.count || 0;
+      unit = exercise.countUnit || "";
+    } else if (exercise.id === 'plank') {
+      achievedValue = logsForToday.reduce((sum, log) => sum + (log.timeValue || 0), 0);
+      goalValue = goal.time || 0;
+      unit = exercise.timeUnit || "";
+    } else if (exercise.id === 'walk_run') {
+      achievedValue = logsForToday.reduce((sum, log) => sum + (log.distanceValue || 0), 0);
+      goalValue = goal.distance || 0;
+      unit = exercise.distanceUnit || "";
+    }
+
+    if (goalValue > 0) {
+      const percent = Math.min(100, Math.round((achievedValue / goalValue) * 100));
+      return `오늘 ${achievedValue}${unit} / 목표 ${goalValue}${unit} (${percent}%)`;
     }
     return "";
-
   }, [studentGoals, studentActivityLogs, currentStudent, availableExercises]);
-
 
   if (isLoadingLoginOptions || isLoadingExercises) {
     return <div className="flex justify-center items-center min-h-screen"><Loader2 className="h-8 w-8 animate-spin text-primary" /> {isLoadingLoginOptions ? '학생 정보' : '운동 목록'} 로딩 중...</div>;
@@ -558,12 +549,12 @@ export default function StudentPage() {
   }
 
   if (isCameraModeOpen) {
-    const jumpRopeExercise = availableExercises.find(ex => ex.koreanName.includes("줄넘기"));
+    // Ensure cameraExerciseId for JumpRopeCameraMode is explicitly 'jump_rope'
     return (
       <JumpRopeCameraMode
         onClose={handleCloseCameraMode}
         onSave={handleSaveFromCamera}
-        exerciseIdForCamera={jumpRopeExercise?.id}
+        exerciseIdForCamera={'jump_rope'} 
       />
     );
   }
@@ -671,18 +662,20 @@ export default function StudentPage() {
               hasEffectiveGoals ? (
                  <div className="flex items-center justify-center min-h-[10rem] bg-secondary/20 rounded-lg p-3 flex-grow">
                   <ul className="text-sm list-none space-y-1.5 pl-0 text-left w-full overflow-y-auto max-h-full">
-                    {availableExercises.filter(ex => studentGoals[ex.id] && Object.values(studentGoals[ex.id]).some(v => v !== undefined && v > 0) ).map(exercise => {
+                    {availableExercises.filter(ex => {
+                      const goal = studentGoals[ex.id];
+                      if (!goal) return false;
+                      if ((ex.id === 'squat' || ex.id === 'jump_rope') && goal.count && goal.count > 0) return true;
+                      if (ex.id === 'plank' && goal.time && goal.time > 0) return true;
+                      if (ex.id === 'walk_run' && goal.distance && goal.distance > 0) return true;
+                      return false;
+                    }).map(exercise => {
                       const goal = studentGoals[exercise.id];
                       let goalText = "";
-                      const parts = [];
-                      if (exercise.category === 'count_time') {
-                        if (goal?.count && exercise.countUnit) parts.push(`${goal.count}${exercise.countUnit}`);
-                        if (goal?.time && exercise.timeUnit) parts.push(`${goal.time}${exercise.timeUnit}`);
-                      } else if (exercise.category === 'steps_distance') {
-                        if (goal?.steps && exercise.stepsUnit) parts.push(`${goal.steps}${exercise.stepsUnit}`);
-                        if (goal?.distance && exercise.distanceUnit) parts.push(`${goal.distance}${exercise.distanceUnit}`);
-                      }
-                      goalText = parts.join(', ');
+                       if (exercise.id === 'squat' || exercise.id === 'jump_rope') goalText = `${goal.count}${exercise.countUnit}`;
+                       else if (exercise.id === 'plank') goalText = `${goal.time}${exercise.timeUnit}`;
+                       else if (exercise.id === 'walk_run') goalText = `${goal.distance}${exercise.distanceUnit}`;
+                      
                       const progressText = getExerciseProgressText(exercise.id);
                       const IconComp = getIconByName(exercise.iconName);
 
@@ -773,8 +766,8 @@ export default function StudentPage() {
               (currentStudent && 
                 <StudentActivityChart 
                   logs={studentActivityLogs} 
-                  selectedStudent={currentStudent}
-                  students={[currentStudent]}
+                  selectedStudent={currentStudent} // Pass currentStudent as selectedStudent
+                  students={allStudents.filter(s => s.id === currentStudent.id)} // Pass an array with only currentStudent
                   timeFrame={activityChartTimeFrame} 
                   studentGoals={studentGoals} 
                   availableExercises={availableExercises} 
@@ -794,16 +787,17 @@ export default function StudentPage() {
                       .map(log => {
                           const exerciseInfo = availableExercises.find(ex => ex.id === log.exerciseId);
                           if (!exerciseInfo) return null;
+                          
                           let valueDisplay = "";
-                          if (exerciseInfo.category === 'count_time') {
-                              if (log.countValue !== undefined && log.countValue > 0) valueDisplay += `${log.countValue}${exerciseInfo.countUnit || ''} `;
-                              if (log.timeValue !== undefined && log.timeValue > 0) valueDisplay += `${log.timeValue}${exerciseInfo.timeUnit || ''}`;
-                          } else if (exerciseInfo.category === 'steps_distance') {
-                              if (log.stepsValue !== undefined && log.stepsValue > 0) valueDisplay += `${log.stepsValue}${exerciseInfo.stepsUnit || ''} `;
-                              if (log.distanceValue !== undefined && log.distanceValue > 0) valueDisplay += `${log.distanceValue}${exerciseInfo.distanceUnit || ''}`;
+                          if (exerciseInfo.id === 'squat' || exerciseInfo.id === 'jump_rope') {
+                            valueDisplay = `${log.countValue || 0}${exerciseInfo.countUnit || ''}`;
+                          } else if (exerciseInfo.id === 'plank') {
+                            valueDisplay = `${log.timeValue || 0}${exerciseInfo.timeUnit || ''}`;
+                          } else if (exerciseInfo.id === 'walk_run') {
+                            valueDisplay = `${log.distanceValue || 0}${exerciseInfo.distanceUnit || ''}`;
                           }
                           valueDisplay = valueDisplay.trim();
-                          if (!valueDisplay) valueDisplay = "기록됨"; 
+                          if (!valueDisplay || valueDisplay === "0" + (exerciseInfo.countUnit || exerciseInfo.timeUnit || exerciseInfo.distanceUnit || "")) valueDisplay = "기록됨"; 
 
                           return (
                               <div key={log.id} className="p-2 bg-background/50 rounded text-xs flex items-center justify-between">

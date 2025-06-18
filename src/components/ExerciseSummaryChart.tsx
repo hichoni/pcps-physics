@@ -1,9 +1,8 @@
 
 import type React from 'react';
-import { Bar, BarChart, CartesianGrid, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, Cell } from 'recharts';
+import { Bar, BarChart, CartesianGrid, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import type { RecordedExercise, Student, CustomExercise as CustomExerciseType } from '@/lib/types'; // Exercise -> CustomExerciseType
-// import { EXERCISES } from '@/data/mockData'; // Replaced by customExercises prop
+import type { RecordedExercise, Student, CustomExercise as CustomExerciseType } from '@/lib/types';
 import { ChartConfig, ChartContainer } from '@/components/ui/chart'; 
 import { getIconByName } from '@/lib/iconMap';
 
@@ -11,7 +10,7 @@ interface ExerciseSummaryChartProps {
   recordedExercises: RecordedExercise[];
   students: Student[]; 
   selectedStudent?: Student | null;
-  customExercises: CustomExerciseType[]; // Add customExercises prop
+  customExercises: CustomExerciseType[];
 }
 
 const ExerciseSummaryChart: React.FC<ExerciseSummaryChartProps> = ({ recordedExercises, students, selectedStudent, customExercises }) => {
@@ -36,50 +35,36 @@ const ExerciseSummaryChart: React.FC<ExerciseSummaryChartProps> = ({ recordedExe
     let primaryUnit = '';
     let valueCount = 0; 
 
-    if (exercise.category === 'count_time') {
-      if (exercise.timeUnit && exercise.defaultTime && exercise.defaultTime > 0) { // 시간 목표가 설정되어 있으면 시간을 우선
-        const totalTime = logsForExercise.reduce((sum, log) => {
-          if (log.timeValue !== undefined && log.timeValue > 0) {
-            valueCount++;
-            return sum + log.timeValue;
-          }
-          return sum;
-        }, 0);
-        primaryValue = valueCount > 0 ? parseFloat((totalTime / valueCount).toFixed(1)) : 0;
-        primaryUnit = exercise.timeUnit;
-      } else if (exercise.countUnit) { 
-        const totalCount = logsForExercise.reduce((sum, log) => {
-          if (log.countValue !== undefined && log.countValue > 0) {
-            valueCount++;
-            return sum + log.countValue;
-          }
-          return sum;
-        }, 0);
-        primaryValue = valueCount > 0 ? parseFloat((totalCount / valueCount).toFixed(1)) : 0;
-        primaryUnit = exercise.countUnit;
-      }
-    } else if (exercise.category === 'steps_distance') {
-       if (exercise.distanceUnit && exercise.defaultDistance && exercise.defaultDistance > 0) { // 거리 목표가 있으면 거리 우선
-        const totalDistance = logsForExercise.reduce((sum, log) => {
-          if (log.distanceValue !== undefined && log.distanceValue > 0) {
-            valueCount++;
-            return sum + log.distanceValue;
-          }
-          return sum;
-        }, 0);
-        primaryValue = valueCount > 0 ? parseFloat((totalDistance / valueCount).toFixed(1)) : 0;
-        primaryUnit = exercise.distanceUnit;
-      } else if (exercise.stepsUnit) {
-         const totalSteps = logsForExercise.reduce((sum, log) => {
-          if (log.stepsValue !== undefined && log.stepsValue > 0) {
-            valueCount++;
-            return sum + log.stepsValue;
-          }
-          return sum;
-        }, 0);
-        primaryValue = valueCount > 0 ? parseFloat((totalSteps / valueCount).toFixed(1)) : 0;
-        primaryUnit = exercise.stepsUnit;
-      }
+    if (exercise.id === 'squat' || exercise.id === 'jump_rope') {
+      const totalCount = logsForExercise.reduce((sum, log) => {
+        if (log.countValue !== undefined && log.countValue > 0) {
+          valueCount++;
+          return sum + log.countValue;
+        }
+        return sum;
+      }, 0);
+      primaryValue = valueCount > 0 ? parseFloat((totalCount / valueCount).toFixed(1)) : 0;
+      primaryUnit = exercise.countUnit || '회';
+    } else if (exercise.id === 'plank') {
+      const totalTime = logsForExercise.reduce((sum, log) => {
+        if (log.timeValue !== undefined && log.timeValue > 0) {
+          valueCount++;
+          return sum + log.timeValue;
+        }
+        return sum;
+      }, 0);
+      primaryValue = valueCount > 0 ? parseFloat((totalTime / valueCount).toFixed(1)) : 0;
+      primaryUnit = exercise.timeUnit || '초';
+    } else if (exercise.id === 'walk_run') {
+      const totalDistance = logsForExercise.reduce((sum, log) => {
+        if (log.distanceValue !== undefined && log.distanceValue > 0) {
+          valueCount++;
+          return sum + log.distanceValue;
+        }
+        return sum;
+      }, 0);
+      primaryValue = valueCount > 0 ? parseFloat((totalDistance / valueCount).toFixed(1)) : 0;
+      primaryUnit = exercise.distanceUnit || 'm';
     }
     
     return {
@@ -101,7 +86,7 @@ const ExerciseSummaryChart: React.FC<ExerciseSummaryChartProps> = ({ recordedExe
           <CardDescription>운동 목록이 설정되지 않았습니다.</CardDescription>
         </CardHeader>
         <CardContent className="h-[300px] flex items-center justify-center">
-          <p className="text-muted-foreground">교사 페이지에서 운동을 추가해주세요.</p>
+          <p className="text-muted-foreground">교사 페이지에서 운동을 관리해주세요.</p>
         </CardContent>
       </Card>
     );
@@ -133,7 +118,6 @@ const ExerciseSummaryChart: React.FC<ExerciseSummaryChartProps> = ({ recordedExe
     );
   }
   
-
   if (chartData.length === 0) {
      return (
       <Card className="shadow-lg rounded-xl">
@@ -149,7 +133,6 @@ const ExerciseSummaryChart: React.FC<ExerciseSummaryChartProps> = ({ recordedExe
       </Card>
     );
   }
-
 
   return (
     <Card className="shadow-lg rounded-xl w-full">

@@ -2,13 +2,12 @@
 'use client';
 
 import React from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { RecordedExercise, Student, Exercise as ExerciseType, StudentGoal } from '@/lib/types';
-import { ChartConfig } from '@/components/ui/chart'; // ChartConfig 타입을 가져올 수 있지만, 직접 색상을 사용할 것이므로 ChartContainer는 사용 안함
 import { getIconByName } from '@/lib/iconMap';
 import { AlertCircle, TrendingUp } from 'lucide-react';
-import { isSameDay, parseISO, startOfWeek, endOfWeek, startOfMonth, endOfMonth, isWithinInterval } from 'date-fns';
-import { cn } from '@/lib/utils';
+import { parseISO, isWithinInterval, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from 'date-fns';
+// import { cn } from '@/lib/utils'; // Not strictly needed for this version
 
 interface StudentActivityChartProps {
   logs: RecordedExercise[];
@@ -19,7 +18,6 @@ interface StudentActivityChartProps {
   studentGoals: StudentGoal;
 }
 
-// 이 컴포넌트 내에서만 사용할 간단한 차트 설정 객체
 const generateChartColors = (exercises: ExerciseType[]): Record<string, { color: string }> => {
   return exercises.reduce((acc, ex, index) => {
     acc[ex.id] = { 
@@ -28,7 +26,6 @@ const generateChartColors = (exercises: ExerciseType[]): Record<string, { color:
     return acc;
   }, {} as Record<string, { color: string }>);
 };
-
 
 const StudentActivityChart: React.FC<StudentActivityChartProps> = ({ 
   logs, 
@@ -57,10 +54,9 @@ const StudentActivityChart: React.FC<StudentActivityChartProps> = ({
        <Card className="shadow-md rounded-xl mt-6">
         <CardHeader>
           <CardTitle className="font-headline">운동 요약</CardTitle>
-          <CardDescription>표시할 학생 데이터가 없습니다.</CardDescription>
         </CardHeader>
         <CardContent className="h-[200px] flex items-center justify-center">
-          <p className="text-muted-foreground">교사 페이지에서 학생을 추가하거나, 학생이 로그인해야 합니다.</p>
+          <p className="text-muted-foreground">표시할 학생 데이터가 없습니다.</p>
         </CardContent>
       </Card>
     );
@@ -70,7 +66,7 @@ const StudentActivityChart: React.FC<StudentActivityChartProps> = ({
   const now = new Date();
   let interval: { start: Date, end: Date };
   if (timeFrame === 'today') {
-    interval = { start: new Date(now.setHours(0,0,0,0)), end: new Date(now.setHours(23,59,59,999)) };
+    interval = { start: new Date(now.setHours(0,0,0,0)), end: new Date(new Date().setHours(23,59,59,999)) };
   } else if (timeFrame === 'week') {
     interval = { start: startOfWeek(now, { weekStartsOn: 1 }), end: endOfWeek(now, { weekStartsOn: 1 }) };
   } else { // month
@@ -96,65 +92,32 @@ const StudentActivityChart: React.FC<StudentActivityChartProps> = ({
     let unit = '';
     let hasGoal = false;
 
-    if (exercise.category === 'count_time') {
-      const totalAchievedCount = exerciseLogs.reduce((sum, log) => sum + (log.countValue || 0), 0);
-      const totalAchievedTime = exerciseLogs.reduce((sum, log) => sum + (log.timeValue || 0), 0);
-
-      if (currentGoal?.count !== undefined && exercise.countUnit) {
-        achievedValue = totalAchievedCount;
+    if (exercise.id === 'squat' || exercise.id === 'jump_rope') {
+      achievedValue = exerciseLogs.reduce((sum, log) => sum + (log.countValue || 0), 0);
+      unit = exercise.countUnit || '회';
+      if (currentGoal?.count !== undefined) {
         goalValue = currentGoal.count;
-        unit = exercise.countUnit;
         hasGoal = true;
-      } else if (currentGoal?.time !== undefined && exercise.timeUnit) {
-        achievedValue = totalAchievedTime;
-        goalValue = currentGoal.time;
-        unit = exercise.timeUnit;
-        hasGoal = true;
-      } else { // No specific goal, pick primary metric based on activity or definition
-        if (totalAchievedCount > 0 && exercise.countUnit) {
-            achievedValue = totalAchievedCount;
-            unit = exercise.countUnit;
-        } else if (totalAchievedTime > 0 && exercise.timeUnit) {
-            achievedValue = totalAchievedTime;
-            unit = exercise.timeUnit;
-        } else if (exercise.countUnit) { // Default to count unit if defined
-            achievedValue = 0; unit = exercise.countUnit;
-        } else if (exercise.timeUnit) { // Default to time unit if defined
-            achievedValue = 0; unit = exercise.timeUnit;
-        }
       }
-    } else if (exercise.category === 'steps_distance') {
-      const totalAchievedSteps = exerciseLogs.reduce((sum, log) => sum + (log.stepsValue || 0), 0);
-      const totalAchievedDistance = exerciseLogs.reduce((sum, log) => sum + (log.distanceValue || 0), 0);
-      
-      if (currentGoal?.steps !== undefined && exercise.stepsUnit) {
-        achievedValue = totalAchievedSteps;
-        goalValue = currentGoal.steps;
-        unit = exercise.stepsUnit;
+    } else if (exercise.id === 'plank') {
+      achievedValue = exerciseLogs.reduce((sum, log) => sum + (log.timeValue || 0), 0);
+      unit = exercise.timeUnit || '초';
+      if (currentGoal?.time !== undefined) {
+        goalValue = currentGoal.time;
         hasGoal = true;
-      } else if (currentGoal?.distance !== undefined && exercise.distanceUnit) {
-        achievedValue = totalAchievedDistance;
+      }
+    } else if (exercise.id === 'walk_run') {
+      achievedValue = exerciseLogs.reduce((sum, log) => sum + (log.distanceValue || 0), 0);
+      unit = exercise.distanceUnit || 'm';
+      if (currentGoal?.distance !== undefined) {
         goalValue = currentGoal.distance;
-        unit = exercise.distanceUnit;
         hasGoal = true;
-      } else { // No specific goal
-        if (totalAchievedSteps > 0 && exercise.stepsUnit) {
-            achievedValue = totalAchievedSteps;
-            unit = exercise.stepsUnit;
-        } else if (totalAchievedDistance > 0 && exercise.distanceUnit) {
-            achievedValue = totalAchievedDistance;
-            unit = exercise.distanceUnit;
-        } else if (exercise.stepsUnit) {
-            achievedValue = 0; unit = exercise.stepsUnit;
-        } else if (exercise.distanceUnit) {
-            achievedValue = 0; unit = exercise.distanceUnit;
-        }
       }
     }
     
     const percentage = goalValue !== undefined && goalValue > 0 
                        ? Math.min(100, Math.round((achievedValue / goalValue) * 100))
-                       : (achievedValue > 0 ? 100 : 0); // If no goal but activity, show 100% of activity done (or 0 if no activity)
+                       : (achievedValue > 0 ? 100 : 0);
 
     return {
       id: exercise.id,
@@ -183,7 +146,7 @@ const StudentActivityChart: React.FC<StudentActivityChartProps> = ({
       </div>
     );
   }
-
+  
   const relevantSummaries = exerciseSummaries.filter(s => s.hasGoal || s.hasActivity);
 
   if (relevantSummaries.length === 0 && !noLogsForAllExercisesInPeriod) {
@@ -200,7 +163,6 @@ const StudentActivityChart: React.FC<StudentActivityChartProps> = ({
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 pt-4">
       {exerciseSummaries.map(summary => {
         if (!summary.hasGoal && !summary.hasActivity) {
-          // 목표도 없고 활동도 없는 항목은 숨기거나 최소한으로 표시
           return (
             <Card key={summary.id} className="shadow-sm rounded-xl flex flex-col justify-between bg-card/50 opacity-70">
               <CardHeader className="pb-2">
@@ -259,4 +221,3 @@ const StudentActivityChart: React.FC<StudentActivityChartProps> = ({
 };
 
 export default StudentActivityChart;
-
