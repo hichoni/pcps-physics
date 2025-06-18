@@ -16,7 +16,7 @@ import {
 import { cn } from '@/lib/utils';
 import { Target, TrendingUp, Flag, Star, AlertCircle } from 'lucide-react';
 import { Progress } from "@/components/ui/progress";
-
+import { getIconByName } from '@/lib/iconMap'; // Assuming getIconByName is correctly implemented
 
 interface StudentActivityChartProps {
   logs: RecordedExercise[];
@@ -116,10 +116,10 @@ const StudentActivityChart: React.FC<StudentActivityChartProps> = ({ logs, timeF
     if (goalValue && goalValue > 0) {
       progress = Math.min(100, Math.round((totalAchievedValue / goalValue) * 100));
     } else if (totalAchievedValue > 0) {
-      progress = 0;
+      progress = 0; 
     }
 
-    const IconComponent = exercise.icon;
+    const IconComponent = getIconByName(exercise.iconName); // Use getIconByName
     const goalDisplay = goalValue ? `${goalValue.toLocaleString()}${unit}` : "목표 없음";
     const achievedDisplay = `${totalAchievedValue.toLocaleString()}${unit}`;
 
@@ -136,7 +136,7 @@ const StudentActivityChart: React.FC<StudentActivityChartProps> = ({ logs, timeF
       isAchieved: !!goalValue && goalValue > 0 && totalAchievedValue >= goalValue,
       progress,
     };
-  });
+  }); // Semicolon after map
 
   if (filteredLogs.length === 0 && !exerciseSummaries.some(s => s.hasGoal)) {
     return (
@@ -195,4 +195,3 @@ const StudentActivityChart: React.FC<StudentActivityChartProps> = ({ logs, timeF
 };
 
 export default StudentActivityChart;
-    
