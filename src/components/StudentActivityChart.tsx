@@ -11,7 +11,7 @@ import { AlertCircle } from 'lucide-react';
 
 interface StudentActivityChartProps {
   logs: RecordedExercise[];
-  students?: Student[]; // Make students optional for robustness
+  students?: Student[]; 
   selectedStudent?: Student | null;
   availableExercises: ExerciseType[];
   timeFrame: 'today' | 'week' | 'month';
@@ -20,7 +20,7 @@ interface StudentActivityChartProps {
 
 const StudentActivityChart: React.FC<StudentActivityChartProps> = ({ 
   logs, 
-  students = [], // Default to empty array if not provided
+  students = [], 
   selectedStudent, 
   availableExercises, 
   timeFrame, 
@@ -46,9 +46,20 @@ const StudentActivityChart: React.FC<StudentActivityChartProps> = ({
     return acc;
   }, {} as Record<string, { label: string, color: string, icon?: React.ComponentType }>) satisfies ChartConfig;
 
-  // Determine the list of students whose data should be considered for the chart.
-  // If a specific student is selected, only their data is used. Otherwise, data from all students in the 'students' prop is used.
   const relevantStudents = selectedStudent ? [selectedStudent] : students;
+  if (!relevantStudents || relevantStudents.length === 0) {
+     return (
+       <Card className="shadow-lg rounded-xl">
+        <CardHeader>
+          <CardTitle className="font-headline">운동 요약</CardTitle>
+          <CardDescription>표시할 학생 데이터가 없습니다.</CardDescription>
+        </CardHeader>
+        <CardContent className="h-[300px] flex items-center justify-center">
+          <p className="text-muted-foreground">교사 페이지에서 학생을 추가하거나, 학생이 로그인해야 합니다.</p>
+        </CardContent>
+      </Card>
+    );
+  }
   const relevantStudentIds = relevantStudents.map(s => s.id);
 
 
@@ -58,8 +69,7 @@ const StudentActivityChart: React.FC<StudentActivityChartProps> = ({
     if (frame === 'today') {
       startDate.setHours(0, 0, 0, 0);
     } else if (frame === 'week') {
-      const dayOfWeek = now.getDay(); // 0 (Sunday) to 6 (Saturday)
-      // Adjust to make Monday the start of the week (or Sunday depending on locale preference, here assuming Monday)
+      const dayOfWeek = now.getDay(); 
       const diff = now.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1); 
       startDate.setDate(diff);
       startDate.setHours(0, 0, 0, 0);
@@ -81,110 +91,85 @@ const StudentActivityChart: React.FC<StudentActivityChartProps> = ({
 
         return relevantStudentIds.includes(log.studentId) && logDate >= startDateForFrame && logDate <= now;
     } catch (e) {
+        console.error("Error parsing log date:", log.date, e);
         return false;
     }
   });
 
   const aggregatedData = availableExercises.map(exercise => {
-    const logsForExercise = dataToDisplay.filter(log => log.exerciseId === exercise.id);
-    let primaryValue = 0;
-    let primaryUnit = '';
-    let valueCount = 0; 
+    const exerciseLogs = dataToDisplay.filter(log => log.exerciseId === exercise.id);
+    const currentGoal = studentGoals[exercise.id];
+    let achievedValue = 0;
+    let goalValue: number | undefined = undefined;
+    let unit = '';
 
     if (exercise.category === 'count_time') {
-      const goal = studentGoals[exercise.id];
-      let preferTime = false;
-      if (goal) {
-        if (goal.time && goal.time > 0 && exercise.timeUnit) preferTime = true;
-        else if (goal.count && goal.count > 0 && exercise.countUnit) preferTime = false;
-        else if (exercise.timeUnit) preferTime = true; // Default to time if unit exists
-        else preferTime = false; // Default to count if time unit doesn't exist
-      } else if (exercise.timeUnit) { // No goal, but time unit exists
-        preferTime = true;
+      const totalAchievedCount = exerciseLogs.reduce((sum, log) => sum + (log.countValue || 0), 0);
+      const totalAchievedTime = exerciseLogs.reduce((sum, log) => sum + (log.timeValue || 0), 0);
+
+      if (currentGoal?.count !== undefined && exercise.countUnit) {
+        achievedValue = totalAchievedCount;
+        goalValue = currentGoal.count;
+        unit = exercise.countUnit;
+      } else if (currentGoal?.time !== undefined && exercise.timeUnit) {
+        achievedValue = totalAchievedTime;
+        goalValue = currentGoal.time;
+        unit = exercise.timeUnit;
+      } else if (totalAchievedCount > 0 && exercise.countUnit) { // No specific goal, or goal unit mismatch, fallback to logged count
+        achievedValue = totalAchievedCount;
+        unit = exercise.countUnit;
+      } else if (totalAchievedTime > 0 && exercise.timeUnit) { // Fallback to logged time
+        achievedValue = totalAchievedTime;
+        unit = exercise.timeUnit;
+      } else if (exercise.countUnit) { // Default to count unit if nothing logged but unit exists
+         achievedValue = 0;
+         unit = exercise.countUnit;
+      } else if (exercise.timeUnit) { // Default to time unit
+         achievedValue = 0;
+         unit = exercise.timeUnit;
       }
 
-      if (preferTime && exercise.timeUnit) {
-        const totalTime = logsForExercise.reduce((sum, log) => {
-          if (log.timeValue !== undefined && log.timeValue > 0) {
-            valueCount++;
-            return sum + log.timeValue;
-          }
-          return sum;
-        }, 0);
-        primaryValue = valueCount > 0 ? parseFloat((totalTime / valueCount).toFixed(1)) : 0;
-        primaryUnit = exercise.timeUnit;
-      } else if (exercise.countUnit) { // Handles cases where preferTime is false OR timeUnit doesn't exist but countUnit does
-        const totalCount = logsForExercise.reduce((sum, log) => {
-          if (log.countValue !== undefined && log.countValue > 0) {
-            valueCount++;
-            return sum + log.countValue;
-          }
-          return sum;
-        }, 0);
-        primaryValue = valueCount > 0 ? parseFloat((totalCount / valueCount).toFixed(1)) : 0;
-        primaryUnit = exercise.countUnit;
-      }
+
     } else if (exercise.category === 'steps_distance') {
-      const goal = studentGoals[exercise.id];
-      let preferDistance = false;
-      if (goal) {
-        if (goal.distance && goal.distance > 0 && exercise.distanceUnit) preferDistance = true;
-        else if (goal.steps && goal.steps > 0 && exercise.stepsUnit) preferDistance = false;
-        else if (exercise.distanceUnit) preferDistance = true;
-        else preferDistance = false;
-      } else if (exercise.distanceUnit) {
-        preferDistance = true;
-      }
+      const totalAchievedSteps = exerciseLogs.reduce((sum, log) => sum + (log.stepsValue || 0), 0);
+      const totalAchievedDistance = exerciseLogs.reduce((sum, log) => sum + (log.distanceValue || 0), 0);
 
-      if (preferDistance && exercise.distanceUnit) {
-        const totalDistance = logsForExercise.reduce((sum, log) => {
-          if (log.distanceValue !== undefined && log.distanceValue > 0) {
-            valueCount++;
-            return sum + log.distanceValue;
-          }
-          return sum;
-        }, 0);
-        primaryValue = valueCount > 0 ? parseFloat((totalDistance / valueCount).toFixed(1)) : 0;
-        primaryUnit = exercise.distanceUnit;
+      if (currentGoal?.steps !== undefined && exercise.stepsUnit) {
+        achievedValue = totalAchievedSteps;
+        goalValue = currentGoal.steps;
+        unit = exercise.stepsUnit;
+      } else if (currentGoal?.distance !== undefined && exercise.distanceUnit) {
+        achievedValue = totalAchievedDistance;
+        goalValue = currentGoal.distance;
+        unit = exercise.distanceUnit;
+      } else if (totalAchievedSteps > 0 && exercise.stepsUnit) {
+        achievedValue = totalAchievedSteps;
+        unit = exercise.stepsUnit;
+      } else if (totalAchievedDistance > 0 && exercise.distanceUnit) {
+        achievedValue = totalAchievedDistance;
+        unit = exercise.distanceUnit;
       } else if (exercise.stepsUnit) {
-         const totalSteps = logsForExercise.reduce((sum, log) => {
-          if (log.stepsValue !== undefined && log.stepsValue > 0) {
-            valueCount++;
-            return sum + log.stepsValue;
-          }
-          return sum;
-        }, 0);
-        primaryValue = valueCount > 0 ? parseFloat((totalSteps / valueCount).toFixed(1)) : 0;
-        primaryUnit = exercise.stepsUnit;
+        achievedValue = 0;
+        unit = exercise.stepsUnit;
+      } else if (exercise.distanceUnit) {
+        achievedValue = 0;
+        unit = exercise.distanceUnit;
       }
     }
-
+    
     return {
       name: exercise.koreanName,
-      value: primaryValue,
+      achieved: achievedValue,
+      goal: goalValue,
       id: exercise.id,
-      unit: primaryUnit,
+      unit: unit,
       fill: chartConfig[exercise.id]?.color || 'hsl(var(--chart-1))',
     };
   });
+  
+  const chartData = aggregatedData.filter(d => d.unit); // Only show exercises with a valid unit/activity
 
-  const chartData = aggregatedData.filter(d => d.value > 0 && d.unit);
-
-  if (students.length === 0 && !selectedStudent) { // Check if no students list and no specific selected student
-    return (
-       <Card className="shadow-lg rounded-xl">
-        <CardHeader>
-          <CardTitle className="font-headline">운동 요약</CardTitle>
-          <CardDescription>표시할 학생 데이터가 없습니다.</CardDescription>
-        </CardHeader>
-        <CardContent className="h-[300px] flex items-center justify-center">
-          <p className="text-muted-foreground">교사 페이지에서 학생을 추가하거나, 학생이 로그인해야 합니다.</p>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  if (dataToDisplay.length === 0) {
+  if (dataToDisplay.length === 0 && chartData.every(d => d.achieved === 0)) {
     return (
       <Card className="shadow-lg rounded-xl">
         <CardHeader>
@@ -203,18 +188,23 @@ const StudentActivityChart: React.FC<StudentActivityChartProps> = ({
       </Card>
     );
   }
+  
+  // Filter out data where achieved is 0 AND no goal is set. 
+  // Still show data if achieved is 0 BUT a goal is set (to show progress towards that goal).
+  const finalChartData = chartData.filter(d => d.achieved > 0 || (d.achieved === 0 && d.goal !== undefined && d.goal > 0));
 
-  if (chartData.length === 0) {
+
+  if (finalChartData.length === 0) {
      return (
       <Card className="shadow-lg rounded-xl">
         <CardHeader>
           <CardTitle className="font-headline">
             {selectedStudent ? `${selectedStudent.name} 학생의 운동 요약` : "전체 운동 요약"}
           </CardTitle>
-          <CardDescription>관련된 운동 기록에서 유효한 평균값을 계산할 수 없습니다.</CardDescription>
+          <CardDescription>의미있는 활동 기록이 없거나, 설정된 목표가 없습니다.</CardDescription>
         </CardHeader>
         <CardContent className="h-[300px] flex items-center justify-center">
-          <p className="text-muted-foreground">의미있는 데이터가 포함된 운동을 기록해주세요.</p>
+          <p className="text-muted-foreground">운동을 기록하거나 목표를 설정하여 활동 내역을 확인하세요.</p>
         </CardContent>
       </Card>
     );
@@ -226,12 +216,12 @@ const StudentActivityChart: React.FC<StudentActivityChartProps> = ({
         <CardTitle className="font-headline">
           {(selectedStudent ? `${selectedStudent.name} 학생` : "전체 학급")} 활동 요약 ({timeFrame === 'today' ? '오늘' : timeFrame === 'week' ? '주간' : '월간'})
         </CardTitle>
-        <CardDescription>각 운동별 평균값 (주요 단위 기준)</CardDescription>
+        <CardDescription>각 운동별 달성량과 목표량을 확인하세요.</CardDescription>
       </CardHeader>
       <CardContent>
         <ChartContainer config={chartConfig} className="min-h-[300px] w-full">
           <ResponsiveContainer width="100%" height={350}> 
-            <BarChart data={chartData} margin={{ top: 5, right: 20, left: -10, bottom: 70 }}> 
+            <BarChart data={finalChartData} margin={{ top: 5, right: 20, left: -10, bottom: 70 }}> 
               <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
               <XAxis
                 dataKey="name"
@@ -249,11 +239,21 @@ const StudentActivityChart: React.FC<StudentActivityChartProps> = ({
               <Tooltip
                 content={({ active, payload, label }) => {
                   if (active && payload && payload.length) {
-                    const data = payload[0].payload as { name: string; value: number; unit: string; id: string };
+                    const data = payload[0].payload as { name: string; achieved: number; goal?: number; unit: string; id: string };
+                    let goalText = "";
+                    if (data.goal !== undefined && data.goal > 0) {
+                      goalText = ` / 목표: ${data.goal}${data.unit}`;
+                    } else if (data.goal === undefined && data.unit) {
+                       goalText = " (목표 없음)";
+                    }
+                    
                     return (
                       <div className="bg-background p-3 border rounded-lg shadow-lg text-sm">
                         <p className="font-semibold text-base mb-1" style={{color: chartConfig[data.id]?.color }}>{`${label}`}</p>
-                        <p>{`평균: ${data.value} ${data.unit}`}</p>
+                        <p>{`달성: ${data.achieved}${data.unit}${goalText}`}</p>
+                        {data.goal !== undefined && data.goal > 0 && data.achieved > 0 && (
+                           <p className="text-xs mt-1">{`달성률: ${((data.achieved / data.goal) * 100).toFixed(0)}%`}</p>
+                        )}
                       </div>
                     );
                   }
@@ -261,8 +261,8 @@ const StudentActivityChart: React.FC<StudentActivityChartProps> = ({
                 }}
                 cursor={{ fill: 'hsl(var(--accent))', opacity: 0.3 }}
               />
-              <Bar dataKey="value" radius={[4, 4, 0, 0]} barSize={Math.min(60, 300 / (chartData.length || 1) )}>
-                 {chartData.map((entry) => (
+              <Bar dataKey="achieved" radius={[4, 4, 0, 0]} barSize={Math.min(60, 300 / (finalChartData.length || 1) )}>
+                 {finalChartData.map((entry) => (
                     <Cell key={`cell-${entry.id}`} fill={entry.fill} />
                   ))}
               </Bar>
@@ -275,3 +275,4 @@ const StudentActivityChart: React.FC<StudentActivityChartProps> = ({
 };
 
 export default StudentActivityChart;
+
