@@ -116,7 +116,8 @@ const StudentActivityChart: React.FC<StudentActivityChartProps> = ({ logs, timeF
     if (goalValue && goalValue > 0) {
       progress = Math.min(100, Math.round((totalAchievedValue / goalValue) * 100));
     } else if (totalAchievedValue > 0) {
-      progress = 0;
+      // If there's no goal but there's activity, progress remains 0 or could be handled differently
+      progress = 0; // Or perhaps indicate 'N/A' or hide progress bar
     }
 
     const IconComponent = getIconByName(exercise.iconName);
