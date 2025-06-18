@@ -1,11 +1,9 @@
-
 import type {Metadata} from 'next';
-import './globals.css';
-import { Toaster } from "@/components/ui/toaster";
+import './globals.css'; // 기본 스타일 유지
 
 export const metadata: Metadata = {
-  title: '풍풍이의 운동기록장',
-  description: '초등학생을 위한 일일 운동 기록 앱입니다.',
+  title: '풍풍이 운동기록장 진단 페이지', // 단순화된 제목
+  description: '현재 앱을 진단 중입니다.',
 };
 
 export default function RootLayout({
@@ -13,36 +11,34 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  // 서버 측에서 이 로그가 보인다면 Next.js 앱이 요청을 받기 시작한 것입니다.
-  // Cloud Run 로그에서 이 메시지를 확인해보세요.
-  console.log('[PhysEd Pal] RootLayout rendering on server at:', new Date().toISOString()); 
+  // 서버 측 Cloud Run 로그에서 이 메시지를 확인합니다.
+  console.log('[PhysEd Pal] SIMPLIFIED RootLayout rendering on server at:', new Date().toISOString());
   return (
     <html lang="ko">
       <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link href="https://fonts.googleapis.com/css2?family=PT+Sans:wght@400;700&family=Noto+Sans+KR:wght@400;700&display=swap" rel="stylesheet" />
+        {/* <title>진단 페이지</title>  Metadata의 title이 사용됩니다. */}
       </head>
-      <body className="font-body antialiased min-h-screen flex flex-col">
-        {/* 페이지가 렌더링되면 이 노란색 박스가 보여야 합니다. */}
-        <div 
-          data-testid="root-layout-marker" 
-          style={{ 
-            position: 'fixed', 
-            top: '0', 
-            left: '0', 
-            background: 'yellow', 
-            color: 'black', 
-            padding: '2px 5px', 
-            fontSize: '10px', 
+      <body>
+        <div
+          data-testid="simplified-root-layout-marker"
+          style={{
+            position: 'fixed',
+            top: '10px', // 이전 진단 마커와 겹치지 않도록 위치 약간 조정
+            left: '10px',
+            background: 'orange', // 색상 변경으로 구분
+            color: 'black',
+            padding: '3px 6px',
+            fontSize: '11px',
             zIndex: 9999,
-            opacity: 0.8
+            opacity: 0.9
           }}
         >
-          RootLayout Rendered OK
+          Simplified RootLayout OK
         </div>
-        {children}
-        <Toaster />
+        {/* children을 감싸는 div를 추가하여 page.tsx 내용이 확실히 보이도록 함 */}
+        <div style={{ border: '3px dashed blue', margin: '30px', padding: '15px' }}>
+          {children}
+        </div>
       </body>
     </html>
   );
