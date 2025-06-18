@@ -281,7 +281,7 @@ export default function StudentPage() {
             if (unsub) unsubscribeLogsFunction = unsub;
           });
       }
-    } else {
+    } else { // currentStudent is null (logged out)
       setStudentGoals({});
       setStudentActivityLogs([]); 
       setRecommendedExercise(null);
@@ -585,7 +585,11 @@ export default function StudentPage() {
   const todaysLogsWithoutImage = useMemo(() => {
     if (!currentStudent) return [];
     return studentActivityLogs
-      .filter(log => log.studentId === currentStudent.id && isToday(parseISO(log.date)) && !log.imageUrl);
+      .filter(log =>
+        log.studentId === currentStudent.id &&
+        isToday(parseISO(log.date)) &&
+        (log.imageUrl === undefined || log.imageUrl === null) // Explicitly check for undefined or null
+      );
   }, [currentStudent, studentActivityLogs]);
 
   const getExerciseProgressText = useCallback((exerciseId: string): string => {
@@ -633,6 +637,10 @@ export default function StudentPage() {
     const xpForNextLevel = currentLevelInfo.maxXp - currentLevelInfo.minXp;
     return xpForNextLevel > 0 ? (xpInCurrentLevel / xpForNextLevel) * 100 : 0;
   }, [currentStudent, currentLevelInfo]);
+
+  const showProofShotArea = useMemo(() => {
+    return !!latestTodayImage || todaysLogsWithoutImage.length > 0;
+  }, [latestTodayImage, todaysLogsWithoutImage]);
 
 
   if (isLoadingLoginOptions || isLoadingExercises) {
@@ -757,8 +765,6 @@ export default function StudentPage() {
   }
 
   const LevelIcon = currentLevelInfo.icon || Gem;
-  const showProofShotArea = latestTodayImage || todaysLogsWithoutImage.length > 0;
-
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -877,7 +883,7 @@ export default function StudentPage() {
                           </Button>
                       </CardContent>
                       </Card>
-                  ) : ( // No latest image, but there are logs without image for today
+                  ) : ( 
                       <Card
                           className="shadow-lg rounded-xl flex flex-col items-center justify-center cursor-pointer hover:bg-muted/30 transition-colors h-full"
                           onClick={() => setIsUploadProofShotDialogOpen(true)}
