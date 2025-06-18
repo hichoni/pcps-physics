@@ -274,19 +274,16 @@ export default function StudentPage() {
 
   useEffect(() => {
     let unsubscribeLogsFunction: (() => void) | undefined;
-    if (currentStudent) {
-      if (availableExercises.length > 0) {
+    if (currentStudent) { 
+      if (availableExercises.length > 0) { 
         fetchStudentSpecificData(currentStudent.id, currentStudent.name, availableExercises)
           .then(unsub => {
             if (unsub) unsubscribeLogsFunction = unsub;
           });
       }
-      // If availableExercises is empty (still loading), we don't clear logs.
-      // The UI should handle showing loading state for exercise-dependent parts.
     } else {
-      // currentStudent is null (e.g., logged out), reset all student-specific states
       setStudentGoals({});
-      setStudentActivityLogs([]);
+      setStudentActivityLogs([]); 
       setRecommendedExercise(null);
       setDailyCompliment('');
       setStudentWelcomeMessage(DEFAULT_STUDENT_WELCOME_MESSAGE);
@@ -489,7 +486,6 @@ export default function StudentPage() {
         const logDocRef = doc(db, "exerciseLogs", logId);
         await updateDoc(logDocRef, { imageUrl: null });
 
-        // Optimistic UI Update
         setStudentActivityLogs(prevLogs =>
             prevLogs.map(log =>
                 log.id === logId ? { ...log, imageUrl: undefined } : log
@@ -580,7 +576,7 @@ export default function StudentPage() {
     const todayLogsWithImages = studentActivityLogs
       .filter(log => log.studentId === currentStudent.id && isToday(parseISO(log.date)) && log.imageUrl)
       .sort((a, b) => {
-        if (a.id && b.id) return b.id.localeCompare(a.id);
+        if (a.id && b.id) return b.id.localeCompare(a.id); // Sort by log ID (timestamp based usually)
         return 0;
       });
     return todayLogsWithImages.length > 0 ? todayLogsWithImages[0] : null;
@@ -761,6 +757,7 @@ export default function StudentPage() {
   }
 
   const LevelIcon = currentLevelInfo.icon || Gem;
+  const showProofShotArea = latestTodayImage || todaysLogsWithoutImage.length > 0;
 
 
   return (
@@ -777,7 +774,7 @@ export default function StudentPage() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-stretch">
             <Card className={cn(
                 "shadow-lg rounded-xl flex flex-col",
-                (latestTodayImage || todaysLogsWithoutImage.length > 0) ? "lg:col-span-2" : "lg:col-span-3"
+                showProofShotArea ? "lg:col-span-2" : "lg:col-span-3"
             )}>
                 <CardHeader className="pb-4">
                     <CardTitle className="text-2xl sm:text-3xl font-bold font-headline text-primary text-center lg:text-left">
@@ -835,68 +832,71 @@ export default function StudentPage() {
                     )}
                 </CardContent>
             </Card>
-            <div key={`proof-shot-area-${latestTodayImage?.id || 'no-image'}-${todaysLogsWithoutImage.length}`} className="lg:col-span-1">
-                {latestTodayImage ? (
-                    <Card className="shadow-lg rounded-xl flex flex-col h-full">
-                    <CardHeader>
-                        <CardTitle className="flex items-center font-headline text-xl">
-                        <CheckSquare className="mr-3 h-7 w-7 text-green-500" />
-                        오.운.완 인증!
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent className="flex-grow flex flex-col items-center justify-center p-3 space-y-2">
-                        <a href={latestTodayImage.imageUrl!} target="_blank" rel="noopener noreferrer" className="block w-full aspect-square relative rounded-lg overflow-hidden shadow-inner bg-muted">
-                        <NextImage
-                            key={latestTodayImage.imageUrl}
-                            src={latestTodayImage.imageUrl!}
-                            alt="오늘의 운동 인증샷"
-                            layout="fill"
-                            objectFit="cover"
-                            className="transition-transform duration-300 hover:scale-105"
-                            data-ai-hint="fitness activity"
-                            onError={(e) => {
-                            const target = e.target as HTMLImageElement;
-                            target.style.display = 'none';
-                            const parent = target.parentElement;
-                            if (parent && !parent.querySelector('.image-error-placeholder-student')) {
-                                const placeholder = document.createElement('div');
-                                placeholder.className = 'image-error-placeholder-student absolute inset-0 flex items-center justify-center bg-muted text-muted-foreground text-xs p-2 text-center';
-                                placeholder.textContent = '이미지를 불러올 수 없습니다.';
-                                parent.appendChild(placeholder);
-                            }
-                            }}
-                        />
-                        </a>
-                        <Button
-                            variant="destructive"
-                            size="sm"
-                            className="w-full rounded-md text-xs py-1.5 h-auto"
-                            onClick={() => handleDeleteProofShot(latestTodayImage.id!)}
-                        >
-                            <Trash2 className="mr-1.5 h-3.5 w-3.5" />
-                            인증샷 삭제
-                        </Button>
-                    </CardContent>
-                    </Card>
-                ) : todaysLogsWithoutImage.length > 0 ? (
-                    <Card
-                        className="shadow-lg rounded-xl flex flex-col items-center justify-center cursor-pointer hover:bg-muted/30 transition-colors h-full"
-                        onClick={() => setIsUploadProofShotDialogOpen(true)}
-                        role="button"
-                        tabIndex={0}
-                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setIsUploadProofShotDialogOpen(true);}}
-                        aria-label="오늘 운동 인증샷 추가하기"
-                    >
-                        <CardContent className="flex flex-col items-center justify-center p-6 text-center">
-                            <PlusSquare className="h-12 w-12 text-primary mb-3" />
-                            <p className="font-semibold text-primary">오.운.완 인증샷 추가</p>
-                            <p className="text-xs text-muted-foreground mt-1">
-                                오늘 기록된 운동에 사진을 올려보세요!
-                            </p>
-                        </CardContent>
-                    </Card>
-                ) : null}
-            </div>
+            
+            {showProofShotArea && (
+              <div key={latestTodayImage ? `image-${latestTodayImage.id}` : `upload-prompt-${todaysLogsWithoutImage.length}`} className="lg:col-span-1">
+                  {latestTodayImage ? (
+                      <Card className="shadow-lg rounded-xl flex flex-col h-full">
+                      <CardHeader>
+                          <CardTitle className="flex items-center font-headline text-xl">
+                          <CheckSquare className="mr-3 h-7 w-7 text-green-500" />
+                          오.운.완 인증!
+                          </CardTitle>
+                      </CardHeader>
+                      <CardContent className="flex-grow flex flex-col items-center justify-center p-3 space-y-2">
+                          <a href={latestTodayImage.imageUrl!} target="_blank" rel="noopener noreferrer" className="block w-full aspect-square relative rounded-lg overflow-hidden shadow-inner bg-muted">
+                          <NextImage
+                              key={latestTodayImage.imageUrl} 
+                              src={latestTodayImage.imageUrl!}
+                              alt="오늘의 운동 인증샷"
+                              layout="fill"
+                              objectFit="cover"
+                              className="transition-transform duration-300 hover:scale-105"
+                              data-ai-hint="fitness activity"
+                              onError={(e) => {
+                              const target = e.target as HTMLImageElement;
+                              target.style.display = 'none';
+                              const parent = target.parentElement;
+                              if (parent && !parent.querySelector('.image-error-placeholder-student')) {
+                                  const placeholder = document.createElement('div');
+                                  placeholder.className = 'image-error-placeholder-student absolute inset-0 flex items-center justify-center bg-muted text-muted-foreground text-xs p-2 text-center';
+                                  placeholder.textContent = '이미지를 불러올 수 없습니다.';
+                                  parent.appendChild(placeholder);
+                              }
+                              }}
+                          />
+                          </a>
+                          <Button
+                              variant="destructive"
+                              size="sm"
+                              className="w-full rounded-md text-xs py-1.5 h-auto"
+                              onClick={() => handleDeleteProofShot(latestTodayImage.id!)}
+                          >
+                              <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+                              인증샷 삭제
+                          </Button>
+                      </CardContent>
+                      </Card>
+                  ) : ( // No latest image, but there are logs without image for today
+                      <Card
+                          className="shadow-lg rounded-xl flex flex-col items-center justify-center cursor-pointer hover:bg-muted/30 transition-colors h-full"
+                          onClick={() => setIsUploadProofShotDialogOpen(true)}
+                          role="button"
+                          tabIndex={0}
+                          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setIsUploadProofShotDialogOpen(true);}}
+                          aria-label="오늘 운동 인증샷 추가하기"
+                      >
+                          <CardContent className="flex flex-col items-center justify-center p-6 text-center">
+                              <PlusSquare className="h-12 w-12 text-primary mb-3" />
+                              <p className="font-semibold text-primary">오.운.완 인증샷 추가</p>
+                              <p className="text-xs text-muted-foreground mt-1">
+                                  오늘 기록된 운동에 사진을 올려보세요!
+                              </p>
+                          </CardContent>
+                      </Card>
+                  )}
+              </div>
+            )}
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-stretch">
@@ -1060,7 +1060,7 @@ export default function StudentPage() {
                                   {log.imageUrl && (
                                     <a href={log.imageUrl} target="_blank" rel="noopener noreferrer" className="ml-2 shrink-0">
                                       <NextImage
-                                        key={log.imageUrl}
+                                        key={log.imageUrl} 
                                         src={log.imageUrl}
                                         alt="인증샷"
                                         width={32}
