@@ -116,12 +116,15 @@ const StudentActivityChart: React.FC<StudentActivityChartProps> = ({ logs, timeF
     if (goalValue && goalValue > 0) {
       progress = Math.min(100, Math.round((totalAchievedValue / goalValue) * 100));
     } else if (totalAchievedValue > 0) {
-      progress = 0; 
+      progress = 0;
     }
 
     const IconComponent = getIconByName(exercise.iconName);
     const goalDisplay = goalValue ? `${goalValue.toLocaleString()}${unit}` : "목표 없음";
     const achievedDisplay = `${totalAchievedValue.toLocaleString()}${unit}`;
+    
+    const colorIndex = availableExercises.findIndex(e => e.id === exercise.id);
+    const chartColorSuffix = (colorIndex % 5) + 1;
 
     return {
       id: exercise.id,
@@ -130,7 +133,7 @@ const StudentActivityChart: React.FC<StudentActivityChartProps> = ({ logs, timeF
       achievedValue: totalAchievedValue,
       achievedDisplay,
       unit: unit,
-      color: `hsl(var(--chart-${(availableExercises.findIndex(e => e.id === exercise.id) % 5) + 1}))`,
+      color: `hsl(var(--chart-${chartColorSuffix}))`,
       goalDisplay,
       hasGoal: !!goalValue && goalValue > 0,
       isAchieved: !!goalValue && goalValue > 0 && totalAchievedValue >= goalValue,
@@ -147,7 +150,7 @@ const StudentActivityChart: React.FC<StudentActivityChartProps> = ({ logs, timeF
   }
 
   return (
-    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 pt-4"> {/* Max 3 cols for better visibility */}
+    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 pt-4">
       {exerciseSummaries.map(summary => {
         const IconComp = summary.IconComponent;
         return (
@@ -156,7 +159,7 @@ const StudentActivityChart: React.FC<StudentActivityChartProps> = ({ logs, timeF
               <div className="space-y-1">
                 <CardTitle className="text-base font-medium text-muted-foreground flex items-center">
                   {IconComp && <IconComp className="h-5 w-5 mr-2" style={{ color: summary.color }} />}
-                  {!IconComp && <Star className="h-5 w-5 mr-2" style={{ color: summary.color }} />} {/* Fallback icon */}
+                  {!IconComp && <Star className="h-5 w-5 mr-2" style={{ color: summary.color }} />}
                   {summary.name}
                 </CardTitle>
                 <CardDescription className="text-xs">
