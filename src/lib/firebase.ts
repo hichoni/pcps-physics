@@ -22,13 +22,13 @@ const criticalConfigValues: Record<string, string | undefined> = {
   apiKey: firebaseConfig.apiKey,
   authDomain: firebaseConfig.authDomain,
   projectId: firebaseConfig.projectId,
-  storageBucket: firebaseConfig.storageBucket, // storageBucket도 필수 값으로 포함
+  storageBucket: firebaseConfig.storageBucket, 
   appId: firebaseConfig.appId
 };
 
 // Ensure that values are not undefined, null, empty strings, or common placeholder indicators
 const allCriticalValuesPresent = Object.entries(criticalConfigValues).every(
-  ([key, value]) => value && typeof value === 'string' && value.trim() !== '' && !value.startsWith("YOUR_") && !value.includes("!!! UNDEFINED")
+  ([key, value]) => value && typeof value === 'string' && value.trim() !== '' && !value.startsWith("YOUR_") && !value.includes("!!! UNDEFINED") && value !== "null"
 );
 
 if (allCriticalValuesPresent) {
@@ -42,20 +42,27 @@ if (allCriticalValuesPresent) {
     storage = getStorage(app); // storage 초기화
   } catch (error: any) {
     console.error("Firebase initialization error (src/lib/firebase.ts):", error.message);
+    // Set db and storage to undefined or null so their absence can be checked elsewhere
+    db = undefined; 
+    storage = undefined;
   }
 } else {
+  const missingOrInvalidKeys = Object.entries(criticalConfigValues)
+    .filter(([, value]) => 
+      !value || typeof value !== 'string' || value.trim() === '' || value.startsWith("YOUR_") || value.includes("!!! UNDEFINED") || value === "null"
+    )
+    .map(([key]) => key)
+    .join(', ');
+
   console.error(
     "CRITICAL Firebase Config Error (src/lib/firebase.ts): " +
     "One or more NEXT_PUBLIC_FIREBASE_... environment variables are missing, invalid, or contain placeholders. " +
     "Ensure they are set correctly in your deployment environment. " +
-    "Missing or invalid keys: " + 
-    Object.entries(criticalConfigValues)
-      .filter(([, value]) => 
-        !value || typeof value !== 'string' || value.trim() === '' || value.startsWith("YOUR_") || value.includes("!!! UNDEFINED")
-      )
-      .map(([key]) => key)
-      .join(', ')
+    "Missing or invalid keys: " + missingOrInvalidKeys
   );
+  // Set db and storage to undefined or null
+  db = undefined;
+  storage = undefined;
 }
 
 export { db, storage }; // storage 익스포트

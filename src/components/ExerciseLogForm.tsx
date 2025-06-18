@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { CardContent } from "@/components/ui/card"; 
+import { CardContent } from "@/components/ui/card";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { EXERCISES } from "@/data/mockData";
@@ -14,7 +14,7 @@ import { cn } from "@/lib/utils";
 import { CalendarIcon, PlusCircle, MinusCircle, Save, Camera, UploadCloud, Loader2, AlertTriangle } from "lucide-react";
 import { format } from "date-fns";
 import { ko } from 'date-fns/locale';
-import { storage } from '@/lib/firebase'; 
+import { storage } from '@/lib/firebase';
 import { ref as storageRef, uploadBytesResumable, getDownloadURL } from "firebase/storage";
 import { useToast } from "@/hooks/use-toast";
 import Image from 'next/image';
@@ -31,13 +31,13 @@ interface ExerciseLogFormProps {
 
 const ExerciseLogForm: React.FC<ExerciseLogFormProps> = ({ student, isOpen, onClose, onSave, recordedExercises, onSwitchToCameraMode }) => {
   const [selectedExerciseId, setSelectedExerciseId] = useState<string>(EXERCISES[0].id);
-  
+
   const [countLogValue, setCountLogValue] = useState<number>(EXERCISES[0].defaultCount ?? 0);
   const [timeLogValue, setTimeLogValue] = useState<number>(EXERCISES[0].defaultTime ?? 0);
 
   const [stepsLogValue, setStepsLogValue] = useState<number>(EXERCISES[0].defaultSteps ?? 0);
   const [distanceLogValue, setDistanceLogValue] = useState<number>(EXERCISES[0].defaultDistance ?? 0);
-  
+
   const [logDate, setLogDate] = useState<Date>(new Date());
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [filePreview, setFilePreview] = useState<string | null>(null);
@@ -49,8 +49,8 @@ const ExerciseLogForm: React.FC<ExerciseLogFormProps> = ({ student, isOpen, onCl
 
   const resetFormState = () => {
     const currentEx = EXERCISES.find(ex => ex.id === selectedExerciseId) || EXERCISES[0];
-    setSelectedExerciseId(currentEx.id); 
-    
+    setSelectedExerciseId(currentEx.id);
+
     if (currentEx.category === 'count_time') {
       setCountLogValue(currentEx.defaultCount ?? 0);
       setTimeLogValue(currentEx.defaultTime ?? 0);
@@ -58,7 +58,7 @@ const ExerciseLogForm: React.FC<ExerciseLogFormProps> = ({ student, isOpen, onCl
       setStepsLogValue(currentEx.defaultSteps ?? 0);
       setDistanceLogValue(currentEx.defaultDistance ?? 0);
     }
-    setLogDate(new Date()); 
+    setLogDate(new Date());
     setSelectedFile(null);
     setFilePreview(null);
     setIsUploading(false);
@@ -88,11 +88,11 @@ const ExerciseLogForm: React.FC<ExerciseLogFormProps> = ({ student, isOpen, onCl
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     if (event.target.files && event.target.files[0]) {
       const file = event.target.files[0];
-      if (file.size > 5 * 1024 * 1024) { 
+      if (file.size > 5 * 1024 * 1024) {
         toast({ title: "파일 크기 초과", description: "이미지 파일은 5MB를 넘을 수 없습니다.", variant: "destructive" });
         setSelectedFile(null);
         setFilePreview(null);
-        event.target.value = ""; 
+        event.target.value = "";
         return;
       }
       setSelectedFile(file);
@@ -111,11 +111,19 @@ const ExerciseLogForm: React.FC<ExerciseLogFormProps> = ({ student, isOpen, onCl
     if (selectedFile) {
       setIsUploading(true);
       setUploadProgress(0);
-      try {
-        if (!storage) {
-          throw new Error("Firebase Storage 서비스가 설정되지 않았습니다. 환경 변수를 확인해주세요.");
-        }
 
+      if (!storage) {
+        console.error("Firebase Storage is not initialized. Check firebase.ts and environment variables.");
+        toast({
+          title: "업로드 설정 오류",
+          description: "파일 저장소(Storage)가 제대로 설정되지 않았습니다. 관리자에게 문의하세요.",
+          variant: "destructive",
+        });
+        setIsUploading(false);
+        return;
+      }
+
+      try {
         const timestamp = new Date().getTime();
         const uniqueFileName = `${timestamp}_${selectedFile.name}`;
         const filePath = `proofShots/${student.id}/${format(logDate, "yyyy-MM-dd")}/${selectedExercise.id}/${uniqueFileName}`;
@@ -128,18 +136,23 @@ const ExerciseLogForm: React.FC<ExerciseLogFormProps> = ({ student, isOpen, onCl
               const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
               setUploadProgress(progress);
             },
-            (error: any) => { 
-              console.error("Upload failed (Firebase Storage Error):", error);
+            (error: any) => {
+              console.error("Upload failed (Firebase Storage Error):", error, "Error Code:", error.code);
               let description = "이미지 업로드 중 오류가 발생했습니다.";
               if (error.code) {
                 description += ` (오류 코드: ${error.code})`;
+                if (error.code === 'storage/unauthorized') {
+                    description = "이미지 업로드 권한이 없습니다. Firebase Storage 규칙을 확인해주세요. (오류 코드: storage/unauthorized)";
+                } else if (error.code === 'storage/bucket-not-found') {
+                    description = "저장소 버킷을 찾을 수 없습니다. Firebase 설정을 확인해주세요. (오류 코드: storage/bucket-not-found)";
+                }
               }
               toast({
                 title: "업로드 실패",
                 description: description,
                 variant: "destructive",
               });
-              reject(error); 
+              reject(error);
             },
             async () => {
               imageUrl = await getDownloadURL(uploadTask.snapshot.ref);
@@ -147,22 +160,17 @@ const ExerciseLogForm: React.FC<ExerciseLogFormProps> = ({ student, isOpen, onCl
             }
           );
         });
-        // 성공 시 isUploading 등은 아래에서 처리
       } catch (error: any) {
-        // 프라미스 reject 또는 storage 설정 오류 시 여기로 옴
-        if (error.message === "Firebase Storage 서비스가 설정되지 않았습니다. 환경 변수를 확인해주세요.") {
-            toast({ title: "Storage 설정 오류", description: error.message, variant: "destructive" });
-        } else if (!(error.code && typeof error.code === 'string' && error.code.startsWith('storage/'))) {
-            // Firebase Storage 오류가 아니고, 위에서 커스텀 토스트도 안 띄웠다면 일반 오류
-            console.error("An unexpected error occurred during file upload:", error);
-            toast({ title: "업로드 중 예외 발생", description: "파일 업로드 중 예상치 못한 문제가 발생했습니다.", variant: "destructive" });
-        }
-        setIsUploading(false); 
-        setUploadProgress(0); 
-        return; 
+        // This catch block will handle rejections from the promise (e.g., if toast was already shown by the error callback)
+        // or other synchronous errors before the upload even starts.
+        // The toast is likely already shown by the 'error' callback of uploadTask.on.
+        // We just need to ensure the loading state is reset.
+        setIsUploading(false);
+        setUploadProgress(0);
+        return; // Stop further execution
       }
-      // try-catch 이후, 성공적인 경우에만 도달 (실패 시 return됨)
-      setIsUploading(false); 
+      // If upload was successful, reset loading state
+      setIsUploading(false);
       setUploadProgress(0);
     }
 
@@ -171,7 +179,7 @@ const ExerciseLogForm: React.FC<ExerciseLogFormProps> = ({ student, isOpen, onCl
       exerciseId: selectedExercise.id,
       date: format(logDate, "yyyy-MM-dd"),
       className: student.class as ClassName,
-      ...(imageUrl && { imageUrl }), 
+      ...(imageUrl && { imageUrl }),
     };
 
     if (selectedExercise.category === 'count_time') {
@@ -181,9 +189,9 @@ const ExerciseLogForm: React.FC<ExerciseLogFormProps> = ({ student, isOpen, onCl
       logEntry.stepsValue = stepsLogValue;
       logEntry.distanceValue = distanceLogValue;
     }
-    
+
     onSave(logEntry);
-    onClose(); 
+    onClose();
   };
 
   if (!student) return null;
@@ -273,11 +281,11 @@ const ExerciseLogForm: React.FC<ExerciseLogFormProps> = ({ student, isOpen, onCl
                     {selectedExercise.koreanName} ({selectedExercise.timeUnit})
                   </label>
                   <div className="flex items-center justify-center space-x-4 bg-secondary/30 p-4 rounded-lg">
-                    <Button variant="ghost" size="icon" onClick={() => setTimeLogValue(Math.max(0, timeLogValue - (selectedExercise.timeStep ?? 1)))} aria-label="시간 감소" disabled={isUploading}>
+                    <Button variant="ghost" size="icon" onClick={() => setTimeLogValue(Math.max(0, timeValue - (selectedExercise.timeStep ?? 1)))} aria-label="시간 감소" disabled={isUploading}>
                       <MinusCircle className="h-8 w-8 text-primary" />
                     </Button>
                     <span className="text-4xl font-bold w-20 text-center">{timeLogValue}</span>
-                    <Button variant="ghost" size="icon" onClick={() => setTimeLogValue(timeLogValue + (selectedExercise.timeStep ?? 1))} aria-label="시간 증가" disabled={isUploading}>
+                    <Button variant="ghost" size="icon" onClick={() => setTimeLogValue(timeValue + (selectedExercise.timeStep ?? 1))} aria-label="시간 증가" disabled={isUploading}>
                       <PlusCircle className="h-8 w-8 text-primary" />
                     </Button>
                   </div>
@@ -327,7 +335,7 @@ const ExerciseLogForm: React.FC<ExerciseLogFormProps> = ({ student, isOpen, onCl
                     {totalLoggedTodayDisplay}
                 </p>
             )}
-          
+
           <div>
             <Label htmlFor="logDate" className="text-sm font-medium block mb-2">날짜</Label>
             <Popover>
@@ -352,7 +360,7 @@ const ExerciseLogForm: React.FC<ExerciseLogFormProps> = ({ student, isOpen, onCl
                   onSelect={(date) => date && setLogDate(date)}
                   initialFocus
                   locale={ko}
-                  disabled={{ after: new Date() }} 
+                  disabled={{ after: new Date() }}
                 />
               </PopoverContent>
             </Popover>
@@ -360,11 +368,11 @@ const ExerciseLogForm: React.FC<ExerciseLogFormProps> = ({ student, isOpen, onCl
 
           <div>
             <Label htmlFor="proofShot" className="text-sm font-medium block mb-2">인증샷 (선택, 5MB 이하)</Label>
-            <Input 
-              id="proofShot" 
-              type="file" 
-              accept="image/*" 
-              onChange={handleFileChange} 
+            <Input
+              id="proofShot"
+              type="file"
+              accept="image/*"
+              onChange={handleFileChange}
               className="text-sm file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20 rounded-lg"
               disabled={isUploading}
             />
@@ -382,8 +390,8 @@ const ExerciseLogForm: React.FC<ExerciseLogFormProps> = ({ student, isOpen, onCl
           </div>
 
           {canUseCameraForExercise && (
-            <Button 
-              variant="secondary" 
+            <Button
+              variant="secondary"
               className="w-full py-3 text-base rounded-lg mt-4"
               onClick={() => onSwitchToCameraMode(selectedExercise.id)}
               disabled={isUploading}
