@@ -4,8 +4,8 @@ import { useState, useEffect } from 'react';
 import type { Student, Exercise, RecordedExercise, ClassName } from '@/lib/types';
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input"; // Input 추가
-import { Label } from "@/components/ui/label"; // Label 추가
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { CardContent } from "@/components/ui/card"; 
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -14,7 +14,7 @@ import { cn } from "@/lib/utils";
 import { CalendarIcon, PlusCircle, MinusCircle, Save, Camera, UploadCloud, Loader2, AlertTriangle } from "lucide-react";
 import { format } from "date-fns";
 import { ko } from 'date-fns/locale';
-import { storage } from '@/lib/firebase'; // Firebase Storage 임포트
+import { storage } from '@/lib/firebase'; 
 import { ref as storageRef, uploadBytesResumable, getDownloadURL } from "firebase/storage";
 import { useToast } from "@/hooks/use-toast";
 import Image from 'next/image';
@@ -70,10 +70,9 @@ const ExerciseLogForm: React.FC<ExerciseLogFormProps> = ({ student, isOpen, onCl
       resetFormState();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [student, isOpen]); // selectedExerciseId를 의존성 배열에서 제거하여 초기화 로직이 반복되지 않도록 함
+  }, [student, isOpen]);
 
   useEffect(() => {
-    // selectedExerciseId 변경 시 값 초기화
     const currentExerciseDetails = EXERCISES.find(ex => ex.id === selectedExerciseId);
     if (currentExerciseDetails) {
       if (currentExerciseDetails.category === 'count_time') {
@@ -89,11 +88,11 @@ const ExerciseLogForm: React.FC<ExerciseLogFormProps> = ({ student, isOpen, onCl
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     if (event.target.files && event.target.files[0]) {
       const file = event.target.files[0];
-      if (file.size > 5 * 1024 * 1024) { // 5MB 이상 파일 제한
+      if (file.size > 5 * 1024 * 1024) { 
         toast({ title: "파일 크기 초과", description: "이미지 파일은 5MB를 넘을 수 없습니다.", variant: "destructive" });
         setSelectedFile(null);
         setFilePreview(null);
-        event.target.value = ""; // 파일 입력 초기화
+        event.target.value = ""; 
         return;
       }
       setSelectedFile(file);
@@ -105,13 +104,18 @@ const ExerciseLogForm: React.FC<ExerciseLogFormProps> = ({ student, isOpen, onCl
   };
 
   const handleSave = async () => {
-    if (!student || !selectedExercise || isUploading) return;
-    
-    setIsUploading(true);
+    if (!student || !selectedExercise) return;
+
     let imageUrl: string | undefined = undefined;
 
     if (selectedFile) {
+      setIsUploading(true);
+      setUploadProgress(0);
       try {
+        if (!storage) {
+          throw new Error("Firebase Storage 서비스가 설정되지 않았습니다. 환경 변수를 확인해주세요.");
+        }
+
         const timestamp = new Date().getTime();
         const uniqueFileName = `${timestamp}_${selectedFile.name}`;
         const filePath = `proofShots/${student.id}/${format(logDate, "yyyy-MM-dd")}/${selectedExercise.id}/${uniqueFileName}`;
@@ -124,12 +128,18 @@ const ExerciseLogForm: React.FC<ExerciseLogFormProps> = ({ student, isOpen, onCl
               const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
               setUploadProgress(progress);
             },
-            (error) => {
-              console.error("Upload failed:", error);
-              toast({ title: "업로드 실패", description: "이미지 업로드 중 오류가 발생했습니다.", variant: "destructive" });
-              setIsUploading(false);
-              setUploadProgress(0);
-              reject(error);
+            (error: any) => { 
+              console.error("Upload failed (Firebase Storage Error):", error);
+              let description = "이미지 업로드 중 오류가 발생했습니다.";
+              if (error.code) {
+                description += ` (오류 코드: ${error.code})`;
+              }
+              toast({
+                title: "업로드 실패",
+                description: description,
+                variant: "destructive",
+              });
+              reject(error); 
             },
             async () => {
               imageUrl = await getDownloadURL(uploadTask.snapshot.ref);
@@ -137,11 +147,23 @@ const ExerciseLogForm: React.FC<ExerciseLogFormProps> = ({ student, isOpen, onCl
             }
           );
         });
-      } catch (error) {
-        // 오류 처리는 uploadTask.on의 error 핸들러에서 이미 수행됨
-        setIsUploading(false); // 실패 시 업로딩 상태 해제
-        return; // 여기서 중단
+        // 성공 시 isUploading 등은 아래에서 처리
+      } catch (error: any) {
+        // 프라미스 reject 또는 storage 설정 오류 시 여기로 옴
+        if (error.message === "Firebase Storage 서비스가 설정되지 않았습니다. 환경 변수를 확인해주세요.") {
+            toast({ title: "Storage 설정 오류", description: error.message, variant: "destructive" });
+        } else if (!(error.code && typeof error.code === 'string' && error.code.startsWith('storage/'))) {
+            // Firebase Storage 오류가 아니고, 위에서 커스텀 토스트도 안 띄웠다면 일반 오류
+            console.error("An unexpected error occurred during file upload:", error);
+            toast({ title: "업로드 중 예외 발생", description: "파일 업로드 중 예상치 못한 문제가 발생했습니다.", variant: "destructive" });
+        }
+        setIsUploading(false); 
+        setUploadProgress(0); 
+        return; 
       }
+      // try-catch 이후, 성공적인 경우에만 도달 (실패 시 return됨)
+      setIsUploading(false); 
+      setUploadProgress(0);
     }
 
     let logEntry: Omit<RecordedExercise, 'id'> = {
@@ -149,21 +171,19 @@ const ExerciseLogForm: React.FC<ExerciseLogFormProps> = ({ student, isOpen, onCl
       exerciseId: selectedExercise.id,
       date: format(logDate, "yyyy-MM-dd"),
       className: student.class as ClassName,
-      ...(imageUrl && { imageUrl }), // imageUrl이 있으면 추가
+      ...(imageUrl && { imageUrl }), 
     };
 
     if (selectedExercise.category === 'count_time') {
       logEntry.countValue = countLogValue;
-      logEntry.timeValue = timeLogValue;
+      logEntry.timeValue = timeValue;
     } else if (selectedExercise.category === 'steps_distance') {
       logEntry.stepsValue = stepsLogValue;
       logEntry.distanceValue = distanceLogValue;
     }
     
     onSave(logEntry);
-    setIsUploading(false);
-    setUploadProgress(0);
-    onClose(); // 성공적으로 저장 후 폼 닫기
+    onClose(); 
   };
 
   if (!student) return null;
