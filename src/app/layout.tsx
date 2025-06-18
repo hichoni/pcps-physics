@@ -29,7 +29,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ko" className={`${notoSansKR.variable} ${ptSans.variable}`}>
-      <head>{/* PWA specific meta tags */}
+      <head>
         <meta name="application-name" content="풍풍이 운동기록장" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
