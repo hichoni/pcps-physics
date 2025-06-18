@@ -23,6 +23,7 @@ import { collection, getDocs, doc, getDoc, setDoc, query, where, addDoc, updateD
 import { format, parseISO, isToday } from 'date-fns'; 
 import { ko } from 'date-fns/locale';
 import NextImage from 'next/image';
+import { cn } from '@/lib/utils';
 
 
 const DEFAULT_POSITIVE_ADJECTIVES_KR = [
@@ -326,11 +327,6 @@ export default function StudentPage() {
     const todayLogsWithImages = studentActivityLogs
       .filter(log => log.studentId === currentStudent.id && isToday(parseISO(log.date)) && log.imageUrl)
       .sort((a, b) => {
-        // Assuming newer logs have lexicographically larger IDs or rely on Firestore's internal timestamp if available
-        // For simplicity here, if IDs are Firestore auto-IDs, they are roughly time-ordered.
-        // Or sort by date string if it includes time, then by ID.
-        // If date only contains yyyy-MM-dd, we rely on the order from Firestore (which might not be guaranteed without explicit orderBy on timestamp)
-        // or if we assume IDs are somewhat sequential. A more robust way would be to store a serverTimestamp.
         if (a.id && b.id) return b.id.localeCompare(a.id);
         return 0;
       });
@@ -468,37 +464,79 @@ export default function StudentPage() {
       />
       <main className="flex-grow container mx-auto p-4 sm:p-6 lg:p-8 space-y-8">
         
-        <section className="bg-card p-6 sm:p-8 rounded-xl shadow-lg flex flex-col justify-center">
-          <div>
-            <h2 className="text-2xl sm:text-3xl font-bold font-headline text-primary mb-3 text-center lg:text-left">
-              {currentStudent.name}님, 안녕하세요!
-            </h2>
-            <p className="text-base sm:text-lg text-muted-foreground mb-6 text-center lg:text-left">
-              오늘도 즐겁게 운동하고 건강해져요! 어떤 활동을 계획하고 있나요?
-            </p>
-            <div className="flex flex-col sm:flex-row gap-3 justify-center lg:justify-start items-center">
-              <Button size="lg" className="rounded-lg py-3 px-6 text-lg flex-grow sm:flex-grow-0" onClick={handleOpenLogForm}>
-                <PlusCircle className="mr-2 h-6 w-6" />
-                새로운 운동 기록하기
-              </Button>
-              {currentStudent.pin === "0000" && (
-                <Button variant="outline" size="lg" className="rounded-lg py-3 px-6 text-lg border-accent text-accent hover:bg-accent/10 flex-grow sm:flex-grow-0" onClick={() => setIsChangeOwnPinDialogOpen(true)}>
-                  <Edit3 className="mr-2 h-5 w-5" />
-                  PIN 변경하기
-                </Button>
-              )}
-            </div>
-              {currentStudent.pin === "0000" && (
-              <p className="text-sm text-amber-600 dark:text-amber-400 mt-3 text-center lg:text-left">
-                <AlertTriangle className="inline-block mr-1 h-4 w-4" />
-                보안을 위해 초기 PIN "0000"을 변경해주세요.
-              </p>
-            )}
-          </div>
-        </section>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+            <section className={cn(
+                "bg-card p-6 sm:p-8 rounded-xl shadow-lg flex flex-col justify-center",
+                latestTodayImage ? "lg:col-span-2" : "lg:col-span-3"
+            )}>
+                <div>
+                    <h2 className="text-2xl sm:text-3xl font-bold font-headline text-primary mb-3 text-center lg:text-left">
+                    {currentStudent.name}님, 안녕하세요!
+                    </h2>
+                    <p className="text-base sm:text-lg text-muted-foreground mb-6 text-center lg:text-left">
+                    오늘도 즐겁게 운동하고 건강해져요! 어떤 활동을 계획하고 있나요?
+                    </p>
+                    <div className="flex flex-col sm:flex-row gap-3 justify-center lg:justify-start items-center">
+                    <Button size="lg" className="rounded-lg py-3 px-6 text-lg flex-grow sm:flex-grow-0" onClick={handleOpenLogForm}>
+                        <PlusCircle className="mr-2 h-6 w-6" />
+                        새로운 운동 기록하기
+                    </Button>
+                    {currentStudent.pin === "0000" && (
+                        <Button variant="outline" size="lg" className="rounded-lg py-3 px-6 text-lg border-accent text-accent hover:bg-accent/10 flex-grow sm:flex-grow-0" onClick={() => setIsChangeOwnPinDialogOpen(true)}>
+                        <Edit3 className="mr-2 h-5 w-5" />
+                        PIN 변경하기
+                        </Button>
+                    )}
+                    </div>
+                    {currentStudent.pin === "0000" && (
+                    <p className="text-sm text-amber-600 dark:text-amber-400 mt-3 text-center lg:text-left">
+                        <AlertTriangle className="inline-block mr-1 h-4 w-4" />
+                        보안을 위해 초기 PIN "0000"을 변경해주세요.
+                    </p>
+                    )}
+                </div>
+            </section>
 
-        <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 items-start"> {/* Changed items-stretch to items-start */}
-          <Card className="shadow-md hover:shadow-lg transition-shadow rounded-xl lg:col-span-2 flex flex-col"> {/* Adjusted span */}
+            {latestTodayImage && (
+                <Card className="shadow-md hover:shadow-lg transition-shadow rounded-xl lg:col-span-1 flex flex-col">
+                <CardHeader>
+                    <CardTitle className="flex items-center font-headline text-xl">
+                    <CheckSquare className="mr-3 h-7 w-7 text-green-500" />
+                    오.운.완 인증
+                    </CardTitle>
+                    <CardDescription>오늘 나의 멋진 운동 모습!</CardDescription>
+                </CardHeader>
+                <CardContent className="flex-grow flex flex-col items-center justify-center p-3">
+                    <a href={latestTodayImage.imageUrl} target="_blank" rel="noopener noreferrer" className="block w-full aspect-square relative rounded-lg overflow-hidden shadow-inner bg-muted">
+                    <NextImage
+                        src={latestTodayImage.imageUrl!}
+                        alt="오늘의 운동 인증샷"
+                        layout="fill"
+                        objectFit="cover"
+                        className="transition-transform duration-300 hover:scale-105"
+                        onError={(e) => {
+                        const target = e.target as HTMLImageElement;
+                        target.style.display = 'none';
+                        const parent = target.parentElement;
+                        if (parent && !parent.querySelector('.image-error-placeholder-student')) {
+                            const placeholder = document.createElement('div');
+                            placeholder.className = 'image-error-placeholder-student absolute inset-0 flex items-center justify-center bg-muted text-muted-foreground text-xs p-2 text-center';
+                            placeholder.textContent = '이미지를 불러올 수 없습니다.';
+                            parent.appendChild(placeholder);
+                        }
+                        }}
+                    />
+                    </a>
+                    <p className="text-xs text-muted-foreground mt-2 text-center">
+                    {EXERCISES.find(ex => ex.id === latestTodayImage.exerciseId)?.koreanName || '운동'} 인증
+                    </p>
+                </CardContent>
+                </Card>
+            )}
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+          <Card className="shadow-md hover:shadow-lg transition-shadow rounded-xl flex flex-col">
             <CardHeader>
               <CardTitle className="flex items-center font-headline text-xl">
                 <Target className="mr-3 h-7 w-7 text-accent" />
@@ -534,45 +572,8 @@ export default function StudentPage() {
               <Button variant="outline" className="w-full rounded-lg mt-auto py-3 text-base" onClick={() => setIsGoalsDialogOpen(true)}>목표 설정/확인</Button>
             </CardContent>
           </Card>
-
-          {latestTodayImage && (
-            <Card className="shadow-md hover:shadow-lg transition-shadow rounded-xl lg:col-span-1 flex flex-col">
-              <CardHeader>
-                <CardTitle className="flex items-center font-headline text-xl">
-                  <CheckSquare className="mr-3 h-7 w-7 text-green-500" />
-                  오.운.완 인증
-                </CardTitle>
-                <CardDescription>오늘 나의 멋진 운동 모습!</CardDescription>
-              </CardHeader>
-              <CardContent className="flex-grow flex flex-col items-center justify-center p-3">
-                <a href={latestTodayImage.imageUrl} target="_blank" rel="noopener noreferrer" className="block w-full aspect-square relative rounded-lg overflow-hidden shadow-inner bg-muted">
-                  <NextImage
-                    src={latestTodayImage.imageUrl!}
-                    alt="오늘의 운동 인증샷"
-                    layout="fill"
-                    objectFit="cover"
-                    className="transition-transform duration-300 hover:scale-105"
-                    onError={(e) => {
-                      const target = e.target as HTMLImageElement;
-                      target.style.display = 'none';
-                      const parent = target.parentElement;
-                      if (parent && !parent.querySelector('.image-error-placeholder-student')) {
-                        const placeholder = document.createElement('div');
-                        placeholder.className = 'image-error-placeholder-student absolute inset-0 flex items-center justify-center bg-muted text-muted-foreground text-xs p-2 text-center';
-                        placeholder.textContent = '이미지를 불러올 수 없습니다.';
-                        parent.appendChild(placeholder);
-                      }
-                    }}
-                  />
-                </a>
-                 <p className="text-xs text-muted-foreground mt-2 text-center">
-                  {EXERCISES.find(ex => ex.id === latestTodayImage.exerciseId)?.koreanName || '운동'} 인증
-                </p>
-              </CardContent>
-            </Card>
-          )}
           
-          <Card className="shadow-md hover:shadow-lg transition-shadow rounded-xl lg:col-span-2 flex flex-col"> {/* Adjusted span */}
+          <Card className="shadow-md hover:shadow-lg transition-shadow rounded-xl flex flex-col">
             <CardHeader>
               <CardTitle className="flex items-center font-headline text-xl">
                 <Dumbbell className="mr-3 h-7 w-7 text-primary" />
@@ -737,6 +738,8 @@ export default function StudentPage() {
     </div>
   );
 }
+    
+
     
 
     
