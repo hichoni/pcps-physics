@@ -136,7 +136,7 @@ const StudentActivityChart: React.FC<StudentActivityChartProps> = ({ logs, timeF
       isAchieved: !!goalValue && goalValue > 0 && totalAchievedValue >= goalValue,
       progress,
     };
-  }); // Semicolon added for good measure, though unlikely to be the issue for this error.
+  });
 
   if (filteredLogs.length === 0 && !exerciseSummaries.some(s => s.hasGoal)) {
     return (
