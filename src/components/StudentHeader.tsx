@@ -33,14 +33,14 @@ const StudentHeader: React.FC<StudentHeaderProps> = ({ studentName, gender, avat
     male: {
       bg: 'bg-primary',
       text: 'text-primary-foreground',
-      complimentText: 'text-yellow-600 dark:text-yellow-400', // Deep yellow for compliment
+      complimentText: 'text-yellow-400 dark:text-yellow-300', // Brighter yellow
       avatarFallback: 'text-primary-foreground',
       buttonText: 'text-primary-foreground hover:text-primary-foreground',
     },
     female: {
-      bg: 'bg-lime-100 dark:bg-lime-900', // Light green background
-      text: 'text-green-700 dark:text-green-300', // Green text
-      complimentText: 'text-yellow-600 dark:text-yellow-400', // Deep yellow for compliment
+      bg: 'bg-lime-100 dark:bg-lime-900', 
+      text: 'text-green-700 dark:text-green-300', 
+      complimentText: 'text-yellow-400 dark:text-yellow-300', // Brighter yellow
       avatarFallback: 'text-green-600 dark:text-green-400',
       buttonText: 'text-green-700 dark:text-green-300 hover:text-green-700 dark:hover:text-green-300',
     }
@@ -67,7 +67,7 @@ const StudentHeader: React.FC<StudentHeaderProps> = ({ studentName, gender, avat
           )}
           <div className="flex flex-col">
             {dailyCompliment && (
-              <p className={cn("text-xs", currentStyle.complimentText, "block")}> {/* Always block, removed sm:block */}
+              <p className={cn("text-xs", currentStyle.complimentText, "block")}> 
                 {dailyCompliment}
               </p>
             )}
