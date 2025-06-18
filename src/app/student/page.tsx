@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from '@/components/ui/button';
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dumbbell, Target, History, PlusCircle, LogOut, UserCheck, Loader2, AlertTriangle, KeyRound, Edit3, Camera, BarChart3 } from 'lucide-react';
+import { Dumbbell, Target, History, PlusCircle, LogOut, UserCheck, Loader2, AlertTriangle, KeyRound, Edit3, Camera, BarChart3, ImageIcon } from 'lucide-react';
 import type { Student, ClassName, Exercise, StudentGoal, RecordedExercise, Gender } from '@/lib/types';
 import { EXERCISES } from '@/data/mockData';
 import SetStudentGoalsDialog from '@/components/SetStudentGoalsDialog';
@@ -22,6 +22,7 @@ import { db } from '@/lib/firebase';
 import { collection, getDocs, doc, getDoc, setDoc, query, where, addDoc, updateDoc } from 'firebase/firestore';
 import { format, parseISO } from 'date-fns'; 
 import { ko } from 'date-fns/locale';
+import NextImage from 'next/image';
 
 
 const DEFAULT_POSITIVE_ADJECTIVES_KR = [
@@ -104,11 +105,10 @@ export default function StudentPage() {
       const logsSnapshot = await getDocs(logsQuery);
       const logsList = logsSnapshot.docs.map(lDoc => {
         const data = lDoc.data();
-        // Ensure date is a string in "yyyy-MM-dd" format
         let dateStr = data.date;
-        if (data.date && typeof data.date.toDate === 'function') { // Check if it's a Firestore Timestamp
+        if (data.date && typeof data.date.toDate === 'function') { 
           dateStr = format(data.date.toDate(), "yyyy-MM-dd");
-        } else if (typeof data.date === 'string' && data.date.includes('T')) { // Check if it's an ISO string
+        } else if (typeof data.date === 'string' && data.date.includes('T')) { 
            dateStr = data.date.split('T')[0];
         }
         return { id: lDoc.id, ...data, date: dateStr } as RecordedExercise;
@@ -249,7 +249,6 @@ export default function StudentPage() {
     if (!currentStudent) return;
     try {
       const docRef = await addDoc(collection(db, "exerciseLogs"), logData);
-      // Ensure date is string "yyyy-MM-dd" when adding to local state
       const newLogEntry = { ...logData, id: docRef.id, date: format(parseISO(logData.date), "yyyy-MM-dd") };
       setStudentActivityLogs(prev => [...prev, newLogEntry].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
       toast({ title: "기록 완료!", description: "오늘의 운동이 성공적으로 기록되었어요! 참 잘했어요!" });
@@ -583,7 +582,7 @@ export default function StudentPage() {
             {studentActivityLogs.length === 0 ? (
                 <p className="text-sm text-muted-foreground text-center py-2">기록된 활동이 없습니다.</p>
             ) : (
-                <div className="space-y-2 max-h-[150px] overflow-y-auto p-3 bg-secondary/20 rounded-lg text-sm">
+                <div className="space-y-2 max-h-[200px] overflow-y-auto p-3 bg-secondary/20 rounded-lg text-sm">
                   {studentActivityLogs
                       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime() || (b.id && a.id ? b.id.localeCompare(a.id) : 0))
                       .slice(0, 5) 
@@ -602,8 +601,30 @@ export default function StudentPage() {
                           if (!valueDisplay) valueDisplay = "기록됨"; 
 
                           return (
-                              <div key={log.id} className="p-1.5 bg-background/50 rounded text-xs">
+                              <div key={log.id} className="p-2 bg-background/50 rounded text-xs flex items-center justify-between">
                                   <span>{format(parseISO(log.date), "MM/dd (EEE)", { locale: ko })}: {exerciseInfo.koreanName} - {valueDisplay}</span>
+                                  {log.imageUrl && (
+                                    <a href={log.imageUrl} target="_blank" rel="noopener noreferrer" className="ml-2 shrink-0">
+                                      <NextImage 
+                                        src={log.imageUrl} 
+                                        alt="인증샷" 
+                                        width={32} 
+                                        height={32} 
+                                        className="rounded object-cover border"
+                                        onError={(e) => {
+                                          const target = e.target as HTMLImageElement;
+                                          target.style.display = 'none'; 
+                                          const parent = target.parentElement;
+                                          if (parent && !parent.querySelector('.image-error-placeholder-thumb')) {
+                                            const placeholder = document.createElement('div');
+                                            placeholder.className = 'image-error-placeholder-thumb w-8 h-8 flex items-center justify-center bg-muted text-muted-foreground text-[10px]';
+                                            placeholder.textContent = 'X';
+                                            parent.appendChild(placeholder);
+                                          }
+                                        }}
+                                      />
+                                    </a>
+                                  )}
                               </div>
                           );
                   })}
@@ -665,3 +686,4 @@ export default function StudentPage() {
 }
     
 
+    
