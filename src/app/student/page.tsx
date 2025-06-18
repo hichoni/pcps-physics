@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from '@/components/ui/button';
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dumbbell, Target, History, PlusCircle, LogOut, UserCheck, Loader2, AlertTriangle, KeyRound, Edit3, Camera, BarChart3, ImageIcon, CheckSquare } from 'lucide-react';
+import { Dumbbell, Target, History, PlusCircle, LogOut, UserCheck, Loader2, AlertTriangle, KeyRound, Edit3, Camera, ImageIcon, CheckSquare } from 'lucide-react';
 import type { Student, ClassName, Exercise, StudentGoal, RecordedExercise, Gender } from '@/lib/types';
 import { EXERCISES } from '@/data/mockData';
 import SetStudentGoalsDialog from '@/components/SetStudentGoalsDialog';
@@ -33,6 +33,8 @@ const DEFAULT_POSITIVE_ADJECTIVES_KR = [
   "멋진", "희망찬", "빛나는", "슬기로운", "명랑한", "따뜻한 마음을 가진"
 ];
 const COMPLIMENTS_DOC_PATH = "appConfig/complimentsDoc";
+const STUDENT_WELCOME_MESSAGE_DOC_PATH = "appConfig/studentWelcomeMessageDoc";
+const DEFAULT_STUDENT_WELCOME_MESSAGE = "오늘도 즐겁게 운동하고 건강해져요! 어떤 활동을 계획하고 있나요?";
 
 export default function StudentPage() {
   const [allStudents, setAllStudents] = useState<Student[]>([]);
@@ -58,6 +60,8 @@ export default function StudentPage() {
   const [recommendedExercise, setRecommendedExercise] = useState<RecommendStudentExerciseOutput | null>(null);
   const [isRecommendationLoading, setIsRecommendationLoading] = useState(false);
   const [dailyCompliment, setDailyCompliment] = useState<string>('');
+  const [studentWelcomeMessage, setStudentWelcomeMessage] = useState<string>(DEFAULT_STUDENT_WELCOME_MESSAGE);
+
 
   const [isCameraModeOpen, setIsCameraModeOpen] = useState(false);
   const [cameraExerciseId, setCameraExerciseId] = useState<string | null>(null);
@@ -94,14 +98,12 @@ export default function StudentPage() {
     if (!studentId) return;
     setIsLoadingStudentData(true);
     try {
+      // Goals
       const goalsDocRef = doc(db, "studentGoals", studentId);
       const goalsDocSnap = await getDoc(goalsDocRef);
-      if (goalsDocSnap.exists()) {
-        setStudentGoals(goalsDocSnap.data().goals || {});
-      } else {
-        setStudentGoals({});
-      }
+      setStudentGoals(goalsDocSnap.exists() ? (goalsDocSnap.data().goals || {}) : {});
 
+      // Logs
       const logsQuery = query(collection(db, "exerciseLogs"), where("studentId", "==", studentId));
       const logsSnapshot = await getDocs(logsQuery);
       const logsList = logsSnapshot.docs.map(lDoc => {
@@ -116,6 +118,7 @@ export default function StudentPage() {
       });
       setStudentActivityLogs(logsList);
       
+      // Compliments
       const complimentsDocRef = doc(db, COMPLIMENTS_DOC_PATH);
       const complimentsDocSnap = await getDoc(complimentsDocRef);
       let adjectiveList = DEFAULT_POSITIVE_ADJECTIVES_KR;
@@ -126,6 +129,15 @@ export default function StudentPage() {
       const adjectiveIndex = (dayOfMonth - 1 + studentName.length) % adjectiveList.length;
       setDailyCompliment(adjectiveList[adjectiveIndex] || adjectiveList[0] || "");
 
+      // Welcome Message
+      const welcomeMsgDocRef = doc(db, STUDENT_WELCOME_MESSAGE_DOC_PATH, "message");
+      const welcomeMsgDocSnap = await getDoc(welcomeMsgDocRef);
+      if (welcomeMsgDocSnap.exists() && welcomeMsgDocSnap.data().text) {
+        setStudentWelcomeMessage(welcomeMsgDocSnap.data().text);
+      } else {
+        setStudentWelcomeMessage(DEFAULT_STUDENT_WELCOME_MESSAGE);
+      }
+
       fetchRecommendation();
 
     } catch (error) {
@@ -134,8 +146,7 @@ export default function StudentPage() {
     } finally {
       setIsLoadingStudentData(false);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [toast]); 
+  }, [toast]);
 
 
   useEffect(() => {
@@ -146,6 +157,7 @@ export default function StudentPage() {
       setStudentActivityLogs([]);
       setRecommendedExercise(null);
       setDailyCompliment('');
+      setStudentWelcomeMessage(DEFAULT_STUDENT_WELCOME_MESSAGE);
     }
   }, [currentStudent, fetchStudentSpecificData]); 
 
@@ -327,7 +339,8 @@ export default function StudentPage() {
     const todayLogsWithImages = studentActivityLogs
       .filter(log => log.studentId === currentStudent.id && isToday(parseISO(log.date)) && log.imageUrl)
       .sort((a, b) => {
-        if (a.id && b.id) return b.id.localeCompare(a.id);
+        // Assuming IDs are sortable chronologically (e.g., Firestore auto-IDs or timestamps)
+        if (a.id && b.id) return b.id.localeCompare(a.id); 
         return 0;
       });
     return todayLogsWithImages.length > 0 ? todayLogsWithImages[0] : null;
@@ -464,17 +477,20 @@ export default function StudentPage() {
       />
       <main className="flex-grow container mx-auto p-4 sm:p-6 lg:p-8 space-y-8">
         
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-            <section className={cn(
-                "bg-card p-6 sm:p-8 rounded-xl shadow-lg flex flex-col justify-center",
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-stretch"> {/* items-stretch for equal height */}
+            {/* Welcome Section */}
+            <Card className={cn(
+                "shadow-lg rounded-xl flex flex-col", // flex flex-col for flex-grow in CardContent
                 latestTodayImage ? "lg:col-span-2" : "lg:col-span-3"
             )}>
-                <div>
-                    <h2 className="text-2xl sm:text-3xl font-bold font-headline text-primary mb-3 text-center lg:text-left">
+                <CardHeader className="pb-4">
+                    <CardTitle className="text-2xl sm:text-3xl font-bold font-headline text-primary text-center lg:text-left">
                     {currentStudent.name}님, 안녕하세요!
-                    </h2>
+                    </CardTitle>
+                </CardHeader>
+                <CardContent className="flex-grow flex flex-col justify-center"> {/* flex-grow */}
                     <p className="text-base sm:text-lg text-muted-foreground mb-6 text-center lg:text-left">
-                    오늘도 즐겁게 운동하고 건강해져요! 어떤 활동을 계획하고 있나요?
+                        {studentWelcomeMessage}
                     </p>
                     <div className="flex flex-col sm:flex-row gap-3 justify-center lg:justify-start items-center">
                     <Button size="lg" className="rounded-lg py-3 px-6 text-lg flex-grow sm:flex-grow-0" onClick={handleOpenLogForm}>
@@ -494,11 +510,12 @@ export default function StudentPage() {
                         보안을 위해 초기 PIN "0000"을 변경해주세요.
                     </p>
                     )}
-                </div>
-            </section>
+                </CardContent>
+            </Card>
 
+            {/* Today's Workout Proof Section */}
             {latestTodayImage && (
-                <Card className="shadow-md hover:shadow-lg transition-shadow rounded-xl lg:col-span-1 flex flex-col">
+                <Card className="shadow-lg rounded-xl lg:col-span-1 flex flex-col"> {/* flex flex-col for flex-grow in CardContent */}
                 <CardHeader>
                     <CardTitle className="flex items-center font-headline text-xl">
                     <CheckSquare className="mr-3 h-7 w-7 text-green-500" />
@@ -506,7 +523,7 @@ export default function StudentPage() {
                     </CardTitle>
                     <CardDescription>오늘 나의 멋진 운동 모습!</CardDescription>
                 </CardHeader>
-                <CardContent className="flex-grow flex flex-col items-center justify-center p-3">
+                <CardContent className="flex-grow flex flex-col items-center justify-center p-3"> {/* flex-grow and p-3 */}
                     <a href={latestTodayImage.imageUrl} target="_blank" rel="noopener noreferrer" className="block w-full aspect-square relative rounded-lg overflow-hidden shadow-inner bg-muted">
                     <NextImage
                         src={latestTodayImage.imageUrl!}
@@ -535,7 +552,7 @@ export default function StudentPage() {
             )}
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-stretch"> {/* items-stretch for equal height */}
           <Card className="shadow-md hover:shadow-lg transition-shadow rounded-xl flex flex-col">
             <CardHeader>
               <CardTitle className="flex items-center font-headline text-xl">
@@ -646,7 +663,7 @@ export default function StudentPage() {
                           let valueDisplay = "";
                           if (exerciseInfo.category === 'count_time') {
                               if (log.countValue !== undefined && log.countValue > 0) valueDisplay += `${log.countValue}${exerciseInfo.countUnit || ''} `;
-                              if (log.timeValue !== undefined && log.timeValue > 0) valueDisplay += `${log.timeValue}${exerciseInfo.timeUnit || ''}`;
+                              if (log.timeValue !== undefined && log.timeValue > 0) valueDisplay += `${log.timeLogValue}${exerciseInfo.timeUnit || ''}`;
                           } else if (exerciseInfo.category === 'steps_distance') {
                               if (log.stepsValue !== undefined && log.stepsValue > 0) valueDisplay += `${log.stepsValue}${exerciseInfo.stepsUnit || ''} `;
                               if (log.distanceValue !== undefined && log.distanceValue > 0) valueDisplay += `${log.distanceValue}${exerciseInfo.distanceUnit || ''}`;
@@ -738,10 +755,4 @@ export default function StudentPage() {
     </div>
   );
 }
-    
-
-    
-
-    
-
     

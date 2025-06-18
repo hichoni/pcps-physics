@@ -17,7 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Users, BarChart2, Lightbulb, ListChecks, UserPlus, Trash2, Sparkles, MessageSquarePlus, MessageSquareX, Loader2, Wand2, KeyRound, LogIn, Image as ImageIcon } from 'lucide-react';
+import { Users, BarChart2, Lightbulb, ListChecks, UserPlus, Trash2, Sparkles, MessageSquarePlus, MessageSquareX, Loader2, Wand2, KeyRound, LogIn, Image as ImageIcon, Edit } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle as PinCardTitle, CardDescription as PinCardDescription } from '@/components/ui/card';
 import { format, parseISO } from 'date-fns';
 import { ko } from 'date-fns/locale';
@@ -49,7 +49,10 @@ const DEFAULT_COMPLIMENTS = [
 
 const COMPLIMENTS_DOC_PATH = "appConfig/complimentsDoc";
 const RECOMMENDATIONS_DOC_PATH = "appConfig/exerciseRecommendationsDoc";
+const STUDENT_WELCOME_MESSAGE_DOC_PATH = "appConfig/studentWelcomeMessageDoc"; 
+const DEFAULT_STUDENT_WELCOME_MESSAGE = "오늘도 즐겁게 운동하고 건강해져요! 어떤 활동을 계획하고 있나요?";
 const TEACHER_PIN = "0408";
+
 
 export default function TeacherPage() {
   const [pinInput, setPinInput] = useState('');
@@ -64,11 +67,16 @@ export default function TeacherPage() {
   const [recordedExercises, setRecordedExercises] = useState<RecordedExercise[]>([]);
   const [compliments, setCompliments] = useState<string[]>(DEFAULT_COMPLIMENTS);
   const [exerciseRecommendations, setExerciseRecommendations] = useState<TeacherExerciseRecommendation[]>([]);
+  const [studentWelcomeMessage, setStudentWelcomeMessage] = useState<string>(DEFAULT_STUDENT_WELCOME_MESSAGE);
+  const [studentWelcomeMessageInput, setStudentWelcomeMessageInput] = useState<string>('');
+
 
   const [isLoadingStudents, setIsLoadingStudents] = useState(true);
   const [isLoadingLogs, setIsLoadingLogs] = useState(true);
   const [isLoadingCompliments, setIsLoadingCompliments] = useState(true);
   const [isLoadingRecommendations, setIsLoadingRecommendations] = useState(true);
+  const [isLoadingWelcomeMessage, setIsLoadingWelcomeMessage] = useState(true);
+
 
   const [studentsInClass, setStudentsInClass] = useState<Student[]>([]);
   const [activeTab, setActiveTab] = useState<string>("students");
@@ -184,6 +192,28 @@ export default function TeacherPage() {
     }
   }, [toast]);
 
+  const fetchStudentWelcomeMessage = useCallback(async () => {
+    setIsLoadingWelcomeMessage(true);
+    try {
+      const welcomeMsgDocRef = doc(db, STUDENT_WELCOME_MESSAGE_DOC_PATH, "message");
+      const welcomeMsgDocSnap = await getDoc(welcomeMsgDocRef);
+      if (welcomeMsgDocSnap.exists() && welcomeMsgDocSnap.data().text) {
+        setStudentWelcomeMessage(welcomeMsgDocSnap.data().text);
+        setStudentWelcomeMessageInput(welcomeMsgDocSnap.data().text);
+      } else {
+        setStudentWelcomeMessage(DEFAULT_STUDENT_WELCOME_MESSAGE);
+        setStudentWelcomeMessageInput(DEFAULT_STUDENT_WELCOME_MESSAGE);
+      }
+    } catch (error) {
+      console.error("Error fetching student welcome message:", error);
+      toast({ title: "오류", description: "학생 환영 메시지를 불러오는 데 실패했습니다.", variant: "destructive" });
+      setStudentWelcomeMessage(DEFAULT_STUDENT_WELCOME_MESSAGE);
+      setStudentWelcomeMessageInput(DEFAULT_STUDENT_WELCOME_MESSAGE);
+    } finally {
+      setIsLoadingWelcomeMessage(false);
+    }
+  }, [toast]);
+
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -191,8 +221,9 @@ export default function TeacherPage() {
       fetchLogs();
       fetchCompliments();
       fetchExerciseRecommendations();
+      fetchStudentWelcomeMessage();
     }
-  }, [isAuthenticated, fetchStudents, fetchLogs, fetchCompliments, fetchExerciseRecommendations]);
+  }, [isAuthenticated, fetchStudents, fetchLogs, fetchCompliments, fetchExerciseRecommendations, fetchStudentWelcomeMessage]);
 
   useEffect(() => {
     if (selectedClass) {
@@ -366,6 +397,23 @@ export default function TeacherPage() {
     }
   };
 
+  const handleSaveStudentWelcomeMessage = async () => {
+    const messageToSave = studentWelcomeMessageInput.trim();
+    if (messageToSave === '') {
+      toast({ title: "오류", description: "환영 메시지를 입력해주세요.", variant: "destructive" });
+      return;
+    }
+    try {
+      const welcomeMsgDocRef = doc(db, STUDENT_WELCOME_MESSAGE_DOC_PATH, "message");
+      await setDoc(welcomeMsgDocRef, { text: messageToSave });
+      setStudentWelcomeMessage(messageToSave);
+      toast({ title: "성공", description: "학생 환영 메시지가 저장되었습니다." });
+    } catch (error) {
+      console.error("Error saving student welcome message:", error);
+      toast({ title: "오류", description: "학생 환영 메시지 저장에 실패했습니다.", variant: "destructive" });
+    }
+  };
+
   const handleOpenManagePinDialog = (student: Student) => {
     setStudentForPinManage(student);
     setIsManagePinDialogOpen(true);
@@ -395,7 +443,7 @@ export default function TeacherPage() {
 
   const memoizedAiSuggestionBox = useMemo(() => <AiSuggestionBox recordedExercises={recordedExercises} />, [recordedExercises]);
 
-  const isLoading = isLoadingStudents || isLoadingLogs || isLoadingCompliments || isLoadingRecommendations;
+  const isLoading = isLoadingStudents || isLoadingLogs || isLoadingCompliments || isLoadingRecommendations || isLoadingWelcomeMessage;
 
 
   if (!isAuthenticated) {
@@ -465,7 +513,7 @@ export default function TeacherPage() {
         </section>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-7 h-auto rounded-lg p-1.5">
+          <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-8 h-auto rounded-lg p-1.5">
             <TabsTrigger value="students" className="py-3 text-base data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-md">
               <Users className="mr-2 h-5 w-5" /> 학생 목록
             </TabsTrigger>
@@ -480,6 +528,9 @@ export default function TeacherPage() {
             </TabsTrigger>
             <TabsTrigger value="ai" className="py-3 text-base data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-md">
               <Lightbulb className="mr-2 h-5 w-5" /> AI 코치
+            </TabsTrigger>
+            <TabsTrigger value="welcomeMessage" className="py-3 text-base data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-md">
+              <Edit className="mr-2 h-5 w-5" /> 환영 메시지
             </TabsTrigger>
             <TabsTrigger value="compliments" className="py-3 text-base data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-md">
               <Sparkles className="mr-2 h-5 w-5" /> 칭찬 문구
@@ -669,6 +720,38 @@ export default function TeacherPage() {
                 {memoizedAiSuggestionBox}
               </section>
           </TabsContent>
+          
+          <TabsContent value="welcomeMessage" className="mt-6">
+            <section aria-labelledby="welcome-message-management-heading" className="bg-card p-6 rounded-xl shadow-md">
+              <h2 id="welcome-message-management-heading" className="text-xl font-semibold mb-6 font-headline flex items-center">
+                <Edit className="mr-2 h-6 w-6 text-primary" />
+                학생 환영 메시지 관리
+              </h2>
+              {isLoadingWelcomeMessage ? (
+                <div className="flex justify-center py-4"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>
+              ) : (
+                <div className="space-y-4">
+                  <div>
+                    <Label htmlFor="studentWelcomeMessageInput" className="text-base">환영 메시지 내용</Label>
+                    <Textarea
+                      id="studentWelcomeMessageInput"
+                      value={studentWelcomeMessageInput}
+                      onChange={(e) => setStudentWelcomeMessageInput(e.target.value)}
+                      placeholder="예: 오늘도 신나게 운동해볼까요?"
+                      className="min-h-[100px] rounded-lg text-base mt-1"
+                      rows={4}
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      이 메시지는 학생 앱의 메인 화면 상단에 표시됩니다.
+                    </p>
+                  </div>
+                  <Button onClick={handleSaveStudentWelcomeMessage} className="rounded-lg py-3">
+                    <MessageSquarePlus className="mr-2 h-5 w-5" /> 메시지 저장
+                  </Button>
+                </div>
+              )}
+            </section>
+          </TabsContent>
 
           <TabsContent value="compliments" className="mt-6">
             <section aria-labelledby="compliments-management-heading" className="bg-card p-6 rounded-xl shadow-md">
@@ -832,3 +915,4 @@ export default function TeacherPage() {
     </div>
   );
 }
+
