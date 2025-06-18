@@ -20,12 +20,12 @@ export default function WelcomePage() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full max-w-md">
-        <Link href="/teacher" passHref legacyBehavior>
+        <Link href="/teacher">
           <Button size="lg" className="w-full py-8 text-xl rounded-xl shadow-lg hover:scale-105 transition-transform duration-200">
             선생님으로 시작하기
           </Button>
         </Link>
-        <Link href="/student" passHref legacyBehavior>
+        <Link href="/student">
           <Button variant="secondary" size="lg" className="w-full py-8 text-xl rounded-xl shadow-lg hover:scale-105 transition-transform duration-200">
             학생으로 시작하기
           </Button>
