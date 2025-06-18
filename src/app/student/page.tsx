@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from '@/components/ui/button';
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dumbbell, Target, History, PlusCircle, LogOut, UserCheck, Loader2, AlertTriangle, KeyRound, Edit3, Camera, ImageIcon, CheckSquare, PlusSquare } from 'lucide-react';
+import { Dumbbell, Target, History, PlusCircle, LogOut, UserCheck, Loader2, AlertTriangle, KeyRound, Edit3, Camera, ImageIcon, CheckSquare, PlusSquare, Trash2 } from 'lucide-react';
 import type { Student, ClassName, RecordedExercise, Gender, StudentGoal, CustomExercise as CustomExerciseType, Exercise as ExerciseType } from '@/lib/types';
 import { EXERCISES_SEED_DATA } from '@/data/mockData'; 
 import SetStudentGoalsDialog from '@/components/SetStudentGoalsDialog';
@@ -151,7 +151,6 @@ export default function StudentPage() {
       setStudentGoals(goalsDocSnap.exists() ? (goalsDocSnap.data().goals || {}) : {});
 
       const logsQuery = query(collection(db, "exerciseLogs"), where("studentId", "==", studentId));
-      // Use onSnapshot for real-time updates to logs
       const unsubscribeLogs = onSnapshot(logsQuery, (logsSnapshot) => {
         const logsList = logsSnapshot.docs.map(lDoc => {
           const data = lDoc.data();
@@ -168,9 +167,6 @@ export default function StudentPage() {
         console.error("Error fetching student logs in real-time:", error);
         toast({ title: "오류", description: "운동 기록 실시간 업데이트에 실패했습니다.", variant: "destructive" });
       });
-      // Store unsubscribe function to call on cleanup or when student changes
-      // This part is tricky if this function itself is in a dependency array.
-      // For simplicity in this example, we might not return it here, but ideally, it should be managed.
 
       const complimentsDocRef = doc(db, COMPLIMENTS_DOC_PATH);
       const complimentsDocSnap = await getDoc(complimentsDocRef);
@@ -190,14 +186,14 @@ export default function StudentPage() {
         setStudentWelcomeMessage(DEFAULT_STUDENT_WELCOME_MESSAGE);
       }
       fetchRecommendation();
-      return unsubscribeLogs; // Return for potential cleanup
+      return unsubscribeLogs;
     } catch (error) {
       console.error("Error fetching student specific data:", error);
       toast({ title: "오류", description: "학생 데이터를 불러오는 데 실패했습니다.", variant: "destructive" });
     } finally {
       setIsLoadingStudentData(false);
     }
-  }, [toast]); // Removed fetchRecommendation from here as it's called inside
+  }, [toast]);
 
   useEffect(() => {
     let unsubscribeLogs: (() => void) | undefined;
@@ -320,15 +316,11 @@ export default function StudentPage() {
     setIsLogFormOpen(false);
   };
 
-  // ExerciseLogForm no longer sends imageUrl
   const handleSaveExerciseLog = async (logData: Omit<RecordedExercise, 'id' | 'imageUrl'>) => {
     if (!currentStudent) return;
     try {
-      // Log data does not include imageUrl here. It's added separately.
       const docRef = await addDoc(collection(db, "exerciseLogs"), logData);
       const newLogEntry = { ...logData, id: docRef.id, date: format(parseISO(logData.date), "yyyy-MM-dd") };
-      // The studentActivityLogs state will be updated by the onSnapshot listener
-      // setStudentActivityLogs(prev => [...prev, newLogEntry].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
       toast({ title: "기록 완료!", description: "오늘의 운동이 성공적으로 기록되었어요! 참 잘했어요!" });
       setIsLogFormOpen(false); 
       setIsCameraModeOpen(false); 
@@ -344,6 +336,28 @@ export default function StudentPage() {
       prevLogs.map(l => (l.id === logId ? { ...l, imageUrl } : l))
                  .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime() || (b.id && a.id ? b.id.localeCompare(a.id) : 0))
     );
+  };
+
+  const handleDeleteProofShot = async (logId: string) => {
+    if (!currentStudent) return;
+    const confirmDelete = window.confirm("정말로 이 인증샷을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.");
+    if (!confirmDelete) return;
+
+    try {
+        const logDocRef = doc(db, "exerciseLogs", logId);
+        // Firestore에서 imageUrl 필드만 null로 업데이트하거나 필드를 삭제합니다.
+        // 실제 Storage에서 파일 삭제는 이 단계에서는 구현하지 않습니다.
+        await updateDoc(logDocRef, { imageUrl: null }); 
+        
+        // studentActivityLogs 상태 업데이트는 onSnapshot 리스너에 의해 자동으로 처리될 것입니다.
+        // 만약 실시간 업데이트가 아니라면, 여기서 수동으로 상태를 업데이트해야 합니다.
+        // setStudentActivityLogs(prev => prev.map(l => l.id === logId ? {...l, imageUrl: undefined} : l));
+        
+        toast({ title: "성공", description: "인증샷이 삭제되었습니다." });
+    } catch (error) {
+        console.error("Error deleting proof shot:", error);
+        toast({ title: "오류", description: "인증샷 삭제에 실패했습니다.", variant: "destructive" });
+    }
   };
 
 
@@ -392,7 +406,7 @@ export default function StudentPage() {
     if (currentStudent && cameraExerciseId) { 
       const exerciseDetails = availableExercises.find(ex => ex.id === cameraExerciseId);
       if (exerciseDetails && exerciseDetails.id === 'jump_rope') { 
-        const logEntry: Omit<RecordedExercise, 'id' | 'imageUrl'> = { // imageUrl removed
+        const logEntry: Omit<RecordedExercise, 'id' | 'imageUrl'> = { 
           studentId: currentStudent.id,
           exerciseId: cameraExerciseId,
           date: format(new Date(), "yyyy-MM-dd"), 
@@ -424,7 +438,7 @@ export default function StudentPage() {
     if (!currentStudent) return null;
     const todayLogsWithImages = studentActivityLogs
       .filter(log => log.studentId === currentStudent.id && isToday(parseISO(log.date)) && log.imageUrl)
-      .sort((a, b) => { // Sort by ID descending to get the truly latest if multiple have images
+      .sort((a, b) => { 
         if (a.id && b.id) return b.id.localeCompare(a.id); 
         return 0;
       });
@@ -649,9 +663,9 @@ export default function StudentPage() {
                     <CheckSquare className="mr-3 h-7 w-7 text-green-500" />
                     오.운.완 인증
                     </CardTitle>
-                    <CardDescription>오늘 나의 멋진 운동 모습!</CardDescription>
+                    <CardDescription>오늘도 운동 완료! 내일도 도전하기! 약속~^^</CardDescription>
                 </CardHeader>
-                <CardContent className="flex-grow flex flex-col items-center justify-center p-3">
+                <CardContent className="flex-grow flex flex-col items-center justify-center p-3 space-y-2">
                     <a href={latestTodayImage.imageUrl} target="_blank" rel="noopener noreferrer" className="block w-full aspect-square relative rounded-lg overflow-hidden shadow-inner bg-muted">
                     <NextImage
                         src={latestTodayImage.imageUrl!}
@@ -672,9 +686,15 @@ export default function StudentPage() {
                         }}
                     />
                     </a>
-                    <p className="text-xs text-muted-foreground mt-2 text-center">
-                    {availableExercises.find(ex => ex.id === latestTodayImage.exerciseId)?.koreanName || '운동'} 인증
-                    </p>
+                    <Button 
+                        variant="destructive" 
+                        size="sm" 
+                        className="w-full rounded-md text-xs"
+                        onClick={() => handleDeleteProofShot(latestTodayImage.id)}
+                    >
+                        <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+                        인증샷 삭제
+                    </Button>
                 </CardContent>
                 </Card>
             ) : todaysLogsWithoutImage.length > 0 ? (
@@ -948,5 +968,4 @@ export default function StudentPage() {
     </div>
   );
 }
-
     
