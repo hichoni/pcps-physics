@@ -170,7 +170,7 @@ export default function StudentPage() {
     return () => unsubscribe();
   }, [toast]);
 
-  const fetchStudentSpecificData = useCallback(async (studentId: string, studentName: string, initialLogs: RecordedExercise[], initialGoals: StudentGoal, currentExercises: ExerciseType[]) => {
+  const fetchStudentSpecificData = useCallback(async (studentId: string, studentName: string, currentExercises: ExerciseType[]) => {
     if (!studentId) return;
     setIsLoadingStudentData(true);
     
@@ -256,12 +256,12 @@ export default function StudentPage() {
     } finally {
       setIsLoadingStudentData(false);
     }
-  }, [toast]); // Removed availableExercises from dependencies, pass as argument
+  }, [toast]);
 
   useEffect(() => {
     let unsubscribeLogs: (() => void) | undefined;
-    if (currentStudent && availableExercises.length > 0) { // Ensure availableExercises is ready
-      fetchStudentSpecificData(currentStudent.id, currentStudent.name, studentActivityLogs, studentGoals, availableExercises).then(unsub => {
+    if (currentStudent && availableExercises.length > 0) {
+      fetchStudentSpecificData(currentStudent.id, currentStudent.name, availableExercises).then(unsub => {
         unsubscribeLogs = unsub;
       });
     } else {
@@ -277,7 +277,7 @@ export default function StudentPage() {
         unsubscribeLogs();
       }
     };
-  }, [currentStudent, fetchStudentSpecificData, availableExercises, studentActivityLogs, studentGoals]); // Add dependencies that fetchStudentSpecificData relies on indirectly
+  }, [currentStudent, fetchStudentSpecificData, availableExercises]);
 
 
   useEffect(() => {
