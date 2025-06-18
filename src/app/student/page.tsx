@@ -262,7 +262,7 @@ export default function StudentPage() {
       } else {
         setStudentWelcomeMessage(DEFAULT_STUDENT_WELCOME_MESSAGE);
       }
-      fetchRecommendation(); // Fetch recommendation after student data is loaded
+      fetchRecommendation();
     } catch (error) {
       console.error("Error fetching student specific data:", error);
       toast({ title: "오류", description: "학생 데이터를 불러오는 데 실패했습니다.", variant: "destructive" });
@@ -274,14 +274,12 @@ export default function StudentPage() {
 
   useEffect(() => {
     let unsubscribeLogsFunction: (() => void) | undefined;
-    if (currentStudent) { 
-      if (availableExercises.length > 0) { 
+    if (currentStudent && availableExercises.length > 0) {
         fetchStudentSpecificData(currentStudent.id, currentStudent.name, availableExercises)
           .then(unsub => {
             if (unsub) unsubscribeLogsFunction = unsub;
           });
-      }
-    } else { // currentStudent is null (logged out)
+    } else if (!currentStudent) { 
       setStudentGoals({});
       setStudentActivityLogs([]); 
       setRecommendedExercise(null);
@@ -426,14 +424,18 @@ export default function StudentPage() {
         );
         const logsSnapshot = await getDocs(logsQuery);
         const logsForExerciseToday = logsSnapshot.docs.map(d => d.data() as RecordedExercise);
+        // The new log might not be in logsForExerciseToday yet if getDocs is too fast.
+        // So, we should consider the logData being saved as well for accurate achievedValue calculation.
+        const combinedLogs = [...logsForExerciseToday, { ...logData, id: docRef.id, imageUrl: undefined }];
+
 
         let achievedValue = 0;
         if (exercise.id === 'squat' || exercise.id === 'jump_rope') {
-          achievedValue = logsForExerciseToday.reduce((sum, log) => sum + (log.countValue || 0), 0);
+          achievedValue = combinedLogs.reduce((sum, log) => sum + (log.countValue || 0), 0);
         } else if (exercise.id === 'plank') {
-          achievedValue = logsForExerciseToday.reduce((sum, log) => sum + (log.timeValue || 0), 0);
+          achievedValue = combinedLogs.reduce((sum, log) => sum + (log.timeValue || 0), 0);
         } else if (exercise.id === 'walk_run') {
-          achievedValue = logsForExerciseToday.reduce((sum, log) => sum + (log.distanceValue || 0), 0);
+          achievedValue = combinedLogs.reduce((sum, log) => sum + (log.distanceValue || 0), 0);
         }
 
         const goalData = studentGoals[exerciseId];
@@ -488,7 +490,7 @@ export default function StudentPage() {
 
         setStudentActivityLogs(prevLogs =>
             prevLogs.map(log =>
-                log.id === logId ? { ...log, imageUrl: undefined } : log
+                log.id === logId ? { ...log, imageUrl: null } : log
             )
         );
         toast({ title: "성공", description: "인증샷이 삭제되었습니다." });
@@ -576,7 +578,7 @@ export default function StudentPage() {
     const todayLogsWithImages = studentActivityLogs
       .filter(log => log.studentId === currentStudent.id && isToday(parseISO(log.date)) && log.imageUrl)
       .sort((a, b) => {
-        if (a.id && b.id) return b.id.localeCompare(a.id); // Sort by log ID (timestamp based usually)
+        if (a.id && b.id) return b.id.localeCompare(a.id); 
         return 0;
       });
     return todayLogsWithImages.length > 0 ? todayLogsWithImages[0] : null;
@@ -588,7 +590,7 @@ export default function StudentPage() {
       .filter(log =>
         log.studentId === currentStudent.id &&
         isToday(parseISO(log.date)) &&
-        (log.imageUrl === undefined || log.imageUrl === null) // Explicitly check for undefined or null
+        (log.imageUrl === undefined || log.imageUrl === null) 
       );
   }, [currentStudent, studentActivityLogs]);
 
@@ -840,13 +842,13 @@ export default function StudentPage() {
             </Card>
             
             {showProofShotArea && (
-              <div key={latestTodayImage ? `image-${latestTodayImage.id}` : `upload-prompt-${todaysLogsWithoutImage.length}`} className="lg:col-span-1">
+              <div key={latestTodayImage ? `image-${latestTodayImage.id}-${latestTodayImage.imageUrl}` : `upload-prompt-${todaysLogsWithoutImage.length}`} className="lg:col-span-1">
                   {latestTodayImage ? (
                       <Card className="shadow-lg rounded-xl flex flex-col h-full">
-                      <CardHeader>
-                          <CardTitle className="flex items-center font-headline text-xl">
-                          <CheckSquare className="mr-3 h-7 w-7 text-green-500" />
-                          오.운.완 인증!
+                      <CardHeader className="pb-2 pt-4">
+                          <CardTitle className="flex items-center font-headline text-xl justify-center">
+                            <CheckSquare className="mr-3 h-7 w-7 text-green-500" />
+                            오.운.완!
                           </CardTitle>
                       </CardHeader>
                       <CardContent className="flex-grow flex flex-col items-center justify-center p-3 space-y-2">
