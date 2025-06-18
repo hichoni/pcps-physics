@@ -116,7 +116,7 @@ const StudentActivityChart: React.FC<StudentActivityChartProps> = ({ logs, timeF
     if (goalValue && goalValue > 0) {
       progress = Math.min(100, Math.round((totalAchievedValue / goalValue) * 100));
     } else if (totalAchievedValue > 0) {
-      progress = 0;
+      progress = 0; 
     }
 
     const IconComponent = getIconByName(exercise.iconName);
