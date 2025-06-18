@@ -5,11 +5,12 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import Header from '@/components/Header';
 import ClassSelector from '@/components/ClassSelector';
 import StudentCard from '@/components/StudentCard';
-import ExerciseSummaryChart from '@/components/ExerciseSummaryChart';
+// import ExerciseSummaryChart from '@/components/ExerciseSummaryChart'; // ExerciseSummaryChart 사용 중단
 import AiSuggestionBox from '@/components/AiSuggestionBox';
 import AddStudentDialog from '@/components/AddStudentDialog';
 import ManageStudentPinDialog from '@/components/ManageStudentPinDialog';
 import ManageCustomExerciseDialog from '@/components/ManageCustomExerciseDialog';
+import ClassSummaryStats from '@/components/ClassSummaryStats'; // 새로운 요약 컴포넌트
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import type { Student, ClassName, RecordedExercise, CustomExercise as CustomExerciseType, Gender, TeacherExerciseRecommendation, StudentGoal, Exercise as ExerciseType } from '@/lib/types';
 import { EXERCISES_SEED_DATA } from '@/data/mockData';
@@ -18,11 +19,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Users, BarChart2, Lightbulb, ListChecks, UserPlus, Trash2, Sparkles, MessageSquarePlus, MessageSquareX, Loader2, Wand2, KeyRound, LogIn, Image as ImageIconLucide, Edit, Settings2, School, PlusCircle, Edit3, AlertCircle, TrendingUp, CalendarDays, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Users, BarChart2, Lightbulb, ListChecks, UserPlus, Trash2, Sparkles, MessageSquarePlus, MessageSquareX, Loader2, Wand2, KeyRound, LogIn, Image as ImageIconLucide, Edit, Settings2, School, PlusCircle, Edit3, AlertCircle, TrendingUp, CalendarDays, ChevronLeft, ChevronRight, Activity as ActivityIcon } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle as UICardTitle, CardDescription as UICardDescription } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { format, parseISO, isToday, subDays, addDays, isSameDay } from 'date-fns';
+import { format, parseISO, isSameDay, subDays, addDays, isToday } from 'date-fns';
 import { ko } from 'date-fns/locale';
 import { useToast } from "@/hooks/use-toast";
 import { db } from '@/lib/firebase';
@@ -51,14 +52,6 @@ const CUSTOM_EXERCISES_DOC_PATH = "appConfig/customExercisesDoc";
 const TEACHER_PIN = "0408";
 const GRADES = ["1학년", "2학년", "3학년", "4학년", "5학년", "6학년", "기타"];
 
-const generateChartColors = (exercises: CustomExerciseType[]): Record<string, { color: string }> => {
-  return exercises.reduce((acc, ex, index) => {
-    acc[ex.id] = {
-      color: `hsl(var(--chart-${(index % 5) + 1}))`
-    };
-    return acc;
-  }, {} as Record<string, { color: string }>);
-};
 
 export default function TeacherPage() {
   const [selectedGrade, setSelectedGrade] = useState<string>('');
@@ -105,7 +98,6 @@ export default function TeacherPage() {
 
   const [selectedLogDate, setSelectedLogDate] = useState<Date>(new Date());
 
-  const chartColors = useMemo(() => generateChartColors(customExercises), [customExercises]);
 
   const handlePinSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -344,10 +336,6 @@ export default function TeacherPage() {
     if (selectedClass) {
       setStudentsInClass(students.filter(student => student.class === selectedClass).sort((a, b) => a.studentNumber - b.studentNumber));
     } else {
-      // When "All" is selected, studentsInClass should ideally be based on students from *all* classes or empty if no class is selected.
-      // For the "log" tab, we require a class to be selected to show the table.
-      // So, if no class is selected, studentsInClass for the log tab should effectively be empty or trigger a "select class" message.
-      // The "students" tab will show all students if no class is selected.
       setStudentsInClass(students.sort((a,b) => {
         const classCompare = a.class.localeCompare(b.class);
         if (classCompare !== 0) return classCompare;
@@ -603,10 +591,6 @@ export default function TeacherPage() {
   };
 
   const isNextDayDisabled = isToday(selectedLogDate) || selectedLogDate > new Date();
-
-  const memoizedExerciseSummaryChart = useMemo(() => (
-    <ExerciseSummaryChart recordedExercises={recordedExercises} students={students} customExercises={customExercises} />
-  ), [recordedExercises, students, customExercises]);
 
   const memoizedAiSuggestionBox = useMemo(() => <AiSuggestionBox recordedExercises={recordedExercises} />, [recordedExercises]);
 
@@ -879,7 +863,8 @@ export default function TeacherPage() {
                                                : (achievedValue > 0 ? 100 : 0);
                               
                               const DisplayExerciseIcon = getIconByName(exercise.iconName);
-                              const exerciseColor = chartColors[exercise.id]?.color || 'hsl(var(--primary))';
+                              const exerciseColor = `hsl(var(--chart-${(customExercises.findIndex(ex => ex.id === exercise.id) % 5) + 1}))`;
+
 
                               if (achievedValue === 0 && (!hasGoal || (goalValue !== undefined && goalValue === 0))) {
                                 return (
@@ -1001,9 +986,31 @@ export default function TeacherPage() {
           </TabsContent>
 
           <TabsContent value="summary" className="mt-6">
-            <section aria-labelledby="visualization-heading">
-              <h2 id="visualization-heading" className="sr-only">운동 시각화</h2>
-              {memoizedExerciseSummaryChart}
+            <section aria-labelledby="class-summary-heading">
+              <h2 id="class-summary-heading" className="sr-only">학급 요약</h2>
+              {isLoading || isLoadingStudents || isLoadingLogs || isLoadingCustomExercises || isLoadingStudentGoals ? (
+                  <div className="flex justify-center items-center h-40"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
+                ) : !selectedClass ? (
+                  <div className="min-h-[200px] flex flex-col items-center justify-center text-muted-foreground bg-secondary/10 rounded-lg p-4 text-center">
+                    <School className="h-12 w-12 mb-4 text-primary" />
+                    <p className="text-lg">요약 정보를 보려면 먼저 학급을 선택해주세요.</p>
+                  </div>
+                ) : studentsInClass.length === 0 ? (
+                  <div className="min-h-[200px] flex flex-col items-center justify-center text-muted-foreground bg-secondary/10 rounded-lg p-4 text-center">
+                    <Users className="h-12 w-12 mb-4 text-primary" />
+                    <p className="text-lg">{selectedClass} 학급에 등록된 학생이 없습니다.</p>
+                    <p className="text-sm">먼저 '학생 목록' 탭에서 학생을 추가해주세요.</p>
+                  </div>
+                ) : (
+                  <ClassSummaryStats
+                    selectedClass={selectedClass}
+                    studentsInClass={studentsInClass}
+                    recordedExercises={recordedExercises}
+                    customExercises={customExercises}
+                    allStudentGoals={allStudentGoals}
+                    selectedLogDate={selectedLogDate}
+                  />
+              )}
             </section>
           </TabsContent>
 
@@ -1041,7 +1048,7 @@ export default function TeacherPage() {
                         <CardHeader className="flex flex-row justify-between items-start">
                           <div>
                             <UICardTitle className="text-lg flex items-center">
-                              {ex.koreanName}
+                               <ActivityIcon className="mr-2 h-5 w-5 text-muted-foreground" /> {ex.koreanName}
                             </UICardTitle>
                             <UICardDescription className="text-xs">
                                 {ex.id === 'squat' && `주요 지표: ${ex.countUnit || '회'}`}
