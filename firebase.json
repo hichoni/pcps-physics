@@ -12,7 +12,8 @@
       {
         "source": "**",
         "run": {
-          "serviceId": "pcps-physics"
+          "serviceId": "pcps-physics",
+          "region": "YOUR_ACTUAL_APP_HOSTING_REGION"
         }
       }
     ]
