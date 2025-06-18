@@ -190,12 +190,11 @@ export default function StudentPage() {
           } else if (typeof data.date === 'string' && data.date.includes('T')) { 
              dateStr = data.date.split('T')[0];
           }
-          return { id: lDoc.id, ...data, date: dateStr } as RecordedExercise;
+          return { id: lDoc.id, ...data, date: dateStr, imageUrl: data.imageUrl === null ? undefined : data.imageUrl } as RecordedExercise;
         });
         const sortedLogs = logsList.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime() || (b.id && a.id ? b.id.localeCompare(a.id) : 0));
         setStudentActivityLogs(sortedLogs);
         
-        // XP 획득 여부 업데이트
         const today = format(new Date(), "yyyy-MM-dd");
         const metToday = new Set<string>();
         currentExercises.forEach(exercise => {
@@ -249,21 +248,22 @@ export default function StudentPage() {
         setStudentWelcomeMessage(DEFAULT_STUDENT_WELCOME_MESSAGE);
       }
       fetchRecommendation();
-      return unsubscribeLogs; // Return the unsubscribe function
+      return unsubscribeLogs; 
     } catch (error) {
       console.error("Error fetching student specific data:", error);
       toast({ title: "오류", description: "학생 데이터를 불러오는 데 실패했습니다.", variant: "destructive" });
     } finally {
       setIsLoadingStudentData(false);
     }
-  }, [toast]);
+  }, [toast]); // fetchRecommendation removed as it's called internally
 
   useEffect(() => {
-    let unsubscribeLogs: (() => void) | undefined;
+    let unsubscribeLogsFunction: (() => void) | undefined;
     if (currentStudent && availableExercises.length > 0) {
-      fetchStudentSpecificData(currentStudent.id, currentStudent.name, availableExercises).then(unsub => {
-        unsubscribeLogs = unsub;
-      });
+      fetchStudentSpecificData(currentStudent.id, currentStudent.name, availableExercises)
+        .then(unsub => {
+          if (unsub) unsubscribeLogsFunction = unsub;
+        });
     } else {
       // Clear data when currentStudent is not set or no exercises are available
       setStudentGoals({}); 
@@ -274,11 +274,11 @@ export default function StudentPage() {
       setGoalsMetTodayForXp(new Set());
     }
     return () => {
-      if (unsubscribeLogs) {
-        unsubscribeLogs();
+      if (unsubscribeLogsFunction) {
+        unsubscribeLogsFunction();
       }
     };
-  }, [currentStudent, fetchStudentSpecificData, availableExercises]);
+  }, [currentStudent, availableExercises, fetchStudentSpecificData]);
 
 
   useEffect(() => {
@@ -329,7 +329,7 @@ export default function StudentPage() {
     }
   };
 
-  const fetchRecommendation = async () => {
+  const fetchRecommendation = useCallback(async () => {
     setIsRecommendationLoading(true);
     try {
       const recommendation = await recommendStudentExercise();
@@ -340,7 +340,7 @@ export default function StudentPage() {
     } finally {
       setIsRecommendationLoading(false);
     }
-  };
+  }, []); // Empty dependency array as it has no external dependencies that change
 
   const handleSaveGoals = async (newGoals: StudentGoal) => {
     if (currentStudent) {
@@ -351,11 +351,10 @@ export default function StudentPage() {
         toast({ title: "성공", description: "운동 목표가 저장되었습니다." });
         setIsGoalsDialogOpen(false);
 
-        // Re-evaluate goalsMetTodayForXp when goals change
         const today = format(new Date(), "yyyy-MM-dd");
         const metToday = new Set<string>();
         availableExercises.forEach(exercise => {
-          const goalData = newGoals[exercise.id]; // Use newGoals
+          const goalData = newGoals[exercise.id]; 
           if (!goalData) return;
           const logsForExerciseToday = studentActivityLogs.filter(
             log => log.studentId === currentStudent.id && log.exerciseId === exercise.id && log.date === today
@@ -405,20 +404,18 @@ export default function StudentPage() {
     if (!currentStudent || !availableExercises) return;
     try {
       const docRef = await addDoc(collection(db, "exerciseLogs"), logData);
-      // const newLogEntry = { ...logData, id: docRef.id, date: format(parseISO(logData.date), "yyyy-MM-dd") }; // Managed by onSnapshot
-
+      
       toast({ title: "기록 완료!", description: "오늘의 운동이 성공적으로 기록되었어요! 참 잘했어요!" });
       setIsLogFormOpen(false); 
       setIsCameraModeOpen(false); 
       setCameraExerciseId(null);
 
-      // XP Award Logic
       const exerciseId = logData.exerciseId;
       const exercise = availableExercises.find(ex => ex.id === exerciseId);
 
       if (exercise && !goalsMetTodayForXp.has(exerciseId)) {
         const today = format(new Date(), "yyyy-MM-dd");
-        // Fetch fresh logs for today for this exercise, including the one just saved
+        
         const logsQuery = query(collection(db, "exerciseLogs"), 
           where("studentId", "==", currentStudent.id),
           where("exerciseId", "==", exerciseId),
@@ -488,17 +485,15 @@ export default function StudentPage() {
         
         setStudentActivityLogs(prevLogs => 
             prevLogs.map(log => 
-                log.id === logId ? { ...log, imageUrl: undefined } : log
+                log.id === logId ? { ...log, imageUrl: undefined } : log // Set to undefined for local state
             )
         );
-
         toast({ title: "성공", description: "인증샷이 삭제되었습니다." });
     } catch (error) {
         console.error("Error deleting proof shot:", error);
         toast({ title: "오류", description: "인증샷 삭제에 실패했습니다.", variant: "destructive" });
     }
   };
-
 
   const handleSaveOwnNewPin = async (newPin: string) => {
     if (currentStudent) {
@@ -632,7 +627,7 @@ export default function StudentPage() {
   }, [currentStudent?.totalXp]);
 
   const xpProgress = useMemo(() => {
-    if (!currentStudent || currentLevelInfo.level === 10) return 100; // Max level
+    if (!currentStudent || currentLevelInfo.level === 10) return 100; 
     const xpInCurrentLevel = (currentStudent.totalXp || 0) - currentLevelInfo.minXp;
     const xpForNextLevel = currentLevelInfo.maxXp - currentLevelInfo.minXp;
     return xpForNextLevel > 0 ? (xpInCurrentLevel / xpForNextLevel) * 100 : 0;
@@ -791,7 +786,6 @@ export default function StudentPage() {
                         </p>
                     </div>
 
-                    {/* XP and Level Display Section */}
                     <div className="mb-6 p-4 border rounded-lg shadow-inner bg-secondary/20 dark:bg-slate-800/30">
                       <div className="flex items-center justify-between mb-3">
                           <div className="flex items-center">
@@ -838,7 +832,7 @@ export default function StudentPage() {
             </Card>
 
             {latestTodayImage ? (
-                <Card className="shadow-lg rounded-xl lg:col-span-1 flex flex-col">
+                <Card key={`latest-image-${latestTodayImage.id}-${latestTodayImage.imageUrl}`} className="shadow-lg rounded-xl lg:col-span-1 flex flex-col">
                 <CardHeader>
                     <CardTitle className="flex items-center font-headline text-xl">
                     <CheckSquare className="mr-3 h-7 w-7 text-green-500" />
@@ -848,11 +842,13 @@ export default function StudentPage() {
                 <CardContent className="flex-grow flex flex-col items-center justify-center p-3 space-y-2">
                     <a href={latestTodayImage.imageUrl} target="_blank" rel="noopener noreferrer" className="block w-full aspect-square relative rounded-lg overflow-hidden shadow-inner bg-muted">
                     <NextImage
+                        key={latestTodayImage.imageUrl || 'no-image-placeholder'}
                         src={latestTodayImage.imageUrl!}
                         alt="오늘의 운동 인증샷"
                         layout="fill"
                         objectFit="cover"
                         className="transition-transform duration-300 hover:scale-105"
+                        data-ai-hint="fitness activity"
                         onError={(e) => {
                         const target = e.target as HTMLImageElement;
                         target.style.display = 'none';
@@ -879,6 +875,7 @@ export default function StudentPage() {
                 </Card>
             ) : todaysLogsWithoutImage.length > 0 ? (
                  <Card 
+                    key="upload-proof-shot-card"
                     className="shadow-lg rounded-xl lg:col-span-1 flex flex-col items-center justify-center cursor-pointer hover:bg-muted/30 transition-colors"
                     onClick={() => setIsUploadProofShotDialogOpen(true)}
                     role="button"
@@ -1058,11 +1055,13 @@ export default function StudentPage() {
                                   {log.imageUrl && (
                                     <a href={log.imageUrl} target="_blank" rel="noopener noreferrer" className="ml-2 shrink-0">
                                       <NextImage 
+                                        key={log.imageUrl}
                                         src={log.imageUrl} 
                                         alt="인증샷" 
                                         width={32} 
                                         height={32} 
                                         className="rounded object-cover border"
+                                        data-ai-hint="exercise activity"
                                         onError={(e) => {
                                           const target = e.target as HTMLImageElement;
                                           target.style.display = 'none'; 
