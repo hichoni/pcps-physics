@@ -3,13 +3,13 @@ import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Users, ListChecks, Award, Target, AlertCircle, Activity as ActivityIcon } from 'lucide-react';
-import type { Student, RecordedExercise, CustomExercise as CustomExerciseType, StudentGoal } from '@/lib/types';
+import type { Student, RecordedExercise, CustomExercise as CustomExerciseType, StudentGoal, ClassName } from '@/lib/types';
 import { format, isSameDay, parseISO } from 'date-fns';
 import { ko } from 'date-fns/locale';
 import { getIconByName } from '@/lib/iconMap';
 
 interface ClassSummaryStatsProps {
-  selectedClass: CustomExerciseType | undefined; // ClassName is string
+  selectedClass: ClassName | undefined; // Changed from CustomExerciseType to ClassName
   studentsInClass: Student[];
   recordedExercises: RecordedExercise[];
   customExercises: CustomExerciseType[];
@@ -42,7 +42,7 @@ const ClassSummaryStats: React.FC<ClassSummaryStatsProps> = ({
     return (
       <Card className="shadow-lg rounded-xl">
         <CardHeader>
-          <CardTitle className="font-headline">{selectedClass.koreanName} 요약</CardTitle>
+          <CardTitle className="font-headline">{selectedClass} 요약</CardTitle>
         </CardHeader>
         <CardContent className="h-[200px] flex items-center justify-center">
           <p className="text-muted-foreground">이 학급에는 등록된 학생이 없습니다.</p>
@@ -52,7 +52,7 @@ const ClassSummaryStats: React.FC<ClassSummaryStatsProps> = ({
   }
   
   const logsForDateAndClass = recordedExercises.filter(log =>
-    log.className === selectedClass.koreanName && isSameDay(parseISO(log.date), selectedLogDate)
+    log.className === selectedClass && isSameDay(parseISO(log.date), selectedLogDate)
   );
 
   const activeStudentIds = new Set(logsForDateAndClass.map(log => log.studentId));
@@ -68,21 +68,23 @@ const ClassSummaryStats: React.FC<ClassSummaryStatsProps> = ({
 
   let mostLoggedExerciseName = "없음";
   let maxLogs = 0;
-  for (const exerciseId in exerciseCounts) {
-    if (exerciseCounts[exerciseId] > maxLogs) {
-      maxLogs = exerciseCounts[exerciseId];
-      const exerciseDetails = customExercises.find(ex => ex.id === exerciseId);
-      mostLoggedExerciseName = exerciseDetails?.koreanName || "알 수 없는 운동";
-    }
-  }
-  if (maxLogs === 0 && logsForDateAndClass.length > 0) {
-    // If there are logs, but exerciseCounts somehow didn't pick one (e.g. all have 1 log)
-    // pick the first one found.
-     const firstLogExerciseId = logsForDateAndClass[0]?.exerciseId;
-     if (firstLogExerciseId) {
-        const exerciseDetails = customExercises.find(ex => ex.id === firstLogExerciseId);
+  if (logsForDateAndClass.length > 0) { // Only determine if there are logs
+    for (const exerciseId in exerciseCounts) {
+      if (exerciseCounts[exerciseId] > maxLogs) {
+        maxLogs = exerciseCounts[exerciseId];
+        const exerciseDetails = customExercises.find(ex => ex.id === exerciseId);
         mostLoggedExerciseName = exerciseDetails?.koreanName || "알 수 없는 운동";
-     }
+      }
+    }
+    // If all exercises have same count (e.g., 1 log each for different exercises, maxLogs could remain 1)
+    // and mostLoggedExerciseName might not be set if the first check wasn't > maxLogs (initially 0)
+    // Or if only one type of exercise was logged once.
+    if (mostLoggedExerciseName === "없음" && Object.keys(exerciseCounts).length > 0) {
+        const firstExerciseIdWithCount = Object.keys(exerciseCounts)[0];
+        const exerciseDetails = customExercises.find(ex => ex.id === firstExerciseIdWithCount);
+        mostLoggedExerciseName = exerciseDetails?.koreanName || "알 수 없는 운동";
+        maxLogs = exerciseCounts[firstExerciseIdWithCount] || 0;
+    }
   }
 
 
@@ -128,14 +130,14 @@ const ClassSummaryStats: React.FC<ClassSummaryStatsProps> = ({
       studentsMetGoal,
       hasAnyGoalSet: studentsWithGoal > 0,
     };
-  }).filter(stat => stat.hasAnyGoalSet); // 목표가 설정된 운동만 표시
+  }).filter(stat => stat.hasAnyGoalSet); 
 
   return (
     <div className="space-y-6">
       <Card className="shadow-md rounded-xl">
         <CardHeader>
           <CardTitle className="font-headline text-xl">
-            {selectedClass.koreanName} ({format(selectedLogDate, "MM월 dd일", { locale: ko })}) 요약
+            {selectedClass} ({format(selectedLogDate, "MM월 dd일", { locale: ko })}) 요약
           </CardTitle>
         </CardHeader>
       </Card>
@@ -174,7 +176,7 @@ const ClassSummaryStats: React.FC<ClassSummaryStatsProps> = ({
           <CardContent>
             <div className="text-2xl font-bold">{mostLoggedExerciseName}</div>
             <p className="text-xs text-muted-foreground">
-                {maxLogs > 0 ? `총 ${maxLogs}회 기록됨` : (logsForDateAndClass.length > 0 ? "다양한 활동 기록됨" : "활동 기록 없음")}
+                {maxLogs > 0 ? `총 ${maxLogs}회 기록됨` : (logsForDateAndClass.length > 0 && mostLoggedExerciseName !== "없음" ? `기록됨 (각 1회 또는 동률)` : "활동 기록 없음")}
             </p>
           </CardContent>
         </Card>
