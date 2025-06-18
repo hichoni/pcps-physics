@@ -37,13 +37,11 @@ export default function RootLayout({
         <meta name="format-detection" content="telephone=no" />
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="theme-color" content="#3B82F6" /> {/* Primary color from theme */}
-        
         {/* Placeholder icons - replace with your actual icons */}
         <link rel="apple-touch-icon" href="https://placehold.co/180x180.png" />
         <link rel="icon" type="image/png" sizes="32x32" href="https://placehold.co/32x32.png" />
         <link rel="icon" type="image/png" sizes="16x16" href="https://placehold.co/16x16.png" />
         <link rel="shortcut icon" href="https://placehold.co/48x48.png" />
-
         {/* Add any other global head tags here */}
       </head>
       <body className="font-body">
