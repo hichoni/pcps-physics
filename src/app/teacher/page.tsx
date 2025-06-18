@@ -195,7 +195,7 @@ export default function TeacherPage() {
   const fetchStudentWelcomeMessage = useCallback(async () => {
     setIsLoadingWelcomeMessage(true);
     try {
-      const welcomeMsgDocRef = doc(db, STUDENT_WELCOME_MESSAGE_DOC_PATH);
+      const welcomeMsgDocRef = doc(db, STUDENT_WELCOME_MESSAGE_DOC_PATH); // Removed ", "message""
       const welcomeMsgDocSnap = await getDoc(welcomeMsgDocRef);
       if (welcomeMsgDocSnap.exists() && welcomeMsgDocSnap.data().text) {
         setStudentWelcomeMessage(welcomeMsgDocSnap.data().text);
@@ -406,7 +406,7 @@ export default function TeacherPage() {
       return;
     }
     try {
-      const welcomeMsgDocRef = doc(db, STUDENT_WELCOME_MESSAGE_DOC_PATH);
+      const welcomeMsgDocRef = doc(db, STUDENT_WELCOME_MESSAGE_DOC_PATH); // Removed ", "message""
       await setDoc(welcomeMsgDocRef, { text: messageToSave });
       setStudentWelcomeMessage(messageToSave);
       toast({ title: "성공", description: "학생 환영 메시지가 저장되었습니다." });
@@ -918,3 +918,5 @@ export default function TeacherPage() {
   );
 }
 
+
+    

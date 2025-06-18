@@ -130,7 +130,7 @@ export default function StudentPage() {
       setDailyCompliment(adjectiveList[adjectiveIndex] || adjectiveList[0] || "");
 
       // Welcome Message
-      const welcomeMsgDocRef = doc(db, STUDENT_WELCOME_MESSAGE_DOC_PATH);
+      const welcomeMsgDocRef = doc(db, STUDENT_WELCOME_MESSAGE_DOC_PATH); // Removed ", "message""
       const welcomeMsgDocSnap = await getDoc(welcomeMsgDocRef);
       if (welcomeMsgDocSnap.exists() && welcomeMsgDocSnap.data().text) {
         setStudentWelcomeMessage(welcomeMsgDocSnap.data().text);
@@ -339,6 +339,9 @@ export default function StudentPage() {
     const todayLogsWithImages = studentActivityLogs
       .filter(log => log.studentId === currentStudent.id && isToday(parseISO(log.date)) && log.imageUrl)
       .sort((a, b) => {
+        // Assuming IDs are sortable and newer logs have "larger" IDs (e.g., Firestore auto-IDs)
+        // If IDs are not sortable or not guaranteed to be sequential by time,
+        // you might need a timestamp field in your log for more reliable sorting.
         if (a.id && b.id) return b.id.localeCompare(a.id); 
         return 0;
       });
@@ -660,7 +663,7 @@ export default function StudentPage() {
                           let valueDisplay = "";
                           if (exerciseInfo.category === 'count_time') {
                               if (log.countValue !== undefined && log.countValue > 0) valueDisplay += `${log.countValue}${exerciseInfo.countUnit || ''} `;
-                              if (log.timeValue !== undefined && log.timeValue > 0) valueDisplay += `${log.timeValue}${exerciseInfo.timeUnit || ''}`; // Corrected from timeLogValue
+                              if (log.timeValue !== undefined && log.timeValue > 0) valueDisplay += `${log.timeValue}${exerciseInfo.timeUnit || ''}`;
                           } else if (exerciseInfo.category === 'steps_distance') {
                               if (log.stepsValue !== undefined && log.stepsValue > 0) valueDisplay += `${log.stepsValue}${exerciseInfo.stepsUnit || ''} `;
                               if (log.distanceValue !== undefined && log.distanceValue > 0) valueDisplay += `${log.distanceValue}${exerciseInfo.distanceUnit || ''}`;
@@ -752,4 +755,6 @@ export default function StudentPage() {
     </div>
   );
 }
+    
+
     
