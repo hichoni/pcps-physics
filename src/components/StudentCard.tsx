@@ -1,22 +1,18 @@
 
 import type React from 'react';
-import type { Student, RecordedExercise, CustomExercise as CustomExerciseType, Exercise as ExerciseType, StudentGoal } from '@/lib/types';
+import type { Student } from '@/lib/types';
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Trash2, KeyRound } from 'lucide-react'; 
+import { Trash2, KeyRound } from 'lucide-react';
 import { AVATAR_OPTIONS } from '@/data/avatarOptions';
 import { cn } from '@/lib/utils';
 import { getIconByName } from '@/lib/iconMap';
-import StudentActivityChart from './StudentActivityChart';
 
 interface StudentCardProps {
   student: Student;
   onDeleteStudent: (student: Student) => void;
   onManagePin: (student: Student) => void;
-  recordedExercises: RecordedExercise[];
-  customExercises: CustomExerciseType[];
-  studentGoals: StudentGoal;
 }
 
 const getInitials = (name: string) => {
@@ -28,17 +24,9 @@ const getInitials = (name: string) => {
   return initials;
 };
 
-const convertCustomToInternalExercise = (customEx: CustomExerciseType): ExerciseType => {
-  return {
-    ...customEx,
-    icon: getIconByName(customEx.iconName), 
-  };
-};
+const StudentCard: React.FC<StudentCardProps> = ({ student, onDeleteStudent, onManagePin }) => {
 
-const StudentCard: React.FC<StudentCardProps> = ({ student, onDeleteStudent, onManagePin, recordedExercises, customExercises, studentGoals }) => {
-  
   const SelectedAvatarIcon = AVATAR_OPTIONS.find(opt => opt.id === student.avatarSeed)?.icon || getIconByName(null);
-  const availableExercisesForChart: ExerciseType[] = customExercises.map(convertCustomToInternalExercise);
 
   return (
     <Card className="w-full shadow-lg hover:shadow-xl transition-shadow duration-300 rounded-xl overflow-hidden flex flex-col justify-between">
@@ -61,19 +49,11 @@ const StudentCard: React.FC<StudentCardProps> = ({ student, onDeleteStudent, onM
             <p className="text-xs text-muted-foreground mt-0.5">PIN: {student.pin}</p>
           </div>
         </CardHeader>
-        <CardContent className="p-2 pt-1">
-          {availableExercisesForChart.length > 0 ? (
-            <StudentActivityChart
-              logs={recordedExercises}
-              selectedStudent={student}
-              students={[student]}
-              availableExercises={availableExercisesForChart}
-              timeFrame="today" // 학생 카드에서는 '오늘' 기준으로 간략히 표시
-              studentGoals={studentGoals}
-            />
-          ) : (
-            <p className="text-xs text-muted-foreground text-center py-4">운동 목록이 설정되지 않았습니다.</p>
-          )}
+        <CardContent className="p-4 pt-2">
+          {/* Activity chart removed as per user request for this card. Details are in the log tab table. */}
+          <p className="text-xs text-muted-foreground text-center">
+            상세 활동은 '활동 기록' 탭에서 확인하세요.
+          </p>
         </CardContent>
       </div>
       <CardFooter className="p-3 bg-slate-50 dark:bg-slate-800/30 flex justify-end gap-2">

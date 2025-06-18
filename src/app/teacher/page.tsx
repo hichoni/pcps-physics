@@ -11,39 +11,28 @@ import AddStudentDialog from '@/components/AddStudentDialog';
 import ManageStudentPinDialog from '@/components/ManageStudentPinDialog';
 import ManageCustomExerciseDialog from '@/components/ManageCustomExerciseDialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import type { Student, ClassName, RecordedExercise, CustomExercise as CustomExerciseType, Gender, TeacherExerciseRecommendation, StudentGoal } from '@/lib/types';
+import type { Student, ClassName, RecordedExercise, CustomExercise as CustomExerciseType, Gender, TeacherExerciseRecommendation, StudentGoal, Exercise as ExerciseType } from '@/lib/types';
 import { EXERCISES_SEED_DATA } from '@/data/mockData';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Users, BarChart2, Lightbulb, ListChecks, UserPlus, Trash2, Sparkles, MessageSquarePlus, MessageSquareX, Loader2, Wand2, KeyRound, LogIn, Image as ImageIcon, Edit, Settings2, School, PlusCircle, Edit3 } from 'lucide-react';
+import { Users, BarChart2, Lightbulb, ListChecks, UserPlus, Trash2, Sparkles, MessageSquarePlus, MessageSquareX, Loader2, Wand2, KeyRound, LogIn, Image as ImageIconLucide, Edit, Settings2, School, PlusCircle, Edit3, AlertCircle, TrendingUp } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle as UICardTitle, CardDescription as UICardDescription } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { format, parseISO } from 'date-fns';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { format, parseISO, isToday } from 'date-fns';
 import { ko } from 'date-fns/locale';
 import { useToast } from "@/hooks/use-toast";
 import { db } from '@/lib/firebase';
-import { 
-  collection, getDocs, addDoc, deleteDoc, doc, writeBatch, query, where, setDoc, getDoc, updateDoc, arrayUnion, arrayRemove, onSnapshot 
+import {
+  collection, getDocs, addDoc, deleteDoc, doc, writeBatch, query, where, setDoc, getDoc, updateDoc, arrayUnion, arrayRemove, onSnapshot
 } from 'firebase/firestore';
 import NextImage from 'next/image';
-// import { getIconByName } from '@/lib/iconMap'; // Not needed directly here
+import { getIconByName } from '@/lib/iconMap';
+import { cn } from '@/lib/utils';
 import { v4 as uuidv4 } from 'uuid';
-
-const formatExerciseValue = (exercise: CustomExerciseType | undefined, log: RecordedExercise): string => {
-  if (!exercise) return "알 수 없는 운동";
-  if (exercise.id === 'squat' || exercise.id === 'jump_rope') {
-    return `${log.countValue || 0}${exercise.countUnit || '회'}`;
-  } else if (exercise.id === 'plank') {
-    return `${log.timeValue || 0}${exercise.timeUnit || '초'}`;
-  } else if (exercise.id === 'walk_run') {
-    return `${log.distanceValue || 0}${exercise.distanceUnit || 'm'}`;
-  }
-  return `${exercise.koreanName} 기록됨`; 
-};
-
 
 const DEFAULT_COMPLIMENTS_LIST = [
   "별처럼 빛나는", "항상 긍정적인", "꿈을 향해 달리는", "세상을 밝히는",
@@ -54,12 +43,20 @@ const DEFAULT_COMPLIMENTS_LIST = [
 
 const COMPLIMENTS_DOC_PATH = "appConfig/complimentsDoc";
 const RECOMMENDATIONS_DOC_PATH = "appConfig/exerciseRecommendationsDoc";
-const STUDENT_WELCOME_MESSAGE_DOC_PATH = "appConfig/studentWelcomeMessageDoc"; 
+const STUDENT_WELCOME_MESSAGE_DOC_PATH = "appConfig/studentWelcomeMessageDoc";
 const DEFAULT_STUDENT_WELCOME_MSG = "오늘도 즐겁게 운동하고 건강해져요! 어떤 활동을 계획하고 있나요?";
 const CUSTOM_EXERCISES_DOC_PATH = "appConfig/customExercisesDoc";
 const TEACHER_PIN = "0408";
 const GRADES = ["1학년", "2학년", "3학년", "4학년", "5학년", "6학년", "기타"];
 
+const generateChartColors = (exercises: CustomExerciseType[]): Record<string, { color: string }> => {
+  return exercises.reduce((acc, ex, index) => {
+    acc[ex.id] = {
+      color: `hsl(var(--chart-${(index % 5) + 1}))`
+    };
+    return acc;
+  }, {} as Record<string, { color: string }>);
+};
 
 export default function TeacherPage() {
   const [selectedGrade, setSelectedGrade] = useState<string>('');
@@ -69,7 +66,7 @@ export default function TeacherPage() {
 
   const [selectedClass, setSelectedClass] = useState<ClassName | undefined>(undefined);
   const { toast } = useToast();
-  
+
   const [students, setStudents] = useState<Student[]>([]);
   const [dynamicClasses, setDynamicClasses] = useState<ClassName[]>([]);
   const [recordedExercises, setRecordedExercises] = useState<RecordedExercise[]>([]);
@@ -77,7 +74,7 @@ export default function TeacherPage() {
   const [exerciseRecommendations, setExerciseRecommendations] = useState<TeacherExerciseRecommendation[]>([]);
   const [studentWelcomeMessage, setStudentWelcomeMessage] = useState<string>(DEFAULT_STUDENT_WELCOME_MSG);
   const [studentWelcomeMessageInput, setStudentWelcomeMessageInput] = useState<string>('');
-  const [customExercises, setCustomExercises] = useState<CustomExerciseType[]>([]); 
+  const [customExercises, setCustomExercises] = useState<CustomExerciseType[]>([]);
   const [allStudentGoals, setAllStudentGoals] = useState<Record<string, StudentGoal>>({});
 
   const [isLoadingStudents, setIsLoadingStudents] = useState(true);
@@ -90,21 +87,21 @@ export default function TeacherPage() {
 
   const [isManageExerciseDialogOpen, setIsManageExerciseDialogOpen] = useState(false);
   const [exerciseToEdit, setExerciseToEdit] = useState<CustomExerciseType | null>(null);
-  // const [exerciseToDelete, setExerciseToDelete] = useState<CustomExerciseType | null>(null); // 삭제 기능은 현재 비활성화
-  // const [isConfirmDeleteExerciseDialogOpen, setIsConfirmDeleteExerciseDialogOpen] = useState(false); // 삭제 기능은 현재 비활성화
 
   const [studentsInClass, setStudentsInClass] = useState<Student[]>([]);
   const [activeTab, setActiveTab] = useState<string>("students");
   const [isAddStudentDialogOpen, setIsAddStudentDialogOpen] = useState(false);
   const [studentToDelete, setStudentToDelete] = useState<Student | null>(null);
   const [isConfirmDeleteDialogOpen, setIsConfirmDeleteDialogOpen] = useState(false);
-  
+
   const [newCompliment, setNewCompliment] = useState<string>('');
   const [newRecommendationTitle, setNewRecommendationTitle] = useState<string>('');
   const [newRecommendationDetail, setNewRecommendationDetail] = useState<string>('');
 
   const [isManagePinDialogOpen, setIsManagePinDialogOpen] = useState(false);
   const [studentForPinManage, setStudentForPinManage] = useState<Student | null>(null);
+
+  const chartColors = useMemo(() => generateChartColors(customExercises), [customExercises]);
 
   const handlePinSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -144,13 +141,13 @@ export default function TeacherPage() {
         let dateStr = data.date;
         if (data.date && typeof data.date.toDate === 'function') {
           dateStr = format(data.date.toDate(), "yyyy-MM-dd");
-        } else if (typeof data.date === 'string' && data.date.includes('T')) { 
+        } else if (typeof data.date === 'string' && data.date.includes('T')) {
            dateStr = data.date.split('T')[0];
         }
-        return { 
-          id: lDoc.id, 
-          ...data, 
-          date: dateStr 
+        return {
+          id: lDoc.id,
+          ...data,
+          date: dateStr
         } as RecordedExercise;
       });
       setRecordedExercises(logsList);
@@ -194,7 +191,7 @@ export default function TeacherPage() {
               setDoc(complimentsDocRef, { list: DEFAULT_COMPLIMENTS_LIST });
           }
         }
-        setIsLoadingCompliments(false); 
+        setIsLoadingCompliments(false);
       }, (error) => {
           console.error("Error in compliments snapshot: ", error);
           toast({ title: "오류", description: "칭찬 문구 실시간 업데이트 중 오류 발생.", variant: "destructive"});
@@ -202,7 +199,7 @@ export default function TeacherPage() {
           setIsLoadingCompliments(false);
       });
       return unsub;
-    } catch (error) { // Catch initial fetch error (though onSnapshot handles its own errors)
+    } catch (error) {
       console.error("Error setting up compliments snapshot: ", error);
       toast({ title: "오류", description: "칭찬 문구를 불러오는 데 실패했습니다.", variant: "destructive"});
       setCompliments(DEFAULT_COMPLIMENTS_LIST);
@@ -218,7 +215,7 @@ export default function TeacherPage() {
         if (docSnap.exists() && docSnap.data()?.list) {
           setExerciseRecommendations(docSnap.data()?.list);
         } else {
-          setExerciseRecommendations([]); 
+          setExerciseRecommendations([]);
           if (!docSnap.exists()) {
                setDoc(recommendationsDocRef, { list: [] });
           }
@@ -270,7 +267,7 @@ export default function TeacherPage() {
       setIsLoadingWelcomeMessage(false);
     }
   }, [toast]);
-  
+
   const fetchCustomExercises = useCallback(async () => {
     setIsLoadingCustomExercises(true);
     try {
@@ -290,7 +287,7 @@ export default function TeacherPage() {
             });
             currentExercises = tempExercises.filter(ex => allowedExerciseIds.includes(ex.id));
              if (currentExercises.length < 4 || !currentExercises.every(ex => allowedExerciseIds.includes(ex.id))) {
-                setCustomExercises(EXERCISES_SEED_DATA.map(ex => ({...ex}))); 
+                setCustomExercises(EXERCISES_SEED_DATA.map(ex => ({...ex})));
                 setDoc(exercisesDocRef, { list: EXERCISES_SEED_DATA.map(ex => ({...ex})) });
                 toast({ title: "알림", description: "운동 목록을 기본값으로 재설정했습니다."});
              } else {
@@ -301,7 +298,7 @@ export default function TeacherPage() {
           }
 
         } else {
-          const seedDataCopy = EXERCISES_SEED_DATA.map(ex => ({...ex})); 
+          const seedDataCopy = EXERCISES_SEED_DATA.map(ex => ({...ex}));
           setDoc(exercisesDocRef, { list: seedDataCopy });
           setCustomExercises(seedDataCopy);
           toast({ title: "알림", description: "기본 운동 목록으로 초기화되었습니다."});
@@ -317,7 +314,7 @@ export default function TeacherPage() {
     } catch (error) {
       console.error("Error setting up custom exercises snapshot: ", error);
       toast({ title: "오류", description: "운동 목록을 불러오는 데 실패했습니다.", variant: "destructive"});
-      setCustomExercises(EXERCISES_SEED_DATA.map(ex => ({...ex}))); 
+      setCustomExercises(EXERCISES_SEED_DATA.map(ex => ({...ex})));
       setIsLoadingCustomExercises(false);
     }
   }, [toast]);
@@ -351,9 +348,9 @@ export default function TeacherPage() {
     }
   }, [selectedClass, students]);
 
-  const handleClassChange = (className: ClassName | 'all') => { 
+  const handleClassChange = (className: ClassName | 'all') => {
     if (className === 'all') {
-      setSelectedClass(undefined); 
+      setSelectedClass(undefined);
     } else {
       setSelectedClass(className as ClassName);
     }
@@ -364,7 +361,7 @@ export default function TeacherPage() {
       const studentWithAvatarAndPin = {
         ...newStudentData,
         class: newStudentData.class.trim(),
-        avatarSeed: '', 
+        avatarSeed: '',
       };
       const docRef = await addDoc(collection(db, "students"), studentWithAvatarAndPin);
       const newStudent = { ...studentWithAvatarAndPin, id: docRef.id };
@@ -372,7 +369,6 @@ export default function TeacherPage() {
       if (!dynamicClasses.includes(newStudent.class)) {
         setDynamicClasses(prevClasses => [...prevClasses, newStudent.class].sort());
       }
-      // Add an empty goal object for the new student
       setAllStudentGoals(prevGoals => ({...prevGoals, [newStudent.id]: {}}));
       const studentGoalsDocRef = doc(db, "studentGoals", newStudent.id);
       await setDoc(studentGoalsDocRef, { goals: {} });
@@ -422,7 +418,7 @@ export default function TeacherPage() {
     }
     setIsConfirmDeleteDialogOpen(false);
   };
-  
+
   const handleAddCompliment = async () => {
     if (newCompliment.trim() === '') {
       toast({ title: "오류", description: "칭찬 문구를 입력해주세요.", variant: "destructive"});
@@ -512,7 +508,7 @@ export default function TeacherPage() {
       toast({ title: "오류", description: "학생 환영 메시지 저장에 실패했습니다.", variant: "destructive" });
     }
   };
-  
+
   const handleSaveCustomExercise = async (exerciseData: CustomExerciseType) => {
     try {
       const exercisesDocRef = doc(db, CUSTOM_EXERCISES_DOC_PATH);
@@ -524,15 +520,15 @@ export default function TeacherPage() {
          setIsManageExerciseDialogOpen(false);
          return;
       }
-      
-      if (exerciseToEdit) { 
+
+      if (exerciseToEdit) {
         const index = currentExercises.findIndex(ex => ex.id === exerciseToEdit.id);
         if (index > -1) {
           currentExercises[index] = exerciseData;
-        } else { 
+        } else {
            currentExercises.push(exerciseData);
         }
-      } else { 
+      } else {
          if (allowedIds.includes(exerciseData.id)) {
             const existingIndex = currentExercises.findIndex(ex => ex.id === exerciseData.id);
             if (existingIndex > -1) currentExercises[existingIndex] = exerciseData;
@@ -540,7 +536,7 @@ export default function TeacherPage() {
          }
       }
       currentExercises = currentExercises.filter(ex => allowedIds.includes(ex.id));
-      
+
       await setDoc(exercisesDocRef, { list: currentExercises });
       toast({ title: "성공", description: `운동이 ${exerciseToEdit ? '수정' : '업데이트'}되었습니다.` });
       setIsManageExerciseDialogOpen(false);
@@ -556,7 +552,7 @@ export default function TeacherPage() {
     const seedDataCopy = EXERCISES_SEED_DATA.map(ex => ({...ex}));
     setDoc(exercisesDocRef, { list: seedDataCopy })
         .then(() => {
-            setCustomExercises(seedDataCopy); 
+            setCustomExercises(seedDataCopy);
             toast({title: "성공", description: "운동 목록이 기본값으로 초기화되었습니다."});
         })
         .catch(() => toast({title: "오류", description: "운동 목록 초기화에 실패했습니다.", variant: "destructive"}));
@@ -577,7 +573,7 @@ export default function TeacherPage() {
       try {
         const studentDocRef = doc(db, "students", studentForPinManage.id);
         await updateDoc(studentDocRef, { pin: newPin });
-        setStudents(prevStudents => 
+        setStudents(prevStudents =>
           prevStudents.map(s => s.id === studentForPinManage.id ? { ...s, pin: newPin } : s)
         );
         toast({ title: "성공", description: `${studentForPinManage.name} 학생의 PIN이 변경되었습니다.` });
@@ -589,7 +585,7 @@ export default function TeacherPage() {
       }
     }
   };
-  
+
   const memoizedExerciseSummaryChart = useMemo(() => (
     <ExerciseSummaryChart recordedExercises={recordedExercises} students={students} customExercises={customExercises} />
   ), [recordedExercises, students, customExercises]);
@@ -687,7 +683,7 @@ export default function TeacherPage() {
               <ListChecks className="mr-2 h-5 w-5" /> 활동 기록
             </TabsTrigger>
              <TabsTrigger value="gallery" className="py-3 text-base data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-md">
-              <ImageIcon className="mr-2 h-5 w-5" /> 사진 갤러리
+              <ImageIconLucide className="mr-2 h-5 w-5" /> 사진 갤러리
             </TabsTrigger>
             <TabsTrigger value="summary" className="py-3 text-base data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-md">
               <BarChart2 className="mr-2 h-5 w-5" /> 요약
@@ -736,79 +732,150 @@ export default function TeacherPage() {
               {studentsInClass.length > 0 && (
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
                   {studentsInClass.map(student => (
-                    <StudentCard 
-                      key={student.id} 
-                      student={student} 
+                    <StudentCard
+                      key={student.id}
+                      student={student}
                       onDeleteStudent={() => requestDeleteStudent(student)}
                       onManagePin={() => handleOpenManagePinDialog(student)}
-                      recordedExercises={recordedExercises.filter(log => log.studentId === student.id)}
-                      customExercises={customExercises}
-                      studentGoals={allStudentGoals[student.id] || {}}
                     />
                   ))}
                 </div>
               )}
             </section>
           </TabsContent>
-          
+
           <TabsContent value="log" className="mt-6">
              <section aria-labelledby="activity-log-heading">
                 <h2 id="activity-log-heading" className="text-xl font-semibold mb-4 font-headline">
-                  {selectedClass ? `${selectedClass} 학급` : '전체'} 최근 활동 (최대 20개)
+                  {selectedClass ? `${selectedClass} 학급` : '전체'} 활동 기록 (오늘)
                 </h2>
-                {isLoadingLogs ? (
+                {isLoadingLogs || isLoadingStudents || isLoadingCustomExercises || isLoadingStudentGoals ? (
                   <div className="flex justify-center items-center h-40"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
-                ) : recordedExercises.length > 0 ? (
-                  <div className="space-y-3 max-h-[500px] overflow-y-auto bg-card p-4 rounded-xl shadow-md">
-                    {recordedExercises
-                      .filter(log => !selectedClass || log.className === selectedClass)
-                      .sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime() || (b.id && a.id ? b.id.localeCompare(a.id) : 0) )
-                      .slice(0, 20) 
-                      .map(log => {
-                        const student = students.find(s => s.id === log.studentId);
-                        const exerciseInfo = customExercises.find(ex => ex.id === log.exerciseId); 
-                        const formattedValue = formatExerciseValue(exerciseInfo, log);
-                        return (
-                          <div key={log.id} className="p-3 bg-secondary/30 rounded-lg shadow-sm text-sm">
-                            <div className="flex justify-between items-start">
-                                <div>
-                                    <p><strong>{student?.name || '알 수 없는 학생'}</strong> ({log.className} {student?.studentNumber}번)</p>
-                                    <p>{exerciseInfo?.koreanName || log.exerciseId}: {formattedValue}</p>
-                                    <p className="text-xs text-muted-foreground">
-                                    날짜: {format(parseISO(log.date), "PPP", { locale: ko })}
-                                    </p>
-                                </div>
-                                {log.imageUrl && (
-                                    <a href={log.imageUrl} target="_blank" rel="noopener noreferrer" className="ml-4 shrink-0">
-                                        <NextImage 
-                                            src={log.imageUrl} 
-                                            alt={`${student?.name || '학생'} 인증샷`} 
-                                            width={64} 
-                                            height={64} 
-                                            className="rounded-md object-cover border"
-                                            onError={(e) => {
-                                                const target = e.target as HTMLImageElement;
-                                                target.style.display = 'none';
-                                                const parent = target.parentElement;
-                                                if (parent && !parent.querySelector('.image-error-placeholder-small')) {
-                                                    const placeholder = document.createElement('div');
-                                                    placeholder.className = 'image-error-placeholder-small w-16 h-16 flex items-center justify-center bg-muted text-muted-foreground text-xs';
-                                                    placeholder.textContent = 'X';
-                                                    parent.appendChild(placeholder);
-                                                }
-                                            }}
-                                        />
-                                    </a>
-                                )}
-                            </div>
-                          </div>
-                        );
-                    })}
+                ) : !selectedClass ? (
+                   <div className="min-h-[200px] flex flex-col items-center justify-center text-muted-foreground bg-secondary/10 rounded-lg p-4 text-center">
+                    <School className="h-12 w-12 mb-4 text-primary" />
+                    <p className="text-lg">활동 기록을 보려면 먼저 학급을 선택해주세요.</p>
+                  </div>
+                ) : studentsInClass.length === 0 ? (
+                   <div className="min-h-[200px] flex flex-col items-center justify-center text-muted-foreground bg-secondary/10 rounded-lg p-4 text-center">
+                    <Users className="h-12 w-12 mb-4 text-primary" />
+                    <p className="text-lg">{selectedClass} 학급에 등록된 학생이 없습니다.</p>
+                    <p className="text-sm">먼저 '학생 목록' 탭에서 학생을 추가해주세요.</p>
+                  </div>
+                ) : customExercises.length === 0 ? (
+                  <div className="min-h-[200px] flex flex-col items-center justify-center text-muted-foreground bg-secondary/10 rounded-lg p-4 text-center">
+                    <Settings2 className="h-12 w-12 mb-4 text-primary" />
+                    <p className="text-lg">설정된 운동 목록이 없습니다.</p>
+                    <p className="text-sm">먼저 '운동 관리' 탭에서 운동을 설정하거나 초기화해주세요.</p>
                   </div>
                 ) : (
-                  <p className="text-muted-foreground text-center py-4">
-                    {selectedClass ? `${selectedClass} 학급의` : '전체'} 활동 기록이 없습니다.
-                  </p>
+                  <div className="overflow-x-auto bg-card p-4 rounded-xl shadow-md">
+                    <Table className="min-w-full">
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="w-[60px] sticky left-0 bg-card z-10">번호</TableHead>
+                          <TableHead className="w-[120px] sticky left-[60px] bg-card z-10">이름</TableHead>
+                          {customExercises.map(ex => (
+                            <TableHead key={ex.id} className="text-center min-w-[120px] whitespace-nowrap">{ex.koreanName}</TableHead>
+                          ))}
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {studentsInClass.map(student => (
+                          <TableRow key={student.id}>
+                            <TableCell className="sticky left-0 bg-card z-10">{student.studentNumber}</TableCell>
+                            <TableCell className="sticky left-[60px] bg-card z-10">{student.name}</TableCell>
+                            {customExercises.map(exercise => {
+                              const studentLogsForExerciseToday = recordedExercises.filter(log =>
+                                log.studentId === student.id &&
+                                log.exerciseId === exercise.id &&
+                                isToday(parseISO(log.date))
+                              );
+
+                              const studentGoalForExercise = allStudentGoals[student.id]?.[exercise.id];
+
+                              let achievedValue = 0;
+                              let goalValue: number | undefined = undefined;
+                              let unit = '';
+                              let hasGoal = false;
+
+                              if (exercise.id === 'squat' || exercise.id === 'jump_rope') {
+                                achievedValue = studentLogsForExerciseToday.reduce((sum, log) => sum + (log.countValue || 0), 0);
+                                unit = exercise.countUnit || '회';
+                                if (studentGoalForExercise?.count !== undefined) {
+                                  goalValue = studentGoalForExercise.count;
+                                  hasGoal = true;
+                                }
+                              } else if (exercise.id === 'plank') {
+                                achievedValue = studentLogsForExerciseToday.reduce((sum, log) => sum + (log.timeValue || 0), 0);
+                                unit = exercise.timeUnit || '초';
+                                if (studentGoalForExercise?.time !== undefined) {
+                                  goalValue = studentGoalForExercise.time;
+                                  hasGoal = true;
+                                }
+                              } else if (exercise.id === 'walk_run') {
+                                achievedValue = studentLogsForExerciseToday.reduce((sum, log) => sum + (log.distanceValue || 0), 0);
+                                unit = exercise.distanceUnit || 'm';
+                                if (studentGoalForExercise?.distance !== undefined) {
+                                  goalValue = studentGoalForExercise.distance;
+                                  hasGoal = true;
+                                }
+                              }
+
+                              const percentage = goalValue !== undefined && goalValue > 0
+                                               ? Math.min(100, Math.round((achievedValue / goalValue) * 100))
+                                               : (achievedValue > 0 ? 100 : 0);
+                              
+                              const displayExerciseIcon = getIconByName(exercise.iconName);
+                              const exerciseColor = chartColors[exercise.id]?.color || 'hsl(var(--primary))';
+
+                              if (achievedValue === 0 && (!hasGoal || (goalValue !== undefined && goalValue === 0))) {
+                                return (
+                                  <TableCell key={exercise.id} className="text-center align-middle p-1">
+                                    <div className="flex items-center justify-center h-20">
+                                      <span className="text-muted-foreground">-</span>
+                                    </div>
+                                  </TableCell>
+                                );
+                              }
+
+                              return (
+                                <TableCell key={exercise.id} className="text-center align-middle p-1 min-w-[120px]">
+                                  <div className="flex flex-col items-center justify-center">
+                                    <div
+                                      className="relative w-16 h-16 rounded-full flex items-center justify-center"
+                                      style={{
+                                        background: `conic-gradient(${exerciseColor} ${percentage}%, hsl(var(--muted)) ${percentage}%)`
+                                      }}
+                                    >
+                                      <div className="absolute w-[calc(100%-16px)] h-[calc(100%-16px)] bg-card rounded-full flex flex-col items-center justify-center shadow-inner p-1">
+                                        {displayExerciseIcon && <displayExerciseIcon className="h-4 w-4 mb-0.5" style={{ color: exerciseColor }} />}
+                                        <span className="text-xs font-bold truncate" style={{ color: exerciseColor }}>
+                                          {percentage}%
+                                        </span>
+                                      </div>
+                                    </div>
+                                    <p className="text-[10px] text-muted-foreground mt-1 leading-tight text-center max-w-[100px] break-words">
+                                      {hasGoal && goalValue !== undefined && goalValue > 0 ? (
+                                        <>
+                                          {achievedValue}{unit} / {" "}
+                                          <span className="text-foreground/80 font-medium">{goalValue}{unit}</span>
+                                        </>
+                                      ) : achievedValue > 0 ? (
+                                        `${achievedValue}${unit}`
+                                      ) : (
+                                        '-'
+                                      )}
+                                    </p>
+                                  </div>
+                                </TableCell>
+                              );
+                            })}
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
                 )}
              </section>
           </TabsContent>
@@ -894,7 +961,7 @@ export default function TeacherPage() {
                 {memoizedAiSuggestionBox}
               </section>
           </TabsContent>
-          
+
           <TabsContent value="exerciseManagement" className="mt-6">
             <section aria-labelledby="exercise-management-heading" className="bg-card p-6 rounded-xl shadow-md">
               <div className="flex justify-between items-center mb-6">
@@ -916,7 +983,7 @@ export default function TeacherPage() {
               ) : (
                 <div className="space-y-4">
                   {customExercises.map((ex) => {
-                    const Icon = Edit; 
+                    const Icon = Edit;
                     return (
                        <Card key={ex.id} className="shadow-sm">
                         <CardHeader className="flex flex-row justify-between items-start">
@@ -993,7 +1060,7 @@ export default function TeacherPage() {
               </h2>
               <div className="space-y-4">
                 <div className="flex gap-2">
-                  <Input 
+                  <Input
                     type="text"
                     value={newCompliment}
                     onChange={(e) => setNewCompliment(e.target.value)}
@@ -1010,9 +1077,9 @@ export default function TeacherPage() {
                     {compliments.map((phrase, index) => (
                       <div key={index} className="flex justify-between items-center p-2 bg-background rounded-md shadow-sm">
                         <span className="text-sm">{phrase}</span>
-                        <Button 
-                          variant="ghost" 
-                          size="sm" 
+                        <Button
+                          variant="ghost"
+                          size="sm"
                           onClick={() => handleDeleteCompliment(phrase)}
                           className="text-destructive hover:text-destructive/80"
                           aria-label={`${phrase} 삭제`}
@@ -1043,7 +1110,7 @@ export default function TeacherPage() {
               <div className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="recommendationTitleInput" className="text-base">제목</Label>
-                  <Input 
+                  <Input
                     id="recommendationTitleInput"
                     type="text"
                     value={newRecommendationTitle}
@@ -1066,7 +1133,7 @@ export default function TeacherPage() {
                 <Button onClick={handleAddExerciseRecommendation} className="rounded-lg py-3 w-full sm:w-auto">
                   <MessageSquarePlus className="mr-2 h-5 w-5" /> 추천 추가
                 </Button>
-                
+
                 {isLoadingRecommendations && <div className="flex justify-center py-4"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>}
                 {!isLoadingRecommendations && exerciseRecommendations.length > 0 ? (
                   <div className="space-y-3 max-h-[400px] overflow-y-auto border p-3 rounded-lg bg-secondary/20">
@@ -1077,9 +1144,9 @@ export default function TeacherPage() {
                             <h4 className="font-semibold text-primary">{rec.recommendationTitle}</h4>
                             <p className="text-sm text-muted-foreground mt-1">{rec.recommendationDetail}</p>
                           </div>
-                          <Button 
-                            variant="ghost" 
-                            size="sm" 
+                          <Button
+                            variant="ghost"
+                            size="sm"
                             onClick={() => handleDeleteExerciseRecommendation(rec)}
                             className="text-destructive hover:text-destructive/80 ml-2 shrink-0"
                             aria-label={`${rec.recommendationTitle} 삭제`}
