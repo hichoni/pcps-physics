@@ -265,6 +265,7 @@ export default function StudentPage() {
         unsubscribeLogs = unsub;
       });
     } else {
+      // Clear data when currentStudent is not set or no exercises are available
       setStudentGoals({}); 
       setStudentActivityLogs([]);
       setRecommendedExercise(null);
@@ -469,7 +470,11 @@ export default function StudentPage() {
   };
   
   const handleProofShotUploadComplete = (logId: string, imageUrl: string) => {
-    // This will be handled by the onSnapshot listener for studentActivityLogs
+    setStudentActivityLogs(prevLogs =>
+      prevLogs.map(log =>
+        log.id === logId ? { ...log, imageUrl: imageUrl } : log
+      )
+    );
   };
 
   const handleDeleteProofShot = async (logId: string) => {
@@ -480,6 +485,13 @@ export default function StudentPage() {
     try {
         const logDocRef = doc(db, "exerciseLogs", logId);
         await updateDoc(logDocRef, { imageUrl: null }); 
+        
+        setStudentActivityLogs(prevLogs => 
+            prevLogs.map(log => 
+                log.id === logId ? { ...log, imageUrl: undefined } : log
+            )
+        );
+
         toast({ title: "성공", description: "인증샷이 삭제되었습니다." });
     } catch (error) {
         console.error("Error deleting proof shot:", error);
