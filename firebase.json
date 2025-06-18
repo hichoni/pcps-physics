@@ -1,7 +1,7 @@
 {
   "hosting": {
     "site": "pcps",
-    "public": "dist",
+    "public": "public",
     "ignore": [
       "firebase.json",
       "**/.*",
