@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { CardContent } from "@/components/ui/card";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { EXERCISES } from "@/data/mockData";
+// import { EXERCISES as DEFAULT_EXERCISES } from "@/data/mockData"; // prop으로 받도록 변경
 import { cn } from "@/lib/utils";
 import { CalendarIcon, PlusCircle, MinusCircle, Save, Camera, UploadCloud, Loader2, AlertTriangle } from "lucide-react";
 import { format } from "date-fns";
@@ -27,16 +27,18 @@ interface ExerciseLogFormProps {
   onSave: (log: Omit<RecordedExercise, 'id'>) => void;
   recordedExercises: RecordedExercise[];
   onSwitchToCameraMode?: (exerciseId: string) => void;
+  availableExercises: Exercise[]; // 교사가 설정한 운동 목록을 받도록 추가
 }
 
-const ExerciseLogForm: React.FC<ExerciseLogFormProps> = ({ student, isOpen, onClose, onSave, recordedExercises, onSwitchToCameraMode }) => {
-  const [selectedExerciseId, setSelectedExerciseId] = useState<string>(EXERCISES[0].id);
+const ExerciseLogForm: React.FC<ExerciseLogFormProps> = ({ student, isOpen, onClose, onSave, recordedExercises, onSwitchToCameraMode, availableExercises }) => {
+  const initialExercise = availableExercises.length > 0 ? availableExercises[0] : null;
+  const [selectedExerciseId, setSelectedExerciseId] = useState<string>(initialExercise?.id || '');
 
-  const [countLogValue, setCountLogValue] = useState<number>(EXERCISES[0].defaultCount ?? 0);
-  const [timeLogValue, setTimeLogValue] = useState<number>(EXERCISES[0].defaultTime ?? 0);
+  const [countLogValue, setCountLogValue] = useState<number>(initialExercise?.defaultCount ?? 0);
+  const [timeLogValue, setTimeLogValue] = useState<number>(initialExercise?.defaultTime ?? 0);
 
-  const [stepsLogValue, setStepsLogValue] = useState<number>(EXERCISES[0].defaultSteps ?? 0);
-  const [distanceLogValue, setDistanceLogValue] = useState<number>(EXERCISES[0].defaultDistance ?? 0);
+  const [stepsLogValue, setStepsLogValue] = useState<number>(initialExercise?.defaultSteps ?? 0);
+  const [distanceLogValue, setDistanceLogValue] = useState<number>(initialExercise?.defaultDistance ?? 0);
 
   const [logDate, setLogDate] = useState<Date>(new Date());
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -45,18 +47,25 @@ const ExerciseLogForm: React.FC<ExerciseLogFormProps> = ({ student, isOpen, onCl
   const [uploadProgress, setUploadProgress] = useState<number>(0);
 
   const { toast } = useToast();
-  const selectedExercise = EXERCISES.find(ex => ex.id === selectedExerciseId) || EXERCISES[0];
+  const selectedExercise = availableExercises.find(ex => ex.id === selectedExerciseId) || initialExercise;
 
   const resetFormState = () => {
-    const currentEx = EXERCISES.find(ex => ex.id === selectedExerciseId) || EXERCISES[0];
-    setSelectedExerciseId(currentEx.id);
-
-    if (currentEx.category === 'count_time') {
-      setCountLogValue(currentEx.defaultCount ?? 0);
-      setTimeLogValue(currentEx.defaultTime ?? 0);
-    } else if (currentEx.category === 'steps_distance') {
-      setStepsLogValue(currentEx.defaultSteps ?? 0);
-      setDistanceLogValue(currentEx.defaultDistance ?? 0);
+    const currentEx = availableExercises.find(ex => ex.id === selectedExerciseId) || (availableExercises.length > 0 ? availableExercises[0] : null);
+    if (currentEx) {
+      setSelectedExerciseId(currentEx.id);
+      if (currentEx.category === 'count_time') {
+        setCountLogValue(currentEx.defaultCount ?? 0);
+        setTimeLogValue(currentEx.defaultTime ?? 0);
+      } else if (currentEx.category === 'steps_distance') {
+        setStepsLogValue(currentEx.defaultSteps ?? 0);
+        setDistanceLogValue(currentEx.defaultDistance ?? 0);
+      }
+    } else {
+      setSelectedExerciseId('');
+      setCountLogValue(0);
+      setTimeLogValue(0);
+      setStepsLogValue(0);
+      setDistanceLogValue(0);
     }
     setLogDate(new Date());
     setSelectedFile(null);
@@ -67,13 +76,16 @@ const ExerciseLogForm: React.FC<ExerciseLogFormProps> = ({ student, isOpen, onCl
 
   useEffect(() => {
     if (student && isOpen) {
+      if (availableExercises.length > 0 && !selectedExerciseId) {
+        setSelectedExerciseId(availableExercises[0].id);
+      }
       resetFormState();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [student, isOpen]);
+  }, [student, isOpen, availableExercises, selectedExerciseId]); // selectedExerciseId 추가
 
   useEffect(() => {
-    const currentExerciseDetails = EXERCISES.find(ex => ex.id === selectedExerciseId);
+    const currentExerciseDetails = availableExercises.find(ex => ex.id === selectedExerciseId);
     if (currentExerciseDetails) {
       if (currentExerciseDetails.category === 'count_time') {
         setCountLogValue(currentExerciseDetails.defaultCount ?? 0);
@@ -83,7 +95,7 @@ const ExerciseLogForm: React.FC<ExerciseLogFormProps> = ({ student, isOpen, onCl
         setDistanceLogValue(currentExerciseDetails.defaultDistance ?? 0);
       }
     }
-  }, [selectedExerciseId]);
+  }, [selectedExerciseId, availableExercises]);
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     if (event.target.files && event.target.files[0]) {
@@ -92,7 +104,7 @@ const ExerciseLogForm: React.FC<ExerciseLogFormProps> = ({ student, isOpen, onCl
         toast({ title: "파일 크기 초과", description: "이미지 파일은 5MB를 넘을 수 없습니다.", variant: "destructive" });
         setSelectedFile(null);
         setFilePreview(null);
-        event.target.value = ""; // Clear the input
+        event.target.value = ""; 
         return;
       }
       setSelectedFile(file);
@@ -104,7 +116,10 @@ const ExerciseLogForm: React.FC<ExerciseLogFormProps> = ({ student, isOpen, onCl
   };
 
   const handleSave = async () => {
-    if (!student || !selectedExercise) return;
+    if (!student || !selectedExercise) {
+      toast({ title: "오류", description: "학생 정보 또는 운동이 선택되지 않았습니다.", variant: "destructive" });
+      return;
+    }
 
     let imageUrl: string | undefined = undefined;
 
@@ -113,10 +128,10 @@ const ExerciseLogForm: React.FC<ExerciseLogFormProps> = ({ student, isOpen, onCl
       setUploadProgress(0);
 
       if (!storage) {
-        console.error("Firebase Storage is not initialized. Check firebase.ts and environment variables.");
+        console.error("Firebase Storage is not initialized.");
         toast({
           title: "업로드 설정 오류",
-          description: "파일 저장소(Storage)가 제대로 설정되지 않았습니다. 관리자에게 문의하세요.",
+          description: "파일 저장소(Storage)가 제대로 설정되지 않았습니다.",
           variant: "destructive",
         });
         setIsUploading(false);
@@ -137,26 +152,17 @@ const ExerciseLogForm: React.FC<ExerciseLogFormProps> = ({ student, isOpen, onCl
               setUploadProgress(progress);
             },
             (error: any) => {
-              console.error("Upload failed (Firebase Storage Error):", error, "Error Code:", error.code);
+              console.error("Upload failed:", error, "Error Code:", error.code);
               let description = "이미지 업로드 중 오류가 발생했습니다.";
               if (error.code) {
                 description += ` (오류 코드: ${error.code})`;
-                if (error.code === 'storage/unauthorized') {
-                    description = "이미지 업로드 권한이 없습니다. Firebase Storage 규칙을 확인해주세요. (오류 코드: storage/unauthorized)";
-                } else if (error.code === 'storage/bucket-not-found' || error.code === 'storage/project-not-found') {
-                    description = "저장소 버킷 또는 프로젝트를 찾을 수 없습니다. Firebase 설정 및 Storage 초기화를 확인해주세요. (오류 코드: " + error.code + ")";
-                } else if (error.code === 'storage/canceled') {
-                    description = "이미지 업로드가 취소되었습니다.";
-                } else if (error.code === 'storage/unknown') {
-                    description = "알 수 없는 오류로 이미지 업로드에 실패했습니다. 네트워크 연결을 확인해주세요.";
-                }
               }
               toast({
                 title: "업로드 실패",
                 description: description,
                 variant: "destructive",
               });
-              reject(error); // Propagate the error to stop further execution
+              reject(error); 
             },
             async () => {
               try {
@@ -175,11 +181,9 @@ const ExerciseLogForm: React.FC<ExerciseLogFormProps> = ({ student, isOpen, onCl
           );
         });
       } catch (error: any) {
-        // This catch block handles rejections from the promise (e.g., if toast was already shown).
-        // Ensure loading state is reset if any error occurs during the upload process.
         setIsUploading(false);
         setUploadProgress(0);
-        return; // Stop further execution if upload failed
+        return; 
       }
       setIsUploading(false);
       setUploadProgress(0);
@@ -195,17 +199,17 @@ const ExerciseLogForm: React.FC<ExerciseLogFormProps> = ({ student, isOpen, onCl
 
     if (selectedExercise.category === 'count_time') {
       logEntry.countValue = countLogValue;
-      logEntry.timeValue = timeLogValue; // Corrected from timeValue to timeLogValue
+      logEntry.timeValue = timeLogValue;
     } else if (selectedExercise.category === 'steps_distance') {
       logEntry.stepsValue = stepsLogValue;
       logEntry.distanceValue = distanceLogValue;
     }
 
     onSave(logEntry);
-    onClose(); // Close dialog after saving
+    onClose(); 
   };
 
-  if (!student) return null;
+  if (!student || !selectedExercise) return null;
 
   const todayStr = format(logDate, "yyyy-MM-dd");
   const exercisesLoggedTodayForStudent = recordedExercises.filter(
@@ -237,7 +241,8 @@ const ExerciseLogForm: React.FC<ExerciseLogFormProps> = ({ student, isOpen, onCl
     }
   }
 
-  const canUseCameraForExercise = selectedExercise.id === 'ex4' && onSwitchToCameraMode;
+  const canUseCameraForExercise = selectedExercise.id === 'ex4' && onSwitchToCameraMode; // 'ex4'는 줄넘기 ID
+  const IconComponent = selectedExercise.icon;
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => { if (!open) { onClose(); resetFormState(); } }}>
@@ -251,24 +256,31 @@ const ExerciseLogForm: React.FC<ExerciseLogFormProps> = ({ student, isOpen, onCl
         <CardContent className="p-6 space-y-6 max-h-[70vh] overflow-y-auto">
           <div>
             <label className="text-sm font-medium block mb-2">운동 종류</label>
-            <div className="grid grid-cols-2 gap-3">
-              {EXERCISES.map((exercise) => (
-                <Button
-                  key={exercise.id}
-                  variant={selectedExerciseId === exercise.id ? "default" : "outline"}
-                  onClick={() => setSelectedExerciseId(exercise.id)}
-                  className="h-auto py-3 flex flex-col items-center justify-center gap-2 rounded-lg text-sm transition-all duration-200 ease-in-out transform hover:scale-105"
-                  aria-pressed={selectedExerciseId === exercise.id}
-                  disabled={isUploading}
-                >
-                  <exercise.icon className={cn("h-8 w-8 mb-1", selectedExerciseId === exercise.id ? "text-primary-foreground" : "text-primary")} />
-                  <span>{exercise.koreanName}</span>
-                </Button>
-              ))}
-            </div>
+            {availableExercises.length > 0 ? (
+              <div className="grid grid-cols-2 gap-3">
+                {availableExercises.map((exercise) => {
+                  const CurrentExIcon = exercise.icon; // LucideIcon 타입
+                  return (
+                    <Button
+                      key={exercise.id}
+                      variant={selectedExerciseId === exercise.id ? "default" : "outline"}
+                      onClick={() => setSelectedExerciseId(exercise.id)}
+                      className="h-auto py-3 flex flex-col items-center justify-center gap-2 rounded-lg text-sm transition-all duration-200 ease-in-out transform hover:scale-105"
+                      aria-pressed={selectedExerciseId === exercise.id}
+                      disabled={isUploading}
+                    >
+                      <CurrentExIcon className={cn("h-8 w-8 mb-1", selectedExerciseId === exercise.id ? "text-primary-foreground" : "text-primary")} />
+                      <span>{exercise.koreanName}</span>
+                    </Button>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">선생님께서 아직 운동을 설정하지 않으셨어요.</p>
+            )}
           </div>
 
-          {selectedExercise.category === 'count_time' && (
+          {selectedExercise && selectedExercise.category === 'count_time' && (
             <>
               {selectedExercise.countUnit && (
                 <div>
@@ -305,7 +317,7 @@ const ExerciseLogForm: React.FC<ExerciseLogFormProps> = ({ student, isOpen, onCl
             </>
           )}
 
-          {selectedExercise.category === 'steps_distance' && (
+          {selectedExercise && selectedExercise.category === 'steps_distance' && (
             <>
               {selectedExercise.stepsUnit && (
                 <div>
@@ -400,11 +412,11 @@ const ExerciseLogForm: React.FC<ExerciseLogFormProps> = ({ student, isOpen, onCl
             )}
           </div>
 
-          {canUseCameraForExercise && (
+          {selectedExercise && canUseCameraForExercise && (
             <Button
               variant="secondary"
               className="w-full py-3 text-base rounded-lg mt-4"
-              onClick={() => onSwitchToCameraMode(selectedExercise.id)}
+              onClick={() => onSwitchToCameraMode!(selectedExercise.id)}
               disabled={isUploading}
             >
               <Camera className="mr-2 h-5 w-5" /> AI 카메라로 기록 (줄넘기)
@@ -416,7 +428,7 @@ const ExerciseLogForm: React.FC<ExerciseLogFormProps> = ({ student, isOpen, onCl
           <DialogClose asChild>
             <Button variant="outline" className="py-3 text-base rounded-lg" disabled={isUploading}>취소</Button>
           </DialogClose>
-          <Button onClick={handleSave} className="py-3 text-base rounded-lg" disabled={isUploading || ((selectedExercise.category === 'count_time' && countLogValue === 0 && timeLogValue === 0) || (selectedExercise.category === 'steps_distance' && stepsLogValue === 0 && distanceLogValue === 0) && !selectedFile) }>
+          <Button onClick={handleSave} className="py-3 text-base rounded-lg" disabled={isUploading || !selectedExercise || ((selectedExercise.category === 'count_time' && countLogValue === 0 && timeLogValue === 0) || (selectedExercise.category === 'steps_distance' && stepsLogValue === 0 && distanceLogValue === 0) && !selectedFile) }>
             {isUploading ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <Save className="mr-2 h-5 w-5" />}
             {isUploading ? '저장 중...' : '기록 저장'}
           </Button>
@@ -427,4 +439,3 @@ const ExerciseLogForm: React.FC<ExerciseLogFormProps> = ({ student, isOpen, onCl
 };
 
 export default ExerciseLogForm;
-    

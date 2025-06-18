@@ -1,7 +1,6 @@
 
-import type { Exercise } from '@/lib/types'; // Student and ClassName removed
-import { Footprints } from 'lucide-react';
-import { SquatIcon, PlankIcon, JumpRopeIcon } from '@/components/icons';
+import type { Exercise } from '@/lib/types';
+import { Footprints, Dumbbell, Activity, Zap } from 'lucide-react'; // Lucide 아이콘 직접 임포트
 
 // CLASSES and STUDENTS_DATA are removed as data will be managed in Firestore by the teacher.
 
@@ -9,7 +8,8 @@ export const EXERCISES: Exercise[] = [
   { 
     id: 'ex1', 
     koreanName: '스쿼트', 
-    icon: SquatIcon, 
+    icon: Dumbbell, 
+    iconName: 'Dumbbell',
     category: 'count_time',
     countUnit: '회', 
     defaultCount: 10, 
@@ -22,20 +22,22 @@ export const EXERCISES: Exercise[] = [
   { 
     id: 'ex2', 
     koreanName: '플랭크', 
-    icon: PlankIcon, 
+    icon: Activity, 
+    iconName: 'Activity',
     category: 'count_time',
     countUnit: '회', 
-    defaultCount: 1, // 1세트 의미
+    defaultCount: 1, 
     countStep: 1,
-    timeUnit: '초', // '분'에서 '초'로 변경
-    defaultTime: 30, // 0.5분 -> 30초
-    timeStep: 1, // 0.5 -> 1초 단위
+    timeUnit: '초', 
+    defaultTime: 30, 
+    timeStep: 10, // 1초보다는 10초 단위가 조절하기 편할 수 있음
     dataAiHint: 'child plank'
   },
   { 
     id: 'ex3', 
     koreanName: '걷기/달리기', 
     icon: Footprints, 
+    iconName: 'Footprints',
     category: 'steps_distance',
     stepsUnit: '걸음',
     defaultSteps: 1000,
@@ -48,7 +50,8 @@ export const EXERCISES: Exercise[] = [
   { 
     id: 'ex4', 
     koreanName: '줄넘기', 
-    icon: JumpRopeIcon, 
+    icon: Zap, 
+    iconName: 'Zap',
     category: 'count_time',
     countUnit: '회',
     defaultCount: 50,
@@ -59,4 +62,3 @@ export const EXERCISES: Exercise[] = [
     dataAiHint: 'child jump rope'
   },
 ];
-

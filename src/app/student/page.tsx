@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from '@/components/ui/button';
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dumbbell, Target, History, PlusCircle, LogOut, UserCheck, Loader2, AlertTriangle, KeyRound, Edit3, Camera, ImageIcon, CheckSquare } from 'lucide-react';
+import { Dumbbell, Target, History, PlusCircle, LogOut, UserCheck, Loader2, AlertTriangle, KeyRound, Edit3, Camera, ImageIcon, CheckSquare, Flag, Heart, Star as GoalStarIcon } from 'lucide-react';
 import type { Student, ClassName, Exercise, StudentGoal, RecordedExercise, Gender } from '@/lib/types';
 import { EXERCISES } from '@/data/mockData';
 import SetStudentGoalsDialog from '@/components/SetStudentGoalsDialog';
@@ -130,7 +130,7 @@ export default function StudentPage() {
       setDailyCompliment(adjectiveList[adjectiveIndex] || adjectiveList[0] || "");
 
       // Welcome Message
-      const welcomeMsgDocRef = doc(db, STUDENT_WELCOME_MESSAGE_DOC_PATH); // Removed ", "message""
+      const welcomeMsgDocRef = doc(db, STUDENT_WELCOME_MESSAGE_DOC_PATH); 
       const welcomeMsgDocSnap = await getDoc(welcomeMsgDocRef);
       if (welcomeMsgDocSnap.exists() && welcomeMsgDocSnap.data().text) {
         setStudentWelcomeMessage(welcomeMsgDocSnap.data().text);
@@ -339,14 +339,67 @@ export default function StudentPage() {
     const todayLogsWithImages = studentActivityLogs
       .filter(log => log.studentId === currentStudent.id && isToday(parseISO(log.date)) && log.imageUrl)
       .sort((a, b) => {
-        // Assuming IDs are sortable and newer logs have "larger" IDs (e.g., Firestore auto-IDs)
-        // If IDs are not sortable or not guaranteed to be sequential by time,
-        // you might need a timestamp field in your log for more reliable sorting.
         if (a.id && b.id) return b.id.localeCompare(a.id); 
         return 0;
       });
     return todayLogsWithImages.length > 0 ? todayLogsWithImages[0] : null;
   }, [currentStudent, studentActivityLogs]);
+  
+  const getExerciseProgressText = useCallback((exerciseId: string): string => {
+    if (!currentStudent) return "";
+    const exercise = EXERCISES.find(ex => ex.id === exerciseId);
+    if (!exercise) return "";
+
+    const goal = studentGoals[exerciseId];
+    if (!goal || Object.values(goal).every(v => v === undefined || v === 0)) {
+      return ""; // 목표 없음
+    }
+
+    const logsForToday = studentActivityLogs.filter(log => log.studentId === currentStudent.id && log.exerciseId === exerciseId && isToday(parseISO(log.date)));
+    
+    let achievedText = "";
+    let goalText = "";
+    let percentageText = "";
+
+    if (exercise.category === 'count_time') {
+      const totalCountAchieved = logsForToday.reduce((sum, log) => sum + (log.countValue || 0), 0);
+      const totalTimeAchieved = logsForToday.reduce((sum, log) => sum + (log.timeValue || 0), 0);
+
+      if (goal.count && exercise.countUnit) {
+        const percent = goal.count > 0 ? Math.min(100, Math.round((totalCountAchieved / goal.count) * 100)) : 100;
+        achievedText = `${totalCountAchieved}${exercise.countUnit}`;
+        goalText = `${goal.count}${exercise.countUnit}`;
+        percentageText = ` (${percent}%)`;
+      } else if (goal.time && exercise.timeUnit) {
+        const percent = goal.time > 0 ? Math.min(100, Math.round((totalTimeAchieved / goal.time) * 100)) : 100;
+        achievedText = `${totalTimeAchieved}${exercise.timeUnit}`;
+        goalText = `${goal.time}${exercise.timeUnit}`;
+        percentageText = ` (${percent}%)`;
+      }
+    } else if (exercise.category === 'steps_distance') {
+      const totalStepsAchieved = logsForToday.reduce((sum, log) => sum + (log.stepsValue || 0), 0);
+      const totalDistanceAchieved = logsForToday.reduce((sum, log) => sum + (log.distanceValue || 0), 0);
+
+      if (goal.steps && exercise.stepsUnit) {
+        const percent = goal.steps > 0 ? Math.min(100, Math.round((totalStepsAchieved / goal.steps) * 100)) : 100;
+        achievedText = `${totalStepsAchieved}${exercise.stepsUnit}`;
+        goalText = `${goal.steps}${exercise.stepsUnit}`;
+        percentageText = ` (${percent}%)`;
+      } else if (goal.distance && exercise.distanceUnit) {
+        const percent = goal.distance > 0 ? Math.min(100, Math.round((totalDistanceAchieved / goal.distance) * 100)) : 100;
+        achievedText = `${totalDistanceAchieved}${exercise.distanceUnit}`;
+        goalText = `${goal.distance}${exercise.distanceUnit}`;
+        percentageText = ` (${percent}%)`;
+      }
+    }
+    
+    if (achievedText && goalText) {
+      return `오늘 ${achievedText} / 목표 ${goalText}${percentageText}`;
+    }
+    return "";
+
+  }, [studentGoals, studentActivityLogs, currentStudent]);
+
 
   if (isLoadingLoginOptions) {
     return <div className="flex justify-center items-center min-h-screen"><Loader2 className="h-8 w-8 animate-spin text-primary" /> 학생 정보 로딩 중...</div>;
@@ -557,27 +610,40 @@ export default function StudentPage() {
             <CardHeader>
               <CardTitle className="flex items-center font-headline text-xl">
                 <Target className="mr-3 h-7 w-7 text-accent" />
-                나의 운동 목표
+                오늘의 운동 목표
               </CardTitle>
-              <CardDescription>목표를 설정하고 달성해봐요!</CardDescription>
+              <CardDescription>목표를 설정하고 달성해봐요! (오늘 기록 기준)</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3 flex-grow flex flex-col">
               {hasEffectiveGoals ? (
                  <div className="flex items-center justify-center min-h-[10rem] bg-secondary/20 rounded-lg p-3 flex-grow">
-                  <ul className="text-sm list-disc list-inside pl-2 text-left w-full overflow-y-auto max-h-full">
+                  <ul className="text-sm list-none space-y-1.5 pl-0 text-left w-full overflow-y-auto max-h-full">
                     {EXERCISES.filter(ex => studentGoals[ex.id] && Object.values(studentGoals[ex.id]).some(v => v !== undefined && v > 0) ).map(exercise => {
                       const goal = studentGoals[exercise.id];
-                      let goalText = `${exercise.koreanName}: `;
+                      let goalText = "";
                       const parts = [];
                       if (exercise.category === 'count_time') {
-                        if (goal?.count) parts.push(`${goal.count}${exercise.countUnit || ''}`);
-                        if (goal?.time) parts.push(`${goal.time}${exercise.timeUnit || ''}`);
+                        if (goal?.count && exercise.countUnit) parts.push(`${goal.count}${exercise.countUnit}`);
+                        if (goal?.time && exercise.timeUnit) parts.push(`${goal.time}${exercise.timeUnit}`);
                       } else if (exercise.category === 'steps_distance') {
-                        if (goal?.steps) parts.push(`${goal.steps}${exercise.stepsUnit || ''}`);
-                        if (goal?.distance) parts.push(`${goal.distance}${exercise.distanceUnit || ''}`);
+                        if (goal?.steps && exercise.stepsUnit) parts.push(`${goal.steps}${exercise.stepsUnit}`);
+                        if (goal?.distance && exercise.distanceUnit) parts.push(`${goal.distance}${exercise.distanceUnit}`);
                       }
-                      goalText += parts.join(', ');
-                      return <li key={exercise.id} className="truncate py-0.5" title={goalText}>{goalText}</li>;
+                      goalText = parts.join(', ');
+                      const progressText = getExerciseProgressText(exercise.id);
+
+                      return (
+                        <li key={exercise.id} className="truncate py-1 border-b border-border/50 last:border-b-0" title={`${exercise.koreanName}: ${goalText}`}>
+                          <div className="flex items-center justify-between">
+                            <span className="font-medium text-primary">
+                              {React.createElement(exercise.icon, {className: "inline-block mr-2 h-4 w-4"})}
+                              {exercise.koreanName}
+                            </span>
+                            <span className="text-xs text-muted-foreground">{goalText}</span>
+                          </div>
+                          {progressText && <p className="text-xs text-accent mt-0.5">{progressText}</p>}
+                        </li>
+                      );
                     })}
                   </ul>
                 </div>
@@ -626,7 +692,7 @@ export default function StudentPage() {
                 <History className="mr-3 h-7 w-7 text-destructive" />
                 <div>
                     <CardTitle className="font-headline text-xl">나의 활동 내역</CardTitle>
-                    <CardDescription>선택한 기간의 운동 기록을 확인하고, 최근 활동도 살펴봐요.</CardDescription>
+                    <CardDescription>선택한 기간의 운동 기록을 확인하고, 목표 달성도도 살펴봐요.</CardDescription>
                 </div>
               </div>
               <div className="flex gap-2 self-start sm:self-center shrink-0">
@@ -647,7 +713,7 @@ export default function StudentPage() {
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
-            <StudentActivityChart logs={studentActivityLogs} timeFrame={activityChartTimeFrame} />
+            <StudentActivityChart logs={studentActivityLogs} timeFrame={activityChartTimeFrame} studentGoals={studentGoals} />
             
             <h4 className="text-md font-semibold pt-6 border-t mt-8">최근 5개 활동:</h4>
             {studentActivityLogs.length === 0 ? (
@@ -719,6 +785,7 @@ export default function StudentPage() {
             onSave={handleSaveExerciseLog}
             recordedExercises={studentActivityLogs} 
             onSwitchToCameraMode={handleSwitchToCameraMode}
+            availableExercises={EXERCISES} // 기본 운동 목록 전달 (향후 커스텀 목록으로 대체)
           />
         )}
 
@@ -726,7 +793,7 @@ export default function StudentPage() {
           isOpen={isGoalsDialogOpen}
           onClose={() => setIsGoalsDialogOpen(false)}
           onSave={handleSaveGoals}
-          exercises={EXERCISES}
+          exercises={EXERCISES} // 기본 운동 목록 전달 (향후 커스텀 목록으로 대체)
           currentStudent={currentStudent}
           initialGoals={studentGoals}
         />
@@ -755,6 +822,3 @@ export default function StudentPage() {
     </div>
   );
 }
-    
-
-    

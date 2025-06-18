@@ -2,8 +2,8 @@
 'use client';
 
 import React from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import type { RecordedExercise, Exercise } from '@/lib/types';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import type { RecordedExercise, Exercise, StudentGoal } from '@/lib/types';
 import { EXERCISES } from '@/data/mockData';
 import { 
   startOfWeek, 
@@ -15,30 +15,32 @@ import {
   parseISO 
 } from 'date-fns';
 import { cn } from '@/lib/utils';
+import { Target, TrendingUp, CheckCircle2 } from 'lucide-react';
+
 
 interface StudentActivityChartProps {
   logs: RecordedExercise[];
   timeFrame: 'today' | 'week' | 'month';
+  studentGoals: StudentGoal; // 학생 목표 데이터 추가
 }
 
-// Define a simple color mapping if not using full chartConfig for recharts
 const exerciseColors: Record<string, string> = {
-  'ex1': 'hsl(var(--chart-1))', // Squat - Blue
-  'ex2': 'hsl(var(--chart-2))', // Plank - Green
-  'ex3': 'hsl(var(--chart-3))', // Walk/Run - Yellow
-  'ex4': 'hsl(var(--chart-4))', // Jump Rope - Lighter Blue
+  'ex1': 'hsl(var(--chart-1))', 
+  'ex2': 'hsl(var(--chart-2))', 
+  'ex3': 'hsl(var(--chart-3))', 
+  'ex4': 'hsl(var(--chart-4))', 
 };
 
-const StudentActivityChart: React.FC<StudentActivityChartProps> = ({ logs, timeFrame }) => {
+const StudentActivityChart: React.FC<StudentActivityChartProps> = ({ logs, timeFrame, studentGoals }) => {
   const today = new Date();
 
   const filteredLogs = logs.filter(log => {
-    const logDate = parseISO(log.date); // Ensure log.date is in "yyyy-MM-dd" or ISO format
+    const logDate = parseISO(log.date);
     if (timeFrame === 'today') {
       return isToday(logDate);
     }
     if (timeFrame === 'week') {
-      const weekStart = startOfWeek(today, { weekStartsOn: 1 }); // Monday
+      const weekStart = startOfWeek(today, { weekStartsOn: 1 }); 
       const weekEnd = endOfWeek(today, { weekStartsOn: 1 });
       return isWithinInterval(logDate, { start: weekStart, end: weekEnd });
     }
@@ -52,29 +54,27 @@ const StudentActivityChart: React.FC<StudentActivityChartProps> = ({ logs, timeF
 
   const exerciseSummaries = EXERCISES.map((exercise: Exercise) => {
     const logsForThisExercise = filteredLogs.filter(log => log.exerciseId === exercise.id);
-    let totalValue = 0;
+    let totalAchievedValue = 0;
+    let goalValue: number | undefined = undefined;
     let unit = '';
+    let progressText = '';
 
-    switch (exercise.id) {
-      case 'ex1': // 스쿼트 (횟수)
-        totalValue = logsForThisExercise.reduce((sum, log) => sum + (log.countValue || 0), 0);
-        unit = exercise.countUnit || '회';
-        break;
-      case 'ex2': // 플랭크 (시간)
-        totalValue = logsForThisExercise.reduce((sum, log) => sum + (log.timeValue || 0), 0);
-        unit = exercise.timeUnit || '초';
-        break;
-      case 'ex3': // 걷기/달리기 (거리)
-        totalValue = logsForThisExercise.reduce((sum, log) => sum + (log.distanceValue || 0), 0);
-        unit = exercise.distanceUnit || 'm';
-        break;
-      case 'ex4': // 줄넘기 (횟수)
-        totalValue = logsForThisExercise.reduce((sum, log) => sum + (log.countValue || 0), 0);
-        unit = exercise.countUnit || '회';
-        break;
-      default:
-        totalValue = 0;
-        unit = '';
+    if (exercise.category === 'count_time') {
+      totalAchievedValue = logsForThisExercise.reduce((sum, log) => sum + ((log.countValue || 0) || (log.timeValue || 0)), 0); // 주 단위 우선
+      unit = exercise.countUnit || exercise.timeUnit || '';
+      goalValue = studentGoals[exercise.id]?.count ?? studentGoals[exercise.id]?.time;
+      if (goalValue && unit) {
+         const percent = goalValue > 0 ? Math.min(100, Math.round((totalAchievedValue / goalValue) * 100)) : (totalAchievedValue > 0 ? 100 : 0);
+         progressText = `목표: ${goalValue}${unit} (${percent}%)`;
+      }
+    } else if (exercise.category === 'steps_distance') {
+      totalAchievedValue = logsForThisExercise.reduce((sum, log) => sum + ((log.stepsValue || 0) || (log.distanceValue || 0)), 0); // 주 단위 우선
+      unit = exercise.stepsUnit || exercise.distanceUnit || '';
+      goalValue = studentGoals[exercise.id]?.steps ?? studentGoals[exercise.id]?.distance;
+       if (goalValue && unit) {
+         const percent = goalValue > 0 ? Math.min(100, Math.round((totalAchievedValue / goalValue) * 100)) : (totalAchievedValue > 0 ? 100 : 0);
+         progressText = `목표: ${goalValue}${unit} (${percent}%)`;
+      }
     }
     
     const IconComponent = exercise.icon;
@@ -83,9 +83,12 @@ const StudentActivityChart: React.FC<StudentActivityChartProps> = ({ logs, timeF
       id: exercise.id,
       name: exercise.koreanName,
       IconComponent: IconComponent,
-      value: totalValue,
+      achievedValue: totalAchievedValue,
       unit: unit,
       color: exerciseColors[exercise.id] || 'hsl(var(--foreground))',
+      goalText: progressText || (goalValue ? `목표: ${goalValue}${unit}` : "목표 없음"),
+      hasGoal: !!goalValue,
+      isAchieved: goalValue !== undefined && totalAchievedValue >= goalValue,
     };
   });
 
@@ -102,19 +105,26 @@ const StudentActivityChart: React.FC<StudentActivityChartProps> = ({ logs, timeF
       {exerciseSummaries.map(summary => {
         const IconComp = summary.IconComponent;
         return (
-          <Card key={summary.id} className="shadow-sm rounded-xl hover:shadow-lg transition-shadow duration-200 ease-in-out">
+          <Card key={summary.id} className="shadow-sm rounded-xl hover:shadow-lg transition-shadow duration-200 ease-in-out flex flex-col">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">
                 {summary.name}
               </CardTitle>
               <IconComp className="h-5 w-5" style={{ color: summary.color }} />
             </CardHeader>
-            <CardContent>
+            <CardContent className="flex-grow">
               <div className="text-3xl font-bold" style={{ color: summary.color }}>
-                {summary.value.toLocaleString()}
+                {summary.achievedValue.toLocaleString()}
+                <span className="text-xl ml-1">{summary.unit}</span>
               </div>
-              <p className="text-xs text-muted-foreground">
-                {summary.unit}
+              <p className={cn("text-xs mt-1", summary.hasGoal ? "text-accent" : "text-muted-foreground/70")}>
+                {summary.hasGoal ? (
+                    <Target className="inline-block h-3 w-3 mr-1" />
+                ) : (
+                    <TrendingUp className="inline-block h-3 w-3 mr-1 opacity-50" />
+                )}
+                {summary.goalText}
+                {summary.isAchieved && <CheckCircle2 className="inline-block h-3.5 w-3.5 ml-1.5 text-green-500" />}
               </p>
             </CardContent>
           </Card>

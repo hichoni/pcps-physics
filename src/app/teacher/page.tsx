@@ -10,15 +10,16 @@ import AiSuggestionBox from '@/components/AiSuggestionBox';
 import AddStudentDialog from '@/components/AddStudentDialog';
 import ManageStudentPinDialog from '@/components/ManageStudentPinDialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import type { Student, ClassName, RecordedExercise, Exercise, Gender, TeacherExerciseRecommendation } from '@/lib/types';
-import { EXERCISES } from '@/data/mockData';
+import type { Student, ClassName, RecordedExercise, Exercise, Gender, TeacherExerciseRecommendation, CustomExercise } from '@/lib/types';
+import { EXERCISES as DEFAULT_EXERCISES } from '@/data/mockData'; // Renamed to avoid conflict
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Users, BarChart2, Lightbulb, ListChecks, UserPlus, Trash2, Sparkles, MessageSquarePlus, MessageSquareX, Loader2, Wand2, KeyRound, LogIn, Image as ImageIcon, Edit } from 'lucide-react';
+import { Users, BarChart2, Lightbulb, ListChecks, UserPlus, Trash2, Sparkles, MessageSquarePlus, MessageSquareX, Loader2, Wand2, KeyRound, LogIn, Image as ImageIcon, Edit, Settings2, School } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle as PinCardTitle, CardDescription as PinCardDescription } from '@/components/ui/card';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { format, parseISO } from 'date-fns';
 import { ko } from 'date-fns/locale';
 import { useToast } from "@/hooks/use-toast";
@@ -40,7 +41,7 @@ const formatExerciseValue = (exercise: Exercise, log: RecordedExercise): string 
   return parts.join(', ');
 };
 
-const DEFAULT_COMPLIMENTS = [
+const DEFAULT_COMPLIMENTS_LIST = [
   "별처럼 빛나는", "항상 긍정적인", "꿈을 향해 달리는", "세상을 밝히는",
   "용감하고 씩씩한", "매일 성장하는", "사랑스러운", "창의적인", "지혜로운",
   "친절한", "도전하는", "행복을 전하는", "자신감 넘치는", "에너지 넘치는",
@@ -50,11 +51,14 @@ const DEFAULT_COMPLIMENTS = [
 const COMPLIMENTS_DOC_PATH = "appConfig/complimentsDoc";
 const RECOMMENDATIONS_DOC_PATH = "appConfig/exerciseRecommendationsDoc";
 const STUDENT_WELCOME_MESSAGE_DOC_PATH = "appConfig/studentWelcomeMessageDoc"; 
-const DEFAULT_STUDENT_WELCOME_MESSAGE = "오늘도 즐겁게 운동하고 건강해져요! 어떤 활동을 계획하고 있나요?";
+const DEFAULT_STUDENT_WELCOME_MSG = "오늘도 즐겁게 운동하고 건강해져요! 어떤 활동을 계획하고 있나요?";
+const CUSTOM_EXERCISES_DOC_PATH = "appConfig/customExercisesDoc";
 const TEACHER_PIN = "0408";
+const GRADES = ["1학년", "2학년", "3학년", "4학년", "5학년", "6학년", "기타"];
 
 
 export default function TeacherPage() {
+  const [selectedGrade, setSelectedGrade] = useState<string>('');
   const [pinInput, setPinInput] = useState('');
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [pinError, setPinError] = useState('');
@@ -65,17 +69,18 @@ export default function TeacherPage() {
   const [students, setStudents] = useState<Student[]>([]);
   const [dynamicClasses, setDynamicClasses] = useState<ClassName[]>([]);
   const [recordedExercises, setRecordedExercises] = useState<RecordedExercise[]>([]);
-  const [compliments, setCompliments] = useState<string[]>(DEFAULT_COMPLIMENTS);
+  const [compliments, setCompliments] = useState<string[]>(DEFAULT_COMPLIMENTS_LIST);
   const [exerciseRecommendations, setExerciseRecommendations] = useState<TeacherExerciseRecommendation[]>([]);
-  const [studentWelcomeMessage, setStudentWelcomeMessage] = useState<string>(DEFAULT_STUDENT_WELCOME_MESSAGE);
+  const [studentWelcomeMessage, setStudentWelcomeMessage] = useState<string>(DEFAULT_STUDENT_WELCOME_MSG);
   const [studentWelcomeMessageInput, setStudentWelcomeMessageInput] = useState<string>('');
-
+  const [customExercises, setCustomExercises] = useState<CustomExercise[]>(DEFAULT_EXERCISES.map(ex => ({...ex}))); // 기본값으로 mockData 사용
 
   const [isLoadingStudents, setIsLoadingStudents] = useState(true);
   const [isLoadingLogs, setIsLoadingLogs] = useState(true);
   const [isLoadingCompliments, setIsLoadingCompliments] = useState(true);
   const [isLoadingRecommendations, setIsLoadingRecommendations] = useState(true);
   const [isLoadingWelcomeMessage, setIsLoadingWelcomeMessage] = useState(true);
+  const [isLoadingCustomExercises, setIsLoadingCustomExercises] = useState(true);
 
 
   const [studentsInClass, setStudentsInClass] = useState<Student[]>([]);
@@ -93,6 +98,7 @@ export default function TeacherPage() {
 
   const handlePinSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    // 실제 학년별 PIN 로직은 추후 구현. 현재는 선택된 학년과 관계없이 고정 PIN으로 인증.
     if (pinInput === TEACHER_PIN) {
       setIsAuthenticated(true);
       setPinError('');
@@ -156,15 +162,15 @@ export default function TeacherPage() {
       if (complimentsDocSnap.exists() && complimentsDocSnap.data().list) {
         setCompliments(complimentsDocSnap.data().list);
       } else {
-        setCompliments(DEFAULT_COMPLIMENTS);
+        setCompliments(DEFAULT_COMPLIMENTS_LIST);
         if (!complimentsDocSnap.exists()) {
-            await setDoc(complimentsDocRef, { list: DEFAULT_COMPLIMENTS });
+            await setDoc(complimentsDocRef, { list: DEFAULT_COMPLIMENTS_LIST });
         }
       }
     } catch (error) {
       console.error("Error fetching compliments: ", error);
       toast({ title: "오류", description: "칭찬 문구를 불러오는 데 실패했습니다.", variant: "destructive"});
-      setCompliments(DEFAULT_COMPLIMENTS);
+      setCompliments(DEFAULT_COMPLIMENTS_LIST);
     } finally {
       setIsLoadingCompliments(false);
     }
@@ -195,24 +201,44 @@ export default function TeacherPage() {
   const fetchStudentWelcomeMessage = useCallback(async () => {
     setIsLoadingWelcomeMessage(true);
     try {
-      const welcomeMsgDocRef = doc(db, STUDENT_WELCOME_MESSAGE_DOC_PATH); // Removed ", "message""
+      const welcomeMsgDocRef = doc(db, STUDENT_WELCOME_MESSAGE_DOC_PATH);
       const welcomeMsgDocSnap = await getDoc(welcomeMsgDocRef);
       if (welcomeMsgDocSnap.exists() && welcomeMsgDocSnap.data().text) {
         setStudentWelcomeMessage(welcomeMsgDocSnap.data().text);
         setStudentWelcomeMessageInput(welcomeMsgDocSnap.data().text);
       } else {
-        setStudentWelcomeMessage(DEFAULT_STUDENT_WELCOME_MESSAGE);
-        setStudentWelcomeMessageInput(DEFAULT_STUDENT_WELCOME_MESSAGE);
-        // Optionally create the document if it doesn't exist with default message
-        await setDoc(welcomeMsgDocRef, { text: DEFAULT_STUDENT_WELCOME_MESSAGE });
+        setStudentWelcomeMessage(DEFAULT_STUDENT_WELCOME_MSG);
+        setStudentWelcomeMessageInput(DEFAULT_STUDENT_WELCOME_MSG);
+        await setDoc(welcomeMsgDocRef, { text: DEFAULT_STUDENT_WELCOME_MSG });
       }
     } catch (error) {
       console.error("Error fetching student welcome message:", error);
       toast({ title: "오류", description: "학생 환영 메시지를 불러오는 데 실패했습니다.", variant: "destructive" });
-      setStudentWelcomeMessage(DEFAULT_STUDENT_WELCOME_MESSAGE);
-      setStudentWelcomeMessageInput(DEFAULT_STUDENT_WELCOME_MESSAGE);
+      setStudentWelcomeMessage(DEFAULT_STUDENT_WELCOME_MSG);
+      setStudentWelcomeMessageInput(DEFAULT_STUDENT_WELCOME_MSG);
     } finally {
       setIsLoadingWelcomeMessage(false);
+    }
+  }, [toast]);
+  
+  const fetchCustomExercises = useCallback(async () => {
+    setIsLoadingCustomExercises(true);
+    try {
+      const exercisesDocRef = doc(db, CUSTOM_EXERCISES_DOC_PATH);
+      const exercisesDocSnap = await getDoc(exercisesDocRef);
+      if (exercisesDocSnap.exists() && Array.isArray(exercisesDocSnap.data().list) && exercisesDocSnap.data().list.length > 0) {
+        setCustomExercises(exercisesDocSnap.data().list);
+      } else {
+        // Firestore에 데이터가 없으면 mockData로 초기화하고 저장 (선택적)
+        // await setDoc(exercisesDocRef, { list: DEFAULT_EXERCISES.map(ex => ({...ex})) });
+        setCustomExercises(DEFAULT_EXERCISES.map(ex => ({...ex}))); // icon prop 제외
+      }
+    } catch (error) {
+      console.error("Error fetching custom exercises: ", error);
+      toast({ title: "오류", description: "운동 목록을 불러오는 데 실패했습니다.", variant: "destructive"});
+      setCustomExercises(DEFAULT_EXERCISES.map(ex => ({...ex})));
+    } finally {
+      setIsLoadingCustomExercises(false);
     }
   }, [toast]);
 
@@ -224,8 +250,9 @@ export default function TeacherPage() {
       fetchCompliments();
       fetchExerciseRecommendations();
       fetchStudentWelcomeMessage();
+      fetchCustomExercises();
     }
-  }, [isAuthenticated, fetchStudents, fetchLogs, fetchCompliments, fetchExerciseRecommendations, fetchStudentWelcomeMessage]);
+  }, [isAuthenticated, fetchStudents, fetchLogs, fetchCompliments, fetchExerciseRecommendations, fetchStudentWelcomeMessage, fetchCustomExercises]);
 
   useEffect(() => {
     if (selectedClass) {
@@ -324,8 +351,8 @@ export default function TeacherPage() {
       const complimentsDocRef = doc(db, COMPLIMENTS_DOC_PATH);
       const currentDoc = await getDoc(complimentsDocRef);
       if (!currentDoc.exists()) {
-         await setDoc(complimentsDocRef, { list: [newCompliment.trim(), ...DEFAULT_COMPLIMENTS.filter(c => c !== newCompliment.trim())] });
-         setCompliments([newCompliment.trim(), ...DEFAULT_COMPLIMENTS.filter(c => c !== newCompliment.trim())]);
+         await setDoc(complimentsDocRef, { list: [newCompliment.trim(), ...DEFAULT_COMPLIMENTS_LIST.filter(c => c !== newCompliment.trim())] });
+         setCompliments([newCompliment.trim(), ...DEFAULT_COMPLIMENTS_LIST.filter(c => c !== newCompliment.trim())]);
          setNewCompliment('');
          toast({ title: "성공", description: "칭찬 문구가 추가되었습니다 (새 목록 생성)."});
       } else {
@@ -406,7 +433,7 @@ export default function TeacherPage() {
       return;
     }
     try {
-      const welcomeMsgDocRef = doc(db, STUDENT_WELCOME_MESSAGE_DOC_PATH); // Removed ", "message""
+      const welcomeMsgDocRef = doc(db, STUDENT_WELCOME_MESSAGE_DOC_PATH);
       await setDoc(welcomeMsgDocRef, { text: messageToSave });
       setStudentWelcomeMessage(messageToSave);
       toast({ title: "성공", description: "학생 환영 메시지가 저장되었습니다." });
@@ -415,6 +442,15 @@ export default function TeacherPage() {
       toast({ title: "오류", description: "학생 환영 메시지 저장에 실패했습니다.", variant: "destructive" });
     }
   };
+  
+  const handleSaveCustomExercises = async (updatedExercises: CustomExercise[]) => {
+    // Firestore에 저장하는 로직 (다음 단계에서 구현)
+    // setCustomExercises(updatedExercises);
+    // toast({ title: "성공", description: "운동 목록이 저장되었습니다." });
+    console.log("운동 목록 저장 요청 (구현 예정):", updatedExercises);
+    toast({ title: "알림", description: "운동 목록 관리 기능은 현재 개발 중입니다."});
+  };
+
 
   const handleOpenManagePinDialog = (student: Student) => {
     setStudentForPinManage(student);
@@ -445,7 +481,7 @@ export default function TeacherPage() {
 
   const memoizedAiSuggestionBox = useMemo(() => <AiSuggestionBox recordedExercises={recordedExercises} />, [recordedExercises]);
 
-  const isLoading = isLoadingStudents || isLoadingLogs || isLoadingCompliments || isLoadingRecommendations || isLoadingWelcomeMessage;
+  const isLoading = isLoadingStudents || isLoadingLogs || isLoadingCompliments || isLoadingRecommendations || isLoadingWelcomeMessage || isLoadingCustomExercises;
 
 
   if (!isAuthenticated) {
@@ -458,11 +494,24 @@ export default function TeacherPage() {
             </div>
             <PinCardTitle className="text-3xl font-bold font-headline text-primary">교사용 페이지</PinCardTitle>
             <PinCardDescription className="text-lg text-muted-foreground pt-1">
-              계속하려면 PIN 번호를 입력하세요.
+              계속하려면 학년 선택 후 PIN 번호를 입력하세요.
             </PinCardDescription>
           </CardHeader>
           <CardContent className="p-6 pt-2">
             <form onSubmit={handlePinSubmit} className="space-y-6">
+              <div className="space-y-2">
+                <Label htmlFor="grade-select" className="block text-sm font-medium text-gray-700 dark:text-gray-300">학년 선택</Label>
+                <Select value={selectedGrade} onValueChange={setSelectedGrade}>
+                  <SelectTrigger id="grade-select" className="w-full text-base py-3 rounded-lg">
+                    <SelectValue placeholder="담당 학년을 선택하세요" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {GRADES.map(grade => (
+                      <SelectItem key={grade} value={grade} className="text-base py-2">{grade}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
               <Input
                 id="teacherPin"
                 type="password"
@@ -475,9 +524,10 @@ export default function TeacherPage() {
                 maxLength={4}
                 className="text-center text-2xl tracking-[0.3em] py-4 rounded-lg"
                 autoFocus
+                disabled={!selectedGrade}
               />
               {pinError && <p className="text-sm text-destructive text-center">{pinError}</p>}
-              <Button type="submit" size="lg" className="w-full py-4 text-xl rounded-lg">
+              <Button type="submit" size="lg" className="w-full py-4 text-xl rounded-lg" disabled={!selectedGrade || pinInput.length !== 4}>
                 <LogIn className="mr-3 h-6 w-6" />
                 확인
               </Button>
@@ -515,7 +565,7 @@ export default function TeacherPage() {
         </section>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-8 h-auto rounded-lg p-1.5">
+          <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-9 h-auto rounded-lg p-1.5">
             <TabsTrigger value="students" className="py-3 text-base data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-md">
               <Users className="mr-2 h-5 w-5" /> 학생 목록
             </TabsTrigger>
@@ -530,6 +580,9 @@ export default function TeacherPage() {
             </TabsTrigger>
             <TabsTrigger value="ai" className="py-3 text-base data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-md">
               <Lightbulb className="mr-2 h-5 w-5" /> AI 코치
+            </TabsTrigger>
+            <TabsTrigger value="exerciseManagement" className="py-3 text-base data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-md">
+              <Settings2 className="mr-2 h-5 w-5" /> 운동 관리
             </TabsTrigger>
             <TabsTrigger value="welcomeMessage" className="py-3 text-base data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-md">
               <Edit className="mr-2 h-5 w-5" /> 환영 메시지
@@ -595,7 +648,7 @@ export default function TeacherPage() {
                       .slice(0, 20) 
                       .map(log => {
                         const student = students.find(s => s.id === log.studentId);
-                        const exerciseInfo = EXERCISES.find(ex => ex.id === log.exerciseId);
+                        const exerciseInfo = DEFAULT_EXERCISES.find(ex => ex.id === log.exerciseId); // Use DEFAULT_EXERCISES for now
                         if (!exerciseInfo) return null;
                         const formattedValue = formatExerciseValue(exerciseInfo, log);
                         return (
@@ -665,7 +718,7 @@ export default function TeacherPage() {
                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                       {photos.map(log => {
                         const student = students.find(s => s.id === log.studentId);
-                        const exerciseInfo = EXERCISES.find(ex => ex.id === log.exerciseId);
+                        const exerciseInfo = DEFAULT_EXERCISES.find(ex => ex.id === log.exerciseId);
                         return (
                           <Card key={log.id} className="overflow-hidden shadow-md hover:shadow-lg transition-shadow">
                             <a href={log.imageUrl} target="_blank" rel="noopener noreferrer" className="block aspect-square relative bg-muted">
@@ -723,6 +776,57 @@ export default function TeacherPage() {
               </section>
           </TabsContent>
           
+          <TabsContent value="exerciseManagement" className="mt-6">
+            <section aria-labelledby="exercise-management-heading" className="bg-card p-6 rounded-xl shadow-md">
+              <h2 id="exercise-management-heading" className="text-xl font-semibold mb-6 font-headline flex items-center">
+                <Settings2 className="mr-3 h-6 w-6 text-primary" />
+                학생 운동 목록 관리
+              </h2>
+              {isLoadingCustomExercises ? (
+                 <div className="flex justify-center py-4"><Loader2 className="h-6 w-6 animate-spin text-primary" /> 운동 목록 로딩 중...</div>
+              ) : (
+                <div className="space-y-4">
+                  <p className="text-muted-foreground text-sm">
+                    학생 앱에 표시될 운동 종류 (최대 6개)를 설정합니다. 운동 이름, 아이콘, 단위 등을 커스터마이징 할 수 있습니다.
+                  </p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {customExercises.slice(0, 6).map((ex, index) => (
+                       <Card key={ex.id || index} className="shadow-sm">
+                        <CardHeader>
+                          <PinCardTitle className="text-lg flex items-center">
+                            {React.createElement(DEFAULT_EXERCISES.find(defEx => defEx.iconName === ex.iconName)?.icon || Settings2, { className: "mr-2 h-5 w-5"})}
+                            {ex.koreanName}
+                          </PinCardTitle>
+                        </CardHeader>
+                        <CardContent className="text-xs space-y-1">
+                          <p>유형: {ex.category === 'count_time' ? '횟수/시간' : '걸음/거리'}</p>
+                          {ex.countUnit && <p>횟수 단위: {ex.countUnit} (기본: {ex.defaultCount}, 증가폭: {ex.countStep})</p>}
+                          {ex.timeUnit && <p>시간 단위: {ex.timeUnit} (기본: {ex.defaultTime}, 증가폭: {ex.timeStep})</p>}
+                          {ex.stepsUnit && <p>걸음 단위: {ex.stepsUnit} (기본: {ex.defaultSteps}, 증가폭: {ex.stepsStep})</p>}
+                          {ex.distanceUnit && <p>거리 단위: {ex.distanceUnit} (기본: {ex.defaultDistance}, 증가폭: {ex.distanceStep})</p>}
+                        </CardContent>
+                        <CardFooter className="p-2">
+                           <Button variant="outline" size="sm" className="w-full text-xs" onClick={() => toast({title: "알림", description:"운동 수정 기능은 개발 중입니다."})}>
+                             <Edit className="mr-1 h-3 w-3"/> 수정 (개발중)
+                           </Button>
+                        </CardFooter>
+                       </Card>
+                    ))}
+                  </div>
+                  {customExercises.length < 6 && (
+                    <Button className="mt-4" onClick={() => toast({title: "알림", description:"운동 추가 기능은 개발 중입니다."})}>
+                      <UserPlus className="mr-2 h-5 w-5" /> 새 운동 추가 (개발중)
+                    </Button>
+                  )}
+                   <p className="text-xs text-muted-foreground mt-4">
+                    * 실제 운동 추가, 수정, 삭제 및 순서 변경 기능은 다음 업데이트에서 제공될 예정입니다.
+                  </p>
+                </div>
+              )}
+            </section>
+          </TabsContent>
+
+
           <TabsContent value="welcomeMessage" className="mt-6">
             <section aria-labelledby="welcome-message-management-heading" className="bg-card p-6 rounded-xl shadow-md">
               <h2 id="welcome-message-management-heading" className="text-xl font-semibold mb-6 font-headline flex items-center">
@@ -917,6 +1021,3 @@ export default function TeacherPage() {
     </div>
   );
 }
-
-
-    
