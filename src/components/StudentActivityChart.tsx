@@ -3,26 +3,26 @@
 
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import type { RecordedExercise, Exercise as ExerciseType, StudentGoal } from '@/lib/types'; // Exercise -> ExerciseType
-import { 
-  startOfWeek, 
-  endOfWeek, 
-  startOfMonth, 
-  endOfMonth, 
-  isWithinInterval, 
-  isToday, 
-  parseISO 
+import type { RecordedExercise, Exercise as ExerciseType, StudentGoal } from '@/lib/types';
+import {
+  startOfWeek,
+  endOfWeek,
+  startOfMonth,
+  endOfMonth,
+  isWithinInterval,
+  isToday,
+  parseISO
 } from 'date-fns';
 import { cn } from '@/lib/utils';
-import { Target, TrendingUp, CheckCircle2, Flag, Star, AlertCircle } from 'lucide-react';
-import { Progress } from "@/components/ui/progress"; // Progress 컴포넌트 사용
+import { Target, TrendingUp, Flag, Star, AlertCircle } from 'lucide-react';
+import { Progress } from "@/components/ui/progress";
 
 
 interface StudentActivityChartProps {
   logs: RecordedExercise[];
   timeFrame: 'today' | 'week' | 'month';
-  studentGoals: StudentGoal; 
-  availableExercises: ExerciseType[]; // 교사가 설정한 운동 목록
+  studentGoals: StudentGoal;
+  availableExercises: ExerciseType[];
 }
 
 const StudentActivityChart: React.FC<StudentActivityChartProps> = ({ logs, timeFrame, studentGoals, availableExercises }) => {
@@ -34,7 +34,7 @@ const StudentActivityChart: React.FC<StudentActivityChartProps> = ({ logs, timeF
       return isToday(logDate);
     }
     if (timeFrame === 'week') {
-      const weekStart = startOfWeek(today, { weekStartsOn: 1 }); 
+      const weekStart = startOfWeek(today, { weekStartsOn: 1 });
       const weekEnd = endOfWeek(today, { weekStartsOn: 1 });
       return isWithinInterval(logDate, { start: weekStart, end: weekEnd });
     }
@@ -55,36 +55,34 @@ const StudentActivityChart: React.FC<StudentActivityChartProps> = ({ logs, timeF
       </div>
     );
   }
-  
+
   const exerciseSummaries = availableExercises.map((exercise: ExerciseType) => {
     const logsForThisExercise = filteredLogs.filter(log => log.exerciseId === exercise.id);
     let totalAchievedValue = 0;
     let goalValue: number | undefined = undefined;
     let unit = '';
     let progress = 0;
-    let isPrimaryGoalCount = false; // count 목표가 주 목표인지 (count_time 카테고리에서)
 
     if (exercise.category === 'count_time') {
       const totalCount = logsForThisExercise.reduce((sum, log) => sum + (log.countValue || 0), 0);
       const totalTime = logsForThisExercise.reduce((sum, log) => sum + (log.timeValue || 0), 0);
 
-      if (studentGoals[exercise.id]?.count && exercise.countUnit) { // 횟수 목표가 우선
+      if (studentGoals[exercise.id]?.count && exercise.countUnit) {
         totalAchievedValue = totalCount;
         unit = exercise.countUnit;
         goalValue = studentGoals[exercise.id]?.count;
-        isPrimaryGoalCount = true;
-      } else if (studentGoals[exercise.id]?.time && exercise.timeUnit) { // 횟수 목표가 없으면 시간 목표
+      } else if (studentGoals[exercise.id]?.time && exercise.timeUnit) {
         totalAchievedValue = totalTime;
         unit = exercise.timeUnit;
         goalValue = studentGoals[exercise.id]?.time;
-      } else { // 목표가 없으면, 기록된 값 중 하나를 표시 (횟수 우선)
+      } else {
         if (totalCount > 0 && exercise.countUnit) {
             totalAchievedValue = totalCount;
             unit = exercise.countUnit;
         } else if (totalTime > 0 && exercise.timeUnit) {
             totalAchievedValue = totalTime;
             unit = exercise.timeUnit;
-        } else { // 기록도 없으면
+        } else {
              totalAchievedValue = 0;
              unit = exercise.countUnit || exercise.timeUnit || '';
         }
@@ -93,15 +91,15 @@ const StudentActivityChart: React.FC<StudentActivityChartProps> = ({ logs, timeF
       const totalSteps = logsForThisExercise.reduce((sum, log) => sum + (log.stepsValue || 0), 0);
       const totalDistance = logsForThisExercise.reduce((sum, log) => sum + (log.distanceValue || 0), 0);
 
-      if (studentGoals[exercise.id]?.steps && exercise.stepsUnit) { // 걸음수 목표 우선
+      if (studentGoals[exercise.id]?.steps && exercise.stepsUnit) {
         totalAchievedValue = totalSteps;
         unit = exercise.stepsUnit;
         goalValue = studentGoals[exercise.id]?.steps;
-      } else if (studentGoals[exercise.id]?.distance && exercise.distanceUnit) { // 걸음수 목표 없으면 거리 목표
+      } else if (studentGoals[exercise.id]?.distance && exercise.distanceUnit) {
         totalAchievedValue = totalDistance;
         unit = exercise.distanceUnit;
         goalValue = studentGoals[exercise.id]?.distance;
-      } else { // 목표 없으면 기록된 값 표시 (걸음수 우선)
+      } else {
          if (totalSteps > 0 && exercise.stepsUnit) {
             totalAchievedValue = totalSteps;
             unit = exercise.stepsUnit;
@@ -114,11 +112,11 @@ const StudentActivityChart: React.FC<StudentActivityChartProps> = ({ logs, timeF
         }
       }
     }
-    
+
     if (goalValue && goalValue > 0) {
       progress = Math.min(100, Math.round((totalAchievedValue / goalValue) * 100));
-    } else if (totalAchievedValue > 0) { // 목표는 없지만 기록이 있는 경우
-      progress = 0; // 또는 100으로 표시할 수도 있음, 여기선 0으로
+    } else if (totalAchievedValue > 0) {
+      progress = 0;
     }
 
     const IconComponent = exercise.icon;
@@ -132,14 +130,13 @@ const StudentActivityChart: React.FC<StudentActivityChartProps> = ({ logs, timeF
       achievedValue: totalAchievedValue,
       achievedDisplay,
       unit: unit,
-      color: `hsl(var(--chart-${(availableExercises.findIndex(e => e.id === exercise.id) % 5) + 1}))`, // Use index for color
+      color: `hsl(var(--chart-${(availableExercises.findIndex(e => e.id === exercise.id) % 5) + 1}))`,
       goalDisplay,
       hasGoal: !!goalValue && goalValue > 0,
       isAchieved: !!goalValue && goalValue > 0 && totalAchievedValue >= goalValue,
       progress,
-      isPrimaryGoalCount,
     };
-  });
+  }); // Semicolon added for good measure, though unlikely to be the issue for this error.
 
   if (filteredLogs.length === 0 && !exerciseSummaries.some(s => s.hasGoal)) {
     return (
@@ -148,7 +145,6 @@ const StudentActivityChart: React.FC<StudentActivityChartProps> = ({ logs, timeF
       </div>
     );
   }
-
 
   return (
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 pt-4"> {/* Max 3 cols for better visibility */}
@@ -159,7 +155,8 @@ const StudentActivityChart: React.FC<StudentActivityChartProps> = ({ logs, timeF
             <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2">
               <div className="space-y-1">
                 <CardTitle className="text-base font-medium text-muted-foreground flex items-center">
-                  <IconComp className="h-5 w-5 mr-2" style={{ color: summary.color }} />
+                  {IconComp && <IconComp className="h-5 w-5 mr-2" style={{ color: summary.color }} />}
+                  {!IconComp && <Star className="h-5 w-5 mr-2" style={{ color: summary.color }} /> /* Fallback icon */}
                   {summary.name}
                 </CardTitle>
                 <CardDescription className="text-xs">
@@ -187,7 +184,7 @@ const StudentActivityChart: React.FC<StudentActivityChartProps> = ({ logs, timeF
                 )}
               </div>
               {summary.hasGoal && (
-                <Progress value={summary.progress} indicatorClassName={summary.isAchieved ? "bg-green-500" : ""} className="h-2 mt-2" />
+                <Progress value={summary.progress} indicatorClassName={cn("transition-all duration-500 ease-out", summary.isAchieved ? "bg-green-500" : "")} className="h-2 mt-2" />
               )}
             </CardContent>
           </Card>
@@ -198,3 +195,4 @@ const StudentActivityChart: React.FC<StudentActivityChartProps> = ({ logs, timeF
 };
 
 export default StudentActivityChart;
+    
