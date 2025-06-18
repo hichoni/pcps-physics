@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from '@/components/ui/button';
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dumbbell, Target, History, PlusCircle, LogOut, UserCheck, Loader2, AlertTriangle, KeyRound, Edit3, Camera, BarChart3, ImageIcon } from 'lucide-react';
+import { Dumbbell, Target, History, PlusCircle, LogOut, UserCheck, Loader2, AlertTriangle, KeyRound, Edit3, Camera, BarChart3, ImageIcon, CheckSquare } from 'lucide-react';
 import type { Student, ClassName, Exercise, StudentGoal, RecordedExercise, Gender } from '@/lib/types';
 import { EXERCISES } from '@/data/mockData';
 import SetStudentGoalsDialog from '@/components/SetStudentGoalsDialog';
@@ -20,7 +20,7 @@ import { useToast } from "@/hooks/use-toast";
 import { recommendStudentExercise, RecommendStudentExerciseOutput } from '@/ai/flows/recommend-student-exercise';
 import { db } from '@/lib/firebase';
 import { collection, getDocs, doc, getDoc, setDoc, query, where, addDoc, updateDoc } from 'firebase/firestore';
-import { format, parseISO } from 'date-fns'; 
+import { format, parseISO, isToday } from 'date-fns'; 
 import { ko } from 'date-fns/locale';
 import NextImage from 'next/image';
 
@@ -321,6 +321,22 @@ export default function StudentPage() {
     return Object.keys(studentGoals).filter(exId => studentGoals[exId] && Object.values(studentGoals[exId]).some(v => v !== undefined && v > 0)).length > 0;
   }, [studentGoals]);
 
+  const latestTodayImage = useMemo(() => {
+    if (!currentStudent) return null;
+    const todayLogsWithImages = studentActivityLogs
+      .filter(log => log.studentId === currentStudent.id && isToday(parseISO(log.date)) && log.imageUrl)
+      .sort((a, b) => {
+        // Assuming newer logs have lexicographically larger IDs or rely on Firestore's internal timestamp if available
+        // For simplicity here, if IDs are Firestore auto-IDs, they are roughly time-ordered.
+        // Or sort by date string if it includes time, then by ID.
+        // If date only contains yyyy-MM-dd, we rely on the order from Firestore (which might not be guaranteed without explicit orderBy on timestamp)
+        // or if we assume IDs are somewhat sequential. A more robust way would be to store a serverTimestamp.
+        if (a.id && b.id) return b.id.localeCompare(a.id);
+        return 0;
+      });
+    return todayLogsWithImages.length > 0 ? todayLogsWithImages[0] : null;
+  }, [currentStudent, studentActivityLogs]);
+
   if (isLoadingLoginOptions) {
     return <div className="flex justify-center items-center min-h-screen"><Loader2 className="h-8 w-8 animate-spin text-primary" /> 학생 정보 로딩 중...</div>;
   }
@@ -481,8 +497,8 @@ export default function StudentPage() {
           </div>
         </section>
 
-        <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 items-stretch">
-          <Card className="shadow-md hover:shadow-lg transition-shadow rounded-xl lg:col-span-3 flex flex-col">
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 items-start"> {/* Changed items-stretch to items-start */}
+          <Card className="shadow-md hover:shadow-lg transition-shadow rounded-xl lg:col-span-2 flex flex-col"> {/* Adjusted span */}
             <CardHeader>
               <CardTitle className="flex items-center font-headline text-xl">
                 <Target className="mr-3 h-7 w-7 text-accent" />
@@ -519,7 +535,44 @@ export default function StudentPage() {
             </CardContent>
           </Card>
 
-          <Card className="shadow-md hover:shadow-lg transition-shadow rounded-xl lg:col-span-2 flex flex-col">
+          {latestTodayImage && (
+            <Card className="shadow-md hover:shadow-lg transition-shadow rounded-xl lg:col-span-1 flex flex-col">
+              <CardHeader>
+                <CardTitle className="flex items-center font-headline text-xl">
+                  <CheckSquare className="mr-3 h-7 w-7 text-green-500" />
+                  오.운.완 인증
+                </CardTitle>
+                <CardDescription>오늘 나의 멋진 운동 모습!</CardDescription>
+              </CardHeader>
+              <CardContent className="flex-grow flex flex-col items-center justify-center p-3">
+                <a href={latestTodayImage.imageUrl} target="_blank" rel="noopener noreferrer" className="block w-full aspect-square relative rounded-lg overflow-hidden shadow-inner bg-muted">
+                  <NextImage
+                    src={latestTodayImage.imageUrl!}
+                    alt="오늘의 운동 인증샷"
+                    layout="fill"
+                    objectFit="cover"
+                    className="transition-transform duration-300 hover:scale-105"
+                    onError={(e) => {
+                      const target = e.target as HTMLImageElement;
+                      target.style.display = 'none';
+                      const parent = target.parentElement;
+                      if (parent && !parent.querySelector('.image-error-placeholder-student')) {
+                        const placeholder = document.createElement('div');
+                        placeholder.className = 'image-error-placeholder-student absolute inset-0 flex items-center justify-center bg-muted text-muted-foreground text-xs p-2 text-center';
+                        placeholder.textContent = '이미지를 불러올 수 없습니다.';
+                        parent.appendChild(placeholder);
+                      }
+                    }}
+                  />
+                </a>
+                 <p className="text-xs text-muted-foreground mt-2 text-center">
+                  {EXERCISES.find(ex => ex.id === latestTodayImage.exerciseId)?.koreanName || '운동'} 인증
+                </p>
+              </CardContent>
+            </Card>
+          )}
+          
+          <Card className="shadow-md hover:shadow-lg transition-shadow rounded-xl lg:col-span-2 flex flex-col"> {/* Adjusted span */}
             <CardHeader>
               <CardTitle className="flex items-center font-headline text-xl">
                 <Dumbbell className="mr-3 h-7 w-7 text-primary" />
@@ -684,6 +737,8 @@ export default function StudentPage() {
     </div>
   );
 }
+    
+
     
 
     
