@@ -13,6 +13,7 @@ export interface Student {
   gender: Gender;
   avatarSeed: string;
   pin: string; 
+  totalXp?: number; // 누적 경험치 필드 추가
 }
 
 export type ExerciseCategory = 'count_time' | 'steps_distance';
@@ -117,4 +118,14 @@ export type StudentGoal = Record<string, ExerciseGoal>; // key는 CustomExercise
 export interface TeacherExerciseRecommendation {
   recommendationTitle: string;
   recommendationDetail: string;
+}
+
+// 레벨 정보 인터페이스
+export interface LevelInfo {
+  level: number;
+  name: string;
+  icon: LucideIcon;
+  minXp: number;
+  maxXp: number; // 다음 레벨로 가기 위한 XP (Level 10은 Infinity)
+  colorClass: string; // 레벨 표시를 위한 Tailwind CSS 색상 클래스
 }

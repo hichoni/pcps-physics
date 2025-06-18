@@ -12,7 +12,7 @@ import { UserPlus, Save } from 'lucide-react';
 interface AddStudentDialogProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (newStudentData: { name: string; class: string; studentNumber: number; gender: Gender; pin: string }) => void;
+  onSave: (newStudentData: { name: string; class: string; studentNumber: number; gender: Gender; pin: string; totalXp: number }) => void;
 }
 
 const AddStudentDialog: React.FC<AddStudentDialogProps> = ({ isOpen, onClose, onSave }) => {
@@ -25,7 +25,14 @@ const AddStudentDialog: React.FC<AddStudentDialogProps> = ({ isOpen, onClose, on
     const num = parseInt(studentNumber, 10);
 
     if (name.trim() && classNameInput.trim() && !isNaN(num) && num > 0 && gender) {
-      onSave({ name: name.trim(), class: classNameInput.trim(), studentNumber: num, gender, pin: "0000" }); // 기본 PIN "0000"
+      onSave({ 
+        name: name.trim(), 
+        class: classNameInput.trim(), 
+        studentNumber: num, 
+        gender, 
+        pin: "0000", // 기본 PIN "0000"
+        totalXp: 0 // XP 초기화
+      }); 
       setName('');
       setStudentNumber('');
       setGender(undefined);
@@ -53,7 +60,7 @@ const AddStudentDialog: React.FC<AddStudentDialogProps> = ({ isOpen, onClose, on
             새 학생 추가
           </DialogTitle>
           <DialogDescription>
-            새로운 학생의 이름, 학급, 학번, 성별을 입력해주세요. 초기 PIN은 "0000"으로 자동 설정됩니다.
+            새로운 학생의 이름, 학급, 학번, 성별을 입력해주세요. 초기 PIN은 "0000"으로, XP는 0으로 자동 설정됩니다.
           </DialogDescription>
         </DialogHeader>
         <div className="p-6 space-y-4">

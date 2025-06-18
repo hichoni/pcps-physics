@@ -6,15 +6,16 @@ import StudentHeader from '@/components/StudentHeader';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from '@/components/ui/button';
 import { Input } from "@/components/ui/input";
+import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dumbbell, Target, History, PlusCircle, LogOut, UserCheck, Loader2, AlertTriangle, KeyRound, Edit3, Camera, ImageIcon, CheckSquare, PlusSquare, Trash2 } from 'lucide-react';
-import type { Student, ClassName, RecordedExercise, Gender, StudentGoal, CustomExercise as CustomExerciseType, Exercise as ExerciseType } from '@/lib/types';
+import { Dumbbell, Target, History, PlusCircle, LogOut, UserCheck, Loader2, AlertTriangle, KeyRound, Edit3, Camera, ImageIcon, CheckSquare, PlusSquare, Trash2, Leaf, Droplets, Sprout, Star, Footprints, Trophy, Zap, Medal, ShieldCheck, Crown, Gem } from 'lucide-react';
+import type { Student, ClassName, RecordedExercise, Gender, StudentGoal, CustomExercise as CustomExerciseType, Exercise as ExerciseType, LevelInfo } from '@/lib/types';
 import { EXERCISES_SEED_DATA } from '@/data/mockData'; 
 import SetStudentGoalsDialog from '@/components/SetStudentGoalsDialog';
 import ExerciseLogForm from '@/components/ExerciseLogForm';
 import ChangeOwnPinDialog from '@/components/ChangeOwnPinDialog';
 import ChangeAvatarDialog from '@/components/ChangeAvatarDialog';
-import UploadProofShotDialog from '@/components/UploadProofShotDialog'; // New Dialog
+import UploadProofShotDialog from '@/components/UploadProofShotDialog';
 import JumpRopeCameraMode from '@/components/JumpRopeCameraMode';
 import StudentActivityChart from '@/components/StudentActivityChart';
 import { useToast } from "@/hooks/use-toast";
@@ -37,6 +38,28 @@ const COMPLIMENTS_DOC_PATH = "appConfig/complimentsDoc";
 const STUDENT_WELCOME_MESSAGE_DOC_PATH = "appConfig/studentWelcomeMessageDoc";
 const DEFAULT_STUDENT_WELCOME_MESSAGE = "오늘도 즐겁게 운동하고 건강해져요! 어떤 활동을 계획하고 있나요?";
 const CUSTOM_EXERCISES_DOC_PATH = "appConfig/customExercisesDoc";
+
+const LEVEL_TIERS: LevelInfo[] = [
+  { level: 1, name: "움직새싹", icon: Leaf, minXp: 0, maxXp: 200, colorClass: "text-green-500 dark:text-green-400" },
+  { level: 2, name: "땀방울 초보", icon: Droplets, minXp: 200, maxXp: 400, colorClass: "text-sky-500 dark:text-sky-400" },
+  { level: 3, name: "체력 꿈나무", icon: Sprout, minXp: 400, maxXp: 600, colorClass: "text-lime-500 dark:text-lime-400" },
+  { level: 4, name: "체력 유망주", icon: Star, minXp: 600, maxXp: 800, colorClass: "text-yellow-500 dark:text-yellow-400" },
+  { level: 5, name: "달리기 선수", icon: Footprints, minXp: 800, maxXp: 1000, colorClass: "text-orange-500 dark:text-orange-400" },
+  { level: 6, name: "운동 챌린저", icon: Trophy, minXp: 1000, maxXp: 1200, colorClass: "text-amber-500 dark:text-amber-400" },
+  { level: 7, name: "에너지 파이터", icon: Zap, minXp: 1200, maxXp: 1400, colorClass: "text-blue-600 dark:text-blue-400" },
+  { level: 8, name: "체력 마스터", icon: Medal, minXp: 1400, maxXp: 1600, colorClass: "text-purple-500 dark:text-purple-400" },
+  { level: 9, name: "피트니스 히어로", icon: ShieldCheck, minXp: 1600, maxXp: 1800, colorClass: "text-red-500 dark:text-red-400" },
+  { level: 10, name: "전설의 운동왕", icon: Crown, minXp: 1800, maxXp: Infinity, colorClass: "text-fuchsia-500 dark:text-fuchsia-400" },
+];
+
+const calculateLevelInfo = (xp: number = 0): LevelInfo => {
+  for (let i = LEVEL_TIERS.length - 1; i >= 0; i--) {
+    if (xp >= LEVEL_TIERS[i].minXp) {
+      return LEVEL_TIERS[i];
+    }
+  }
+  return LEVEL_TIERS[0]; // Default to first level
+};
 
 const convertCustomToInternalExercise = (customEx: CustomExerciseType): ExerciseType => {
   return {
@@ -65,7 +88,7 @@ export default function StudentPage() {
   const [isLogFormOpen, setIsLogFormOpen] = useState(false);
   const [isChangeOwnPinDialogOpen, setIsChangeOwnPinDialogOpen] = useState(false); 
   const [isChangeAvatarDialogOpen, setIsChangeAvatarDialogOpen] = useState(false);
-  const [isUploadProofShotDialogOpen, setIsUploadProofShotDialogOpen] = useState(false); // New state for dialog
+  const [isUploadProofShotDialogOpen, setIsUploadProofShotDialogOpen] = useState(false);
 
   const [studentGoals, setStudentGoals] = useState<StudentGoal>({});
   const [studentActivityLogs, setStudentActivityLogs] = useState<RecordedExercise[]>([]);
@@ -75,6 +98,8 @@ export default function StudentPage() {
   const [studentWelcomeMessage, setStudentWelcomeMessage] = useState<string>(DEFAULT_STUDENT_WELCOME_MESSAGE);
   
   const [availableExercises, setAvailableExercises] = useState<ExerciseType[]>([]);
+  const [goalsMetTodayForXp, setGoalsMetTodayForXp] = useState<Set<string>>(new Set());
+
 
   const [isCameraModeOpen, setIsCameraModeOpen] = useState(false);
   const [cameraExerciseId, setCameraExerciseId] = useState<string | null>(null);
@@ -88,7 +113,10 @@ export default function StudentPage() {
     try {
       const studentsCollection = collection(db, "students");
       const studentsSnapshot = await getDocs(studentsCollection);
-      const studentsList = studentsSnapshot.docs.map(sDoc => ({ id: sDoc.id, ...sDoc.data() } as Student));
+      const studentsList = studentsSnapshot.docs.map(sDoc => {
+        const data = sDoc.data();
+        return { id: sDoc.id, ...data, totalXp: data.totalXp || 0 } as Student;
+      });
       setAllStudents(studentsList);
       const classNames = Array.from(new Set(studentsList.map(s => s.class))).sort();
       setAvailableClasses(classNames);
@@ -142,13 +170,15 @@ export default function StudentPage() {
     return () => unsubscribe();
   }, [toast]);
 
-  const fetchStudentSpecificData = useCallback(async (studentId: string, studentName: string) => {
+  const fetchStudentSpecificData = useCallback(async (studentId: string, studentName: string, initialLogs: RecordedExercise[], initialGoals: StudentGoal, currentExercises: ExerciseType[]) => {
     if (!studentId) return;
     setIsLoadingStudentData(true);
+    
     try {
       const goalsDocRef = doc(db, "studentGoals", studentId);
       const goalsDocSnap = await getDoc(goalsDocRef);
-      setStudentGoals(goalsDocSnap.exists() ? (goalsDocSnap.data().goals || {}) : {});
+      const fetchedGoals = goalsDocSnap.exists() ? (goalsDocSnap.data().goals || {}) : {};
+      setStudentGoals(fetchedGoals);
 
       const logsQuery = query(collection(db, "exerciseLogs"), where("studentId", "==", studentId));
       const unsubscribeLogs = onSnapshot(logsQuery, (logsSnapshot) => {
@@ -162,7 +192,40 @@ export default function StudentPage() {
           }
           return { id: lDoc.id, ...data, date: dateStr } as RecordedExercise;
         });
-        setStudentActivityLogs(logsList.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime() || (b.id && a.id ? b.id.localeCompare(a.id) : 0)));
+        const sortedLogs = logsList.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime() || (b.id && a.id ? b.id.localeCompare(a.id) : 0));
+        setStudentActivityLogs(sortedLogs);
+        
+        // XP 획득 여부 업데이트
+        const today = format(new Date(), "yyyy-MM-dd");
+        const metToday = new Set<string>();
+        currentExercises.forEach(exercise => {
+          const goalData = fetchedGoals[exercise.id];
+          if (!goalData) return;
+
+          const logsForExerciseToday = sortedLogs.filter(
+            log => log.studentId === studentId && log.exerciseId === exercise.id && log.date === today
+          );
+
+          let achievedValue = 0;
+          let currentGoalValue: number | undefined;
+
+          if (exercise.id === 'squat' || exercise.id === 'jump_rope') {
+            achievedValue = logsForExerciseToday.reduce((sum, log) => sum + (log.countValue || 0), 0);
+            currentGoalValue = goalData.count;
+          } else if (exercise.id === 'plank') {
+            achievedValue = logsForExerciseToday.reduce((sum, log) => sum + (log.timeValue || 0), 0);
+            currentGoalValue = goalData.time;
+          } else if (exercise.id === 'walk_run') {
+            achievedValue = logsForExerciseToday.reduce((sum, log) => sum + (log.distanceValue || 0), 0);
+            currentGoalValue = goalData.distance;
+          }
+
+          if (currentGoalValue !== undefined && currentGoalValue > 0 && achievedValue >= currentGoalValue) {
+            metToday.add(exercise.id);
+          }
+        });
+        setGoalsMetTodayForXp(metToday);
+
       }, (error) => {
         console.error("Error fetching student logs in real-time:", error);
         toast({ title: "오류", description: "운동 기록 실시간 업데이트에 실패했습니다.", variant: "destructive" });
@@ -186,19 +249,19 @@ export default function StudentPage() {
         setStudentWelcomeMessage(DEFAULT_STUDENT_WELCOME_MESSAGE);
       }
       fetchRecommendation();
-      return unsubscribeLogs;
+      return unsubscribeLogs; // Return the unsubscribe function
     } catch (error) {
       console.error("Error fetching student specific data:", error);
       toast({ title: "오류", description: "학생 데이터를 불러오는 데 실패했습니다.", variant: "destructive" });
     } finally {
       setIsLoadingStudentData(false);
     }
-  }, [toast]);
+  }, [toast]); // Removed availableExercises from dependencies, pass as argument
 
   useEffect(() => {
     let unsubscribeLogs: (() => void) | undefined;
-    if (currentStudent) {
-      fetchStudentSpecificData(currentStudent.id, currentStudent.name).then(unsub => {
+    if (currentStudent && availableExercises.length > 0) { // Ensure availableExercises is ready
+      fetchStudentSpecificData(currentStudent.id, currentStudent.name, studentActivityLogs, studentGoals, availableExercises).then(unsub => {
         unsubscribeLogs = unsub;
       });
     } else {
@@ -207,13 +270,15 @@ export default function StudentPage() {
       setRecommendedExercise(null);
       setDailyCompliment('');
       setStudentWelcomeMessage(DEFAULT_STUDENT_WELCOME_MESSAGE);
+      setGoalsMetTodayForXp(new Set());
     }
     return () => {
       if (unsubscribeLogs) {
         unsubscribeLogs();
       }
     };
-  }, [currentStudent, fetchStudentSpecificData]); 
+  }, [currentStudent, fetchStudentSpecificData, availableExercises, studentActivityLogs, studentGoals]); // Add dependencies that fetchStudentSpecificData relies on indirectly
+
 
   useEffect(() => {
     if (selectedClass && allStudents.length > 0) {
@@ -284,6 +349,25 @@ export default function StudentPage() {
         setStudentGoals(newGoals);
         toast({ title: "성공", description: "운동 목표가 저장되었습니다." });
         setIsGoalsDialogOpen(false);
+
+        // Re-evaluate goalsMetTodayForXp when goals change
+        const today = format(new Date(), "yyyy-MM-dd");
+        const metToday = new Set<string>();
+        availableExercises.forEach(exercise => {
+          const goalData = newGoals[exercise.id]; // Use newGoals
+          if (!goalData) return;
+          const logsForExerciseToday = studentActivityLogs.filter(
+            log => log.studentId === currentStudent.id && log.exerciseId === exercise.id && log.date === today
+          );
+          let achievedValue = 0;
+          let currentGoalValue: number | undefined;
+          if (exercise.id === 'squat' || exercise.id === 'jump_rope') { achievedValue = logsForExerciseToday.reduce((sum, log) => sum + (log.countValue || 0), 0); currentGoalValue = goalData.count; }
+          else if (exercise.id === 'plank') { achievedValue = logsForExerciseToday.reduce((sum, log) => sum + (log.timeValue || 0), 0); currentGoalValue = goalData.time; }
+          else if (exercise.id === 'walk_run') { achievedValue = logsForExerciseToday.reduce((sum, log) => sum + (log.distanceValue || 0), 0); currentGoalValue = goalData.distance; }
+          if (currentGoalValue !== undefined && currentGoalValue > 0 && achievedValue >= currentGoalValue) { metToday.add(exercise.id); }
+        });
+        setGoalsMetTodayForXp(metToday);
+
       } catch (error) {
         console.error("Error saving goals: ", error);
         toast({ title: "오류", description: "운동 목표 저장에 실패했습니다.", variant: "destructive" });
@@ -317,14 +401,67 @@ export default function StudentPage() {
   };
 
   const handleSaveExerciseLog = async (logData: Omit<RecordedExercise, 'id' | 'imageUrl'>) => {
-    if (!currentStudent) return;
+    if (!currentStudent || !availableExercises) return;
     try {
       const docRef = await addDoc(collection(db, "exerciseLogs"), logData);
-      const newLogEntry = { ...logData, id: docRef.id, date: format(parseISO(logData.date), "yyyy-MM-dd") };
+      // const newLogEntry = { ...logData, id: docRef.id, date: format(parseISO(logData.date), "yyyy-MM-dd") }; // Managed by onSnapshot
+
       toast({ title: "기록 완료!", description: "오늘의 운동이 성공적으로 기록되었어요! 참 잘했어요!" });
       setIsLogFormOpen(false); 
       setIsCameraModeOpen(false); 
       setCameraExerciseId(null);
+
+      // XP Award Logic
+      const exerciseId = logData.exerciseId;
+      const exercise = availableExercises.find(ex => ex.id === exerciseId);
+
+      if (exercise && !goalsMetTodayForXp.has(exerciseId)) {
+        const today = format(new Date(), "yyyy-MM-dd");
+        // Fetch fresh logs for today for this exercise, including the one just saved
+        const logsQuery = query(collection(db, "exerciseLogs"), 
+          where("studentId", "==", currentStudent.id),
+          where("exerciseId", "==", exerciseId),
+          where("date", "==", today)
+        );
+        const logsSnapshot = await getDocs(logsQuery);
+        const logsForExerciseToday = logsSnapshot.docs.map(d => d.data() as RecordedExercise);
+        
+        let achievedValue = 0;
+        if (exercise.id === 'squat' || exercise.id === 'jump_rope') {
+          achievedValue = logsForExerciseToday.reduce((sum, log) => sum + (log.countValue || 0), 0);
+        } else if (exercise.id === 'plank') {
+          achievedValue = logsForExerciseToday.reduce((sum, log) => sum + (log.timeValue || 0), 0);
+        } else if (exercise.id === 'walk_run') {
+          achievedValue = logsForExerciseToday.reduce((sum, log) => sum + (log.distanceValue || 0), 0);
+        }
+
+        const goalData = studentGoals[exerciseId];
+        let currentGoalValue: number | undefined;
+        if (goalData) {
+          if (exercise.id === 'squat' || exercise.id === 'jump_rope') currentGoalValue = goalData.count;
+          else if (exercise.id === 'plank') currentGoalValue = goalData.time;
+          else if (exercise.id === 'walk_run') currentGoalValue = goalData.distance;
+        }
+        
+        if (currentGoalValue !== undefined && currentGoalValue > 0 && achievedValue >= currentGoalValue) {
+          const oldXp = currentStudent.totalXp || 0;
+          const newTotalXp = oldXp + 10;
+          const studentDocRef = doc(db, "students", currentStudent.id);
+          await updateDoc(studentDocRef, { totalXp: newTotalXp });
+
+          setCurrentStudent(prev => prev ? { ...prev, totalXp: newTotalXp } : null);
+          setGoalsMetTodayForXp(prev => new Set(prev).add(exerciseId));
+          
+          toast({ title: "✨ XP 획득! ✨", description: `${exercise.koreanName} 목표 달성! +10 XP` });
+
+          const oldLevelInfo = calculateLevelInfo(oldXp);
+          const newLevelInfo = calculateLevelInfo(newTotalXp);
+          if (newLevelInfo.level > oldLevelInfo.level) {
+            toast({ title: "🎉 레벨 업! 🎉", description: `축하합니다! ${newLevelInfo.name}(으)로 레벨 업!`, duration: 7000 });
+          }
+        }
+      }
+
     } catch (error) {
       console.error("Error saving exercise log for student: ", error);
       toast({ title: "기록 실패", description: "운동 기록 중 오류가 발생했어요. 다시 시도해주세요.", variant: "destructive" });
@@ -332,10 +469,7 @@ export default function StudentPage() {
   };
   
   const handleProofShotUploadComplete = (logId: string, imageUrl: string) => {
-    setStudentActivityLogs(prevLogs =>
-      prevLogs.map(l => (l.id === logId ? { ...l, imageUrl } : l))
-                 .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime() || (b.id && a.id ? b.id.localeCompare(a.id) : 0))
-    );
+    // This will be handled by the onSnapshot listener for studentActivityLogs
   };
 
   const handleDeleteProofShot = async (logId: string) => {
@@ -345,14 +479,7 @@ export default function StudentPage() {
 
     try {
         const logDocRef = doc(db, "exerciseLogs", logId);
-        // Firestore에서 imageUrl 필드만 null로 업데이트하거나 필드를 삭제합니다.
-        // 실제 Storage에서 파일 삭제는 이 단계에서는 구현하지 않습니다.
         await updateDoc(logDocRef, { imageUrl: null }); 
-        
-        // studentActivityLogs 상태 업데이트는 onSnapshot 리스너에 의해 자동으로 처리될 것입니다.
-        // 만약 실시간 업데이트가 아니라면, 여기서 수동으로 상태를 업데이트해야 합니다.
-        // setStudentActivityLogs(prev => prev.map(l => l.id === logId ? {...l, imageUrl: undefined} : l));
-        
         toast({ title: "성공", description: "인증샷이 삭제되었습니다." });
     } catch (error) {
         console.error("Error deleting proof shot:", error);
@@ -488,6 +615,17 @@ export default function StudentPage() {
 
   const showProofShotSection = latestTodayImage || todaysLogsWithoutImage.length > 0;
 
+  const currentLevelInfo = useMemo(() => {
+    return calculateLevelInfo(currentStudent?.totalXp);
+  }, [currentStudent?.totalXp]);
+
+  const xpProgress = useMemo(() => {
+    if (!currentStudent || currentLevelInfo.level === 10) return 100; // Max level
+    const xpInCurrentLevel = (currentStudent.totalXp || 0) - currentLevelInfo.minXp;
+    const xpForNextLevel = currentLevelInfo.maxXp - currentLevelInfo.minXp;
+    return xpForNextLevel > 0 ? (xpInCurrentLevel / xpForNextLevel) * 100 : 0;
+  }, [currentStudent, currentLevelInfo]);
+
 
   if (isLoadingLoginOptions || isLoadingExercises) {
     return <div className="flex justify-center items-center min-h-screen"><Loader2 className="h-8 w-8 animate-spin text-primary" /> {isLoadingLoginOptions ? '학생 정보' : '운동 목록'} 로딩 중...</div>;
@@ -609,6 +747,9 @@ export default function StudentPage() {
       />
     );
   }
+  
+  const LevelIcon = currentLevelInfo.icon || Gem;
+
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -631,21 +772,49 @@ export default function StudentPage() {
                     {currentStudent.name}님, 안녕하세요!
                     </CardTitle>
                 </CardHeader>
-                <CardContent className="flex-grow flex flex-col justify-center">
-                    <p className="text-base sm:text-lg text-muted-foreground mb-6 text-center lg:text-left">
-                        {studentWelcomeMessage}
-                    </p>
-                    <div className="flex flex-col sm:flex-row gap-3 justify-center lg:justify-start items-center">
-                    <Button size="lg" className="rounded-lg py-3 px-6 text-lg flex-grow sm:flex-grow-0" onClick={handleOpenLogForm}>
-                        <PlusCircle className="mr-2 h-6 w-6" />
-                        새로운 운동 기록하기
-                    </Button>
-                    {currentStudent.pin === "0000" && (
-                        <Button variant="outline" size="lg" className="rounded-lg py-3 px-6 text-lg border-accent text-accent hover:bg-accent/10 flex-grow sm:flex-grow-0" onClick={() => setIsChangeOwnPinDialogOpen(true)}>
-                        <Edit3 className="mr-2 h-5 w-5" />
-                        PIN 변경하기
+                <CardContent className="flex-grow flex flex-col justify-between">
+                    <div>
+                        <p className="text-base sm:text-lg text-muted-foreground mb-6 text-center lg:text-left">
+                            {studentWelcomeMessage}
+                        </p>
+                    </div>
+
+                    {/* XP and Level Display Section */}
+                    <div className="mb-6 p-4 border rounded-lg shadow-inner bg-secondary/20 dark:bg-slate-800/30">
+                      <div className="flex items-center justify-between mb-3">
+                          <div className="flex items-center">
+                              <LevelIcon className={cn("h-10 w-10 mr-3", currentLevelInfo.colorClass)} />
+                              <div>
+                                  <p className={cn("text-xl font-bold", currentLevelInfo.colorClass)}>{currentLevelInfo.name}</p>
+                                  <p className="text-xs text-muted-foreground">레벨 {currentLevelInfo.level}</p>
+                              </div>
+                          </div>
+                          <div className="text-right">
+                              <p className="text-lg font-semibold text-amber-500 dark:text-amber-400">{(currentStudent.totalXp || 0).toLocaleString()} XP</p>
+                              {currentLevelInfo.level < 10 && (
+                                 <p className="text-xs text-muted-foreground">다음 레벨까지 {Math.max(0, currentLevelInfo.maxXp - (currentStudent.totalXp || 0))} XP</p>
+                              )}
+                          </div>
+                      </div>
+                      {currentLevelInfo.level < 10 && (
+                        <Progress value={xpProgress} className="h-3 rounded-full" indicatorClassName={currentLevelInfo.colorClass.replace('text-', 'bg-')}/>
+                      )}
+                       {currentLevelInfo.level === 10 && (
+                        <p className="text-center text-sm font-medium text-fuchsia-500 dark:text-fuchsia-400 mt-2">최고 레벨 달성! 🎉</p>
+                      )}
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row gap-3 justify-center lg:justify-start items-center mt-auto">
+                        <Button size="lg" className="rounded-lg py-3 px-6 text-lg flex-grow sm:flex-grow-0" onClick={handleOpenLogForm}>
+                            <PlusCircle className="mr-2 h-6 w-6" />
+                            새로운 운동 기록하기
                         </Button>
-                    )}
+                        {currentStudent.pin === "0000" && (
+                            <Button variant="outline" size="lg" className="rounded-lg py-3 px-6 text-lg border-accent text-accent hover:bg-accent/10 flex-grow sm:flex-grow-0" onClick={() => setIsChangeOwnPinDialogOpen(true)}>
+                            <Edit3 className="mr-2 h-5 w-5" />
+                            PIN 변경하기
+                            </Button>
+                        )}
                     </div>
                     {currentStudent.pin === "0000" && (
                     <p className="text-sm text-amber-600 dark:text-amber-400 mt-3 text-center lg:text-left">
@@ -663,7 +832,6 @@ export default function StudentPage() {
                     <CheckSquare className="mr-3 h-7 w-7 text-green-500" />
                     오.운.완 인증
                     </CardTitle>
-                    {/* <CardDescription>오늘도 운동 완료! 내일도 도전하기! 약속~^^</CardDescription> Removed */}
                 </CardHeader>
                 <CardContent className="flex-grow flex flex-col items-center justify-center p-3 space-y-2">
                     <a href={latestTodayImage.imageUrl} target="_blank" rel="noopener noreferrer" className="block w-full aspect-square relative rounded-lg overflow-hidden shadow-inner bg-muted">
@@ -842,9 +1010,9 @@ export default function StudentPage() {
                   logs={studentActivityLogs} 
                   selectedStudent={currentStudent} 
                   students={allStudents.filter(s => s.id === currentStudent.id)} 
+                  availableExercises={availableExercises} 
                   timeFrame={activityChartTimeFrame} 
                   studentGoals={studentGoals} 
-                  availableExercises={availableExercises} 
                 />
               )
             }
@@ -968,4 +1136,3 @@ export default function StudentPage() {
     </div>
   );
 }
-    
