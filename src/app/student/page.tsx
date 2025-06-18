@@ -663,7 +663,7 @@ export default function StudentPage() {
                     <CheckSquare className="mr-3 h-7 w-7 text-green-500" />
                     오.운.완 인증
                     </CardTitle>
-                    <CardDescription>오늘도 운동 완료! 내일도 도전하기! 약속~^^</CardDescription>
+                    {/* <CardDescription>오늘도 운동 완료! 내일도 도전하기! 약속~^^</CardDescription> Removed */}
                 </CardHeader>
                 <CardContent className="flex-grow flex flex-col items-center justify-center p-3 space-y-2">
                     <a href={latestTodayImage.imageUrl} target="_blank" rel="noopener noreferrer" className="block w-full aspect-square relative rounded-lg overflow-hidden shadow-inner bg-muted">
