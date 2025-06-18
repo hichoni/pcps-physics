@@ -170,10 +170,25 @@ export default function StudentPage() {
     return () => unsubscribe();
   }, [toast]);
 
+  const fetchRecommendation = useCallback(async () => {
+    setIsRecommendationLoading(true);
+    try {
+      const recommendation = await recommendStudentExercise();
+      setRecommendedExercise(recommendation);
+    } catch (error) {
+      console.error("AI 추천 가져오기 오류:", error);
+      setRecommendedExercise(null); 
+    } finally {
+      setIsRecommendationLoading(false);
+    }
+  }, []);
+
   const fetchStudentSpecificData = useCallback(async (studentId: string, studentName: string, currentExercises: ExerciseType[]) => {
     if (!studentId) return;
     setIsLoadingStudentData(true);
     
+    let unsubscribeLogs: (() => void) | undefined;
+
     try {
       const goalsDocRef = doc(db, "studentGoals", studentId);
       const goalsDocSnap = await getDoc(goalsDocRef);
@@ -181,7 +196,7 @@ export default function StudentPage() {
       setStudentGoals(fetchedGoals);
 
       const logsQuery = query(collection(db, "exerciseLogs"), where("studentId", "==", studentId));
-      const unsubscribeLogs = onSnapshot(logsQuery, (logsSnapshot) => {
+      unsubscribeLogs = onSnapshot(logsQuery, (logsSnapshot) => {
         const logsList = logsSnapshot.docs.map(lDoc => {
           const data = lDoc.data();
           let dateStr = data.date;
@@ -247,25 +262,31 @@ export default function StudentPage() {
       } else {
         setStudentWelcomeMessage(DEFAULT_STUDENT_WELCOME_MESSAGE);
       }
-      fetchRecommendation();
-      return unsubscribeLogs; 
+      fetchRecommendation(); // Fetch recommendation after student data is loaded
     } catch (error) {
       console.error("Error fetching student specific data:", error);
       toast({ title: "오류", description: "학생 데이터를 불러오는 데 실패했습니다.", variant: "destructive" });
     } finally {
       setIsLoadingStudentData(false);
     }
-  }, [toast]); // fetchRecommendation removed as it's called internally
+    return unsubscribeLogs; 
+  }, [toast, fetchRecommendation]);
 
   useEffect(() => {
     let unsubscribeLogsFunction: (() => void) | undefined;
-    if (currentStudent && availableExercises.length > 0) {
-      fetchStudentSpecificData(currentStudent.id, currentStudent.name, availableExercises)
-        .then(unsub => {
-          if (unsub) unsubscribeLogsFunction = unsub;
-        });
+    if (currentStudent) {
+      if (availableExercises.length > 0) {
+        fetchStudentSpecificData(currentStudent.id, currentStudent.name, availableExercises)
+          .then(unsub => {
+            if (unsub) unsubscribeLogsFunction = unsub;
+          });
+      } else {
+        // availableExercises might be loading, don't clear logs yet,
+        // just indicate that exercise-specific parts might be unavailable
+        // Student-specific but non-exercise data can still be fetched or shown
+      }
     } else {
-      // Clear data when currentStudent is not set or no exercises are available
+      // currentStudent is null (e.g., logged out)
       setStudentGoals({}); 
       setStudentActivityLogs([]);
       setRecommendedExercise(null);
@@ -328,19 +349,6 @@ export default function StudentPage() {
       setEnteredPin('');
     }
   };
-
-  const fetchRecommendation = useCallback(async () => {
-    setIsRecommendationLoading(true);
-    try {
-      const recommendation = await recommendStudentExercise();
-      setRecommendedExercise(recommendation);
-    } catch (error) {
-      console.error("AI 추천 가져오기 오류:", error);
-      setRecommendedExercise(null); 
-    } finally {
-      setIsRecommendationLoading(false);
-    }
-  }, []); // Empty dependency array as it has no external dependencies that change
 
   const handleSaveGoals = async (newGoals: StudentGoal) => {
     if (currentStudent) {
@@ -485,7 +493,7 @@ export default function StudentPage() {
         
         setStudentActivityLogs(prevLogs => 
             prevLogs.map(log => 
-                log.id === logId ? { ...log, imageUrl: undefined } : log // Set to undefined for local state
+                log.id === logId ? { ...log, imageUrl: undefined } : log
             )
         );
         toast({ title: "성공", description: "인증샷이 삭제되었습니다." });
@@ -832,7 +840,7 @@ export default function StudentPage() {
             </Card>
 
             {latestTodayImage ? (
-                <Card key={`latest-image-${latestTodayImage.id}-${latestTodayImage.imageUrl}`} className="shadow-lg rounded-xl lg:col-span-1 flex flex-col">
+                <Card key={`latest-image-${latestTodayImage.id}-${latestTodayImage.imageUrl || 'deleted'}`} className="shadow-lg rounded-xl lg:col-span-1 flex flex-col">
                 <CardHeader>
                     <CardTitle className="flex items-center font-headline text-xl">
                     <CheckSquare className="mr-3 h-7 w-7 text-green-500" />
@@ -840,9 +848,9 @@ export default function StudentPage() {
                     </CardTitle>
                 </CardHeader>
                 <CardContent className="flex-grow flex flex-col items-center justify-center p-3 space-y-2">
-                    <a href={latestTodayImage.imageUrl} target="_blank" rel="noopener noreferrer" className="block w-full aspect-square relative rounded-lg overflow-hidden shadow-inner bg-muted">
+                    <a href={latestTodayImage.imageUrl!} target="_blank" rel="noopener noreferrer" className="block w-full aspect-square relative rounded-lg overflow-hidden shadow-inner bg-muted">
                     <NextImage
-                        key={latestTodayImage.imageUrl || 'no-image-placeholder'}
+                        key={latestTodayImage.imageUrl || 'no-image-placeholder-after-delete'}
                         src={latestTodayImage.imageUrl!}
                         alt="오늘의 운동 인증샷"
                         layout="fill"
@@ -866,7 +874,7 @@ export default function StudentPage() {
                         variant="destructive" 
                         size="sm" 
                         className="w-full rounded-md text-xs"
-                        onClick={() => handleDeleteProofShot(latestTodayImage.id)}
+                        onClick={() => handleDeleteProofShot(latestTodayImage.id!)}
                     >
                         <Trash2 className="mr-1.5 h-3.5 w-3.5" />
                         인증샷 삭제
