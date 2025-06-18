@@ -1,10 +1,11 @@
 
 import type React from 'react';
+import { useState } from 'react';
 import type { Student } from '@/lib/types';
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Trash2, KeyRound } from 'lucide-react';
+import { Trash2, KeyRound, Eye, EyeOff } from 'lucide-react';
 import { AVATAR_OPTIONS } from '@/data/avatarOptions';
 import { cn } from '@/lib/utils';
 import { getIconByName } from '@/lib/iconMap';
@@ -25,6 +26,7 @@ const getInitials = (name: string) => {
 };
 
 const StudentCard: React.FC<StudentCardProps> = ({ student, onDeleteStudent, onManagePin }) => {
+  const [showPin, setShowPin] = useState(false);
 
   const SelectedAvatarIcon = AVATAR_OPTIONS.find(opt => opt.id === student.avatarSeed)?.icon || getIconByName(null);
 
@@ -46,11 +48,15 @@ const StudentCard: React.FC<StudentCardProps> = ({ student, onDeleteStudent, onM
             <CardDescription className="text-xs text-muted-foreground">
               {student.class} {student.studentNumber}번 ({student.gender === 'male' ? '남' : '여'})
             </CardDescription>
-            <p className="text-xs text-muted-foreground mt-0.5">PIN: {student.pin}</p>
+            <div className="text-xs text-muted-foreground mt-0.5 flex items-center">
+              PIN: {showPin ? student.pin : '••••'}
+              <Button variant="ghost" size="icon" onClick={() => setShowPin(!showPin)} className="h-5 w-5 ml-1 p-0">
+                {showPin ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
+              </Button>
+            </div>
           </div>
         </CardHeader>
         <CardContent className="p-4 pt-2">
-          {/* Activity chart removed as per user request for this card. Details are in the log tab table. */}
           <p className="text-xs text-muted-foreground text-center">
             상세 활동은 '활동 기록' 탭에서 확인하세요.
           </p>
