@@ -205,7 +205,12 @@ export default function StudentPage() {
           } else if (typeof data.date === 'string' && data.date.includes('T')) {
              dateStr = data.date.split('T')[0];
           }
-          return { id: lDoc.id, ...data, date: dateStr, imageUrl: data.imageUrl === null ? undefined : data.imageUrl } as RecordedExercise;
+          return { 
+            id: lDoc.id, 
+            ...data, 
+            date: dateStr, 
+            imageUrl: data.imageUrl ?? null // Ensure imageUrl is string or null
+          } as RecordedExercise;
         });
         const sortedLogs = logsList.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime() || (b.id && a.id ? b.id.localeCompare(a.id) : 0));
         setStudentActivityLogs(sortedLogs);
@@ -279,7 +284,7 @@ export default function StudentPage() {
           .then(unsub => {
             if (unsub) unsubscribeLogsFunction = unsub;
           });
-    } else if (!currentStudent) { // Only reset if currentStudent is null
+    } else if (!currentStudent) { 
       setStudentGoals({});
       setStudentActivityLogs([]);
       setRecommendedExercise(null);
@@ -424,9 +429,7 @@ export default function StudentPage() {
         );
         const logsSnapshot = await getDocs(logsQuery);
         const logsForExerciseToday = logsSnapshot.docs.map(d => d.data() as RecordedExercise);
-        // The new log might not be in logsForExerciseToday yet if getDocs is too fast.
-        // So, we should consider the logData being saved as well for accurate achievedValue calculation.
-        const combinedLogs = [...logsForExerciseToday, { ...logData, id: docRef.id, imageUrl: undefined }];
+        const combinedLogs = [...logsForExerciseToday, { ...logData, id: docRef.id, imageUrl: null }];
 
 
         let achievedValue = 0;
@@ -486,9 +489,8 @@ export default function StudentPage() {
 
     try {
         const logDocRef = doc(db, "exerciseLogs", logId);
-        await updateDoc(logDocRef, { imageUrl: null }); // Firestore에서 imageUrl을 null로 설정
+        await updateDoc(logDocRef, { imageUrl: null }); 
 
-        // 로컬 상태 업데이트: 해당 로그의 imageUrl을 null로 설정 (undefined 대신 null로 통일)
         setStudentActivityLogs(prevLogs =>
             prevLogs.map(log =>
                 log.id === logId ? { ...log, imageUrl: null } : log
@@ -579,7 +581,6 @@ export default function StudentPage() {
     const todayLogsWithImages = studentActivityLogs
       .filter(log => log.studentId === currentStudent.id && isToday(parseISO(log.date)) && log.imageUrl)
       .sort((a, b) => {
-        // Firestore에서 ID는 시간 순서대로 생성되므로 최신 것을 찾기 위해 ID 역순 정렬
         if (a.id && b.id) return b.id.localeCompare(a.id);
         return 0;
       });
@@ -592,7 +593,7 @@ export default function StudentPage() {
       .filter(log =>
         log.studentId === currentStudent.id &&
         isToday(parseISO(log.date)) &&
-        (log.imageUrl === undefined || log.imageUrl === null) // null도 명시적으로 체크
+        log.imageUrl === null
       );
   }, [currentStudent, studentActivityLogs]);
 
@@ -643,7 +644,9 @@ export default function StudentPage() {
   }, [currentStudent, currentLevelInfo]);
 
   const showProofShotArea = useMemo(() => {
-    return !!latestTodayImage || todaysLogsWithoutImage.length > 0;
+    const hasLatestImage = !!latestTodayImage;
+    const hasLogsWithoutImage = todaysLogsWithoutImage.length > 0;
+    return hasLatestImage || hasLogsWithoutImage;
   }, [latestTodayImage, todaysLogsWithoutImage]);
 
 
@@ -844,7 +847,7 @@ export default function StudentPage() {
             </Card>
             
             {showProofShotArea && (
-              <div key={`proof-shot-area-${showProofShotArea}`} className="lg:col-span-1">
+              <div key={showProofShotArea ? (latestTodayImage ? `img-${latestTodayImage.id}` : 'upload-prompt') : 'no-proof-shot-area'} className="lg:col-span-1">
                   {latestTodayImage ? (
                       <Card className="shadow-lg rounded-xl flex flex-col h-full">
                       <CardHeader className="pb-2 pt-4">
@@ -1162,3 +1165,4 @@ export default function StudentPage() {
     </div>
   );
 }
+    
