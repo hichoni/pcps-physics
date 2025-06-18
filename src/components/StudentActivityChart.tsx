@@ -11,14 +11,21 @@ import { AlertCircle } from 'lucide-react';
 
 interface StudentActivityChartProps {
   logs: RecordedExercise[];
-  students: Student[];
+  students?: Student[]; // Make students optional for robustness
   selectedStudent?: Student | null;
   availableExercises: ExerciseType[];
   timeFrame: 'today' | 'week' | 'month';
   studentGoals: StudentGoal;
 }
 
-const StudentActivityChart: React.FC<StudentActivityChartProps> = ({ logs, students, selectedStudent, availableExercises, timeFrame, studentGoals }) => {
+const StudentActivityChart: React.FC<StudentActivityChartProps> = ({ 
+  logs, 
+  students = [], // Default to empty array if not provided
+  selectedStudent, 
+  availableExercises, 
+  timeFrame, 
+  studentGoals 
+}) => {
 
   if (!availableExercises || availableExercises.length === 0) {
     return (
@@ -39,8 +46,11 @@ const StudentActivityChart: React.FC<StudentActivityChartProps> = ({ logs, stude
     return acc;
   }, {} as Record<string, { label: string, color: string, icon?: React.ComponentType }>) satisfies ChartConfig;
 
+  // Determine the list of students whose data should be considered for the chart.
+  // If a specific student is selected, only their data is used. Otherwise, data from all students in the 'students' prop is used.
   const relevantStudents = selectedStudent ? [selectedStudent] : students;
   const relevantStudentIds = relevantStudents.map(s => s.id);
+
 
   const now = new Date();
   const getStartDate = (frame: 'today' | 'week' | 'month'): Date => {
@@ -49,7 +59,8 @@ const StudentActivityChart: React.FC<StudentActivityChartProps> = ({ logs, stude
       startDate.setHours(0, 0, 0, 0);
     } else if (frame === 'week') {
       const dayOfWeek = now.getDay(); // 0 (Sunday) to 6 (Saturday)
-      const diff = now.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1); // Adjust to make Monday the start of the week
+      // Adjust to make Monday the start of the week (or Sunday depending on locale preference, here assuming Monday)
+      const diff = now.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1); 
       startDate.setDate(diff);
       startDate.setHours(0, 0, 0, 0);
     } else if (frame === 'month') {
@@ -62,16 +73,14 @@ const StudentActivityChart: React.FC<StudentActivityChartProps> = ({ logs, stude
 
   const dataToDisplay = logs.filter(log => {
     try {
-        // Ensure log.date is a valid date string (e.g., "yyyy-MM-dd")
         const logDateParts = log.date.split('-');
-        if (logDateParts.length !== 3) return false; // Basic validation
+        if (logDateParts.length !== 3) return false; 
 
         const logDate = new Date(parseInt(logDateParts[0]), parseInt(logDateParts[1]) - 1, parseInt(logDateParts[2]));
-        if (isNaN(logDate.getTime())) return false; // Check if date is valid
+        if (isNaN(logDate.getTime())) return false; 
 
         return relevantStudentIds.includes(log.studentId) && logDate >= startDateForFrame && logDate <= now;
     } catch (e) {
-        // console.warn("Invalid date format in log:", log.date, e);
         return false;
     }
   });
@@ -80,7 +89,7 @@ const StudentActivityChart: React.FC<StudentActivityChartProps> = ({ logs, stude
     const logsForExercise = dataToDisplay.filter(log => log.exerciseId === exercise.id);
     let primaryValue = 0;
     let primaryUnit = '';
-    let valueCount = 0; // To calculate average based on actual entries with values
+    let valueCount = 0; 
 
     if (exercise.category === 'count_time') {
       const goal = studentGoals[exercise.id];
@@ -88,8 +97,9 @@ const StudentActivityChart: React.FC<StudentActivityChartProps> = ({ logs, stude
       if (goal) {
         if (goal.time && goal.time > 0 && exercise.timeUnit) preferTime = true;
         else if (goal.count && goal.count > 0 && exercise.countUnit) preferTime = false;
-        else if (exercise.timeUnit) preferTime = true;
-      } else if (exercise.timeUnit) {
+        else if (exercise.timeUnit) preferTime = true; // Default to time if unit exists
+        else preferTime = false; // Default to count if time unit doesn't exist
+      } else if (exercise.timeUnit) { // No goal, but time unit exists
         preferTime = true;
       }
 
@@ -103,7 +113,7 @@ const StudentActivityChart: React.FC<StudentActivityChartProps> = ({ logs, stude
         }, 0);
         primaryValue = valueCount > 0 ? parseFloat((totalTime / valueCount).toFixed(1)) : 0;
         primaryUnit = exercise.timeUnit;
-      } else if (exercise.countUnit) {
+      } else if (exercise.countUnit) { // Handles cases where preferTime is false OR timeUnit doesn't exist but countUnit does
         const totalCount = logsForExercise.reduce((sum, log) => {
           if (log.countValue !== undefined && log.countValue > 0) {
             valueCount++;
@@ -121,6 +131,7 @@ const StudentActivityChart: React.FC<StudentActivityChartProps> = ({ logs, stude
         if (goal.distance && goal.distance > 0 && exercise.distanceUnit) preferDistance = true;
         else if (goal.steps && goal.steps > 0 && exercise.stepsUnit) preferDistance = false;
         else if (exercise.distanceUnit) preferDistance = true;
+        else preferDistance = false;
       } else if (exercise.distanceUnit) {
         preferDistance = true;
       }
@@ -159,15 +170,15 @@ const StudentActivityChart: React.FC<StudentActivityChartProps> = ({ logs, stude
 
   const chartData = aggregatedData.filter(d => d.value > 0 && d.unit);
 
-  if (students.length === 0) {
+  if (students.length === 0 && !selectedStudent) { // Check if no students list and no specific selected student
     return (
        <Card className="shadow-lg rounded-xl">
         <CardHeader>
           <CardTitle className="font-headline">운동 요약</CardTitle>
-          <CardDescription>등록된 학생이 없습니다.</CardDescription>
+          <CardDescription>표시할 학생 데이터가 없습니다.</CardDescription>
         </CardHeader>
         <CardContent className="h-[300px] flex items-center justify-center">
-          <p className="text-muted-foreground">교사 페이지에서 학생을 먼저 추가해주세요.</p>
+          <p className="text-muted-foreground">교사 페이지에서 학생을 추가하거나, 학생이 로그인해야 합니다.</p>
         </CardContent>
       </Card>
     );
@@ -213,14 +224,14 @@ const StudentActivityChart: React.FC<StudentActivityChartProps> = ({ logs, stude
     <Card className="shadow-lg rounded-xl w-full">
       <CardHeader>
         <CardTitle className="font-headline">
-          {selectedStudent ? `${selectedStudent.name}의 요약` : "전체 운동 요약"} ({timeFrame === 'today' ? '오늘' : timeFrame === 'week' ? '주간' : '월간'})
+          {(selectedStudent ? `${selectedStudent.name} 학생` : "전체 학급")} 활동 요약 ({timeFrame === 'today' ? '오늘' : timeFrame === 'week' ? '주간' : '월간'})
         </CardTitle>
         <CardDescription>각 운동별 평균값 (주요 단위 기준)</CardDescription>
       </CardHeader>
       <CardContent>
         <ChartContainer config={chartConfig} className="min-h-[300px] w-full">
-          <ResponsiveContainer width="100%" height={350}> {/* Increased height for bottom margin */}
-            <BarChart data={chartData} margin={{ top: 5, right: 20, left: -10, bottom: 70 }}> {/* Increased bottom margin */}
+          <ResponsiveContainer width="100%" height={350}> 
+            <BarChart data={chartData} margin={{ top: 5, right: 20, left: -10, bottom: 70 }}> 
               <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
               <XAxis
                 dataKey="name"
@@ -228,7 +239,7 @@ const StudentActivityChart: React.FC<StudentActivityChartProps> = ({ logs, stude
                 interval={0}
                 angle={-45}
                 textAnchor="end"
-                height={80} // Adjusted height for angled labels
+                height={80} 
               />
               <YAxis
                 tickFormatter={(value) => `${value}`}

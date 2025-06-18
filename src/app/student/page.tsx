@@ -770,7 +770,16 @@ export default function StudentPage() {
            {isLoadingExercises ? <Loader2 className="h-6 w-6 animate-spin text-primary mx-auto my-4" /> : 
             availableExercises.length === 0 ? 
               <p className="text-sm text-muted-foreground text-center py-2">운동 목록이 설정되지 않았습니다.</p> :
-              <StudentActivityChart logs={studentActivityLogs} timeFrame={activityChartTimeFrame} studentGoals={studentGoals} availableExercises={availableExercises} />
+              (currentStudent && 
+                <StudentActivityChart 
+                  logs={studentActivityLogs} 
+                  selectedStudent={currentStudent}
+                  students={[currentStudent]}
+                  timeFrame={activityChartTimeFrame} 
+                  studentGoals={studentGoals} 
+                  availableExercises={availableExercises} 
+                />
+              )
             }
             
             <h4 className="text-md font-semibold pt-6 border-t mt-8">최근 5개 활동:</h4>
