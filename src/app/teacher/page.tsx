@@ -344,6 +344,10 @@ export default function TeacherPage() {
     if (selectedClass) {
       setStudentsInClass(students.filter(student => student.class === selectedClass).sort((a, b) => a.studentNumber - b.studentNumber));
     } else {
+      // When "All" is selected, studentsInClass should ideally be based on students from *all* classes or empty if no class is selected.
+      // For the "log" tab, we require a class to be selected to show the table.
+      // So, if no class is selected, studentsInClass for the log tab should effectively be empty or trigger a "select class" message.
+      // The "students" tab will show all students if no class is selected.
       setStudentsInClass(students.sort((a,b) => {
         const classCompare = a.class.localeCompare(b.class);
         if (classCompare !== 0) return classCompare;
@@ -874,7 +878,7 @@ export default function TeacherPage() {
                                                ? Math.min(100, Math.round((achievedValue / goalValue) * 100))
                                                : (achievedValue > 0 ? 100 : 0);
                               
-                              const displayExerciseIcon = getIconByName(exercise.iconName);
+                              const DisplayExerciseIcon = getIconByName(exercise.iconName);
                               const exerciseColor = chartColors[exercise.id]?.color || 'hsl(var(--primary))';
 
                               if (achievedValue === 0 && (!hasGoal || (goalValue !== undefined && goalValue === 0))) {
@@ -897,7 +901,7 @@ export default function TeacherPage() {
                                       }}
                                     >
                                       <div className="absolute w-[calc(100%-16px)] h-[calc(100%-16px)] bg-card rounded-full flex flex-col items-center justify-center shadow-inner p-1">
-                                        {displayExerciseIcon && <displayExerciseIcon className="h-4 w-4 mb-0.5" style={{ color: exerciseColor }} />}
+                                        {DisplayExerciseIcon && <DisplayExerciseIcon className="h-4 w-4 mb-0.5" style={{ color: exerciseColor }} />}
                                         <span className="text-xs font-bold truncate" style={{ color: exerciseColor }}>
                                           {percentage}%
                                         </span>
