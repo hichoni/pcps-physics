@@ -17,16 +17,16 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Users, BarChart2, Lightbulb, ListChecks, UserPlus, Trash2, Sparkles, MessageSquarePlus, MessageSquareX, Loader2, Wand2, KeyRound, LogIn, Image as ImageIcon } from 'lucide-react'; // ImageIcon 추가
+import { Users, BarChart2, Lightbulb, ListChecks, UserPlus, Trash2, Sparkles, MessageSquarePlus, MessageSquareX, Loader2, Wand2, KeyRound, LogIn, Image as ImageIcon } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle as PinCardTitle, CardDescription as PinCardDescription } from '@/components/ui/card';
-import { format } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 import { ko } from 'date-fns/locale';
 import { useToast } from "@/hooks/use-toast";
 import { db } from '@/lib/firebase';
 import { 
   collection, getDocs, addDoc, deleteDoc, doc, writeBatch, query, where, setDoc, getDoc, updateDoc, arrayUnion, arrayRemove 
 } from 'firebase/firestore';
-import NextImage from 'next/image'; // next/image 임포트
+import NextImage from 'next/image';
 
 const formatExerciseValue = (exercise: Exercise, log: RecordedExercise): string => {
   let parts = [];
@@ -99,7 +99,7 @@ export default function TeacherPage() {
     try {
       const studentsCollection = collection(db, "students");
       const studentsSnapshot = await getDocs(studentsCollection);
-      const studentsList = studentsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Student));
+      const studentsList = studentsSnapshot.docs.map(sDoc => ({ id: sDoc.id, ...sDoc.data() } as Student));
       setStudents(studentsList);
       const classNames = Array.from(new Set(studentsList.map(s => s.class))).sort();
       setDynamicClasses(classNames);
@@ -116,20 +116,18 @@ export default function TeacherPage() {
     try {
       const logsCollection = collection(db, "exerciseLogs");
       const logsSnapshot = await getDocs(logsCollection);
-      const logsList = logsSnapshot.docs.map(doc => {
-        const data = doc.data();
-        // Firestore Timestamp를 "yyyy-MM-dd" 문자열로 변환
+      const logsList = logsSnapshot.docs.map(lDoc => {
+        const data = lDoc.data();
         let dateStr = data.date;
         if (data.date && typeof data.date.toDate === 'function') {
           dateStr = format(data.date.toDate(), "yyyy-MM-dd");
-        } else if (typeof data.date === 'string' && data.date.includes('T')) { // ISO 문자열 형식인 경우
+        } else if (typeof data.date === 'string' && data.date.includes('T')) { 
            dateStr = data.date.split('T')[0];
         }
-        // 다른 필드도 가져와서 RecordedExercise 타입으로 맞춤
         return { 
-          id: doc.id, 
+          id: lDoc.id, 
           ...data, 
-          date: dateStr // 변환된 날짜 문자열 사용
+          date: dateStr 
         } as RecordedExercise;
       });
       setRecordedExercises(logsList);
@@ -467,12 +465,15 @@ export default function TeacherPage() {
         </section>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 h-auto rounded-lg p-1.5">
+          <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-7 h-auto rounded-lg p-1.5">
             <TabsTrigger value="students" className="py-3 text-base data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-md">
               <Users className="mr-2 h-5 w-5" /> 학생 목록
             </TabsTrigger>
             <TabsTrigger value="log" className="py-3 text-base data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-md">
               <ListChecks className="mr-2 h-5 w-5" /> 활동 기록
+            </TabsTrigger>
+             <TabsTrigger value="gallery" className="py-3 text-base data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-md">
+              <ImageIcon className="mr-2 h-5 w-5" /> 사진 갤러리
             </TabsTrigger>
             <TabsTrigger value="summary" className="py-3 text-base data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-md">
               <BarChart2 className="mr-2 h-5 w-5" /> 요약
@@ -531,7 +532,9 @@ export default function TeacherPage() {
           <TabsContent value="log" className="mt-6">
              <section aria-labelledby="activity-log-heading">
                 <h2 id="activity-log-heading" className="text-xl font-semibold mb-4 font-headline">최근 활동 (최대 20개)</h2>
-                {recordedExercises.length > 0 ? (
+                {isLoadingLogs ? (
+                  <div className="flex justify-center items-center h-40"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
+                ) : recordedExercises.length > 0 ? (
                   <div className="space-y-3 max-h-[500px] overflow-y-auto bg-card p-4 rounded-xl shadow-md">
                     {recordedExercises
                       .filter(log => !selectedClass || log.className === selectedClass)
@@ -549,7 +552,7 @@ export default function TeacherPage() {
                                     <p><strong>{student?.name || '알 수 없는 학생'}</strong> ({log.className} {student?.studentNumber}번)</p>
                                     <p>{exerciseInfo?.koreanName || '알 수 없는 운동'}: {formattedValue}</p>
                                     <p className="text-xs text-muted-foreground">
-                                    날짜: {format(new Date(log.date), "PPP", { locale: ko })}
+                                    날짜: {format(parseISO(log.date), "PPP", { locale: ko })}
                                     </p>
                                 </div>
                                 {log.imageUrl && (
@@ -560,7 +563,17 @@ export default function TeacherPage() {
                                             width={64} 
                                             height={64} 
                                             className="rounded-md object-cover border"
-                                            onError={(e) => e.currentTarget.style.display = 'none'} // 이미지 로드 실패 시 숨김
+                                            onError={(e) => {
+                                                const target = e.target as HTMLImageElement;
+                                                target.style.display = 'none';
+                                                const parent = target.parentElement;
+                                                if (parent && !parent.querySelector('.image-error-placeholder-small')) {
+                                                    const placeholder = document.createElement('div');
+                                                    placeholder.className = 'image-error-placeholder-small w-16 h-16 flex items-center justify-center bg-muted text-muted-foreground text-xs';
+                                                    placeholder.textContent = 'X';
+                                                    parent.appendChild(placeholder);
+                                                }
+                                            }}
                                         />
                                     </a>
                                 )}
@@ -573,6 +586,74 @@ export default function TeacherPage() {
                   <p className="text-muted-foreground">아직 기록된 활동이 없습니다.</p>
                 )}
              </section>
+          </TabsContent>
+
+          <TabsContent value="gallery" className="mt-6">
+            <section aria-labelledby="photo-gallery-heading">
+              <h2 id="photo-gallery-heading" className="text-xl font-semibold mb-4 font-headline">
+                {selectedClass ? `${selectedClass} 학급 인증샷 갤러리` : '전체 인증샷 갤러리'}
+              </h2>
+              {isLoadingLogs ? (
+                <div className="flex justify-center items-center h-64">
+                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                  <span className="ml-2">갤러리 로딩 중...</span>
+                </div>
+              ) : (
+                (() => {
+                  const photos = recordedExercises
+                    .filter(log => log.imageUrl && (!selectedClass || log.className === selectedClass))
+                    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime() || (b.id && a.id ? b.id.localeCompare(a.id) : 0));
+
+                  if (photos.length === 0) {
+                    return <p className="text-muted-foreground">업로드된 인증샷이 없습니다.</p>;
+                  }
+
+                  return (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                      {photos.map(log => {
+                        const student = students.find(s => s.id === log.studentId);
+                        const exerciseInfo = EXERCISES.find(ex => ex.id === log.exerciseId);
+                        return (
+                          <Card key={log.id} className="overflow-hidden shadow-md hover:shadow-lg transition-shadow">
+                            <a href={log.imageUrl} target="_blank" rel="noopener noreferrer" className="block aspect-square relative bg-muted">
+                              <NextImage
+                                src={log.imageUrl!}
+                                alt={`${student?.name || '학생'}의 ${exerciseInfo?.koreanName || '운동'} 인증샷`}
+                                layout="fill"
+                                objectFit="cover"
+                                className="transition-transform duration-300 hover:scale-105"
+                                onError={(e) => {
+                                  const target = e.target as HTMLImageElement;
+                                  target.style.display = 'none';
+                                  const parent = target.parentElement;
+                                  if (parent && !parent.querySelector('.image-error-placeholder')) {
+                                    const placeholder = document.createElement('div');
+                                    placeholder.className = 'image-error-placeholder absolute inset-0 flex items-center justify-center bg-muted text-muted-foreground text-xs p-2 text-center';
+                                    placeholder.textContent = '이미지를 불러올 수 없습니다.';
+                                    parent.appendChild(placeholder);
+                                  }
+                                }}
+                              />
+                            </a>
+                            <CardContent className="p-3">
+                              <p className="text-sm font-semibold truncate" title={student?.name || '알 수 없는 학생'}>
+                                {student?.name || '알 수 없는 학생'}
+                              </p>
+                              <p className="text-xs text-muted-foreground truncate" title={exerciseInfo?.koreanName || '알 수 없는 운동'}>
+                                {exerciseInfo?.koreanName || '알 수 없는 운동'}
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                {format(parseISO(log.date), "yyyy년 MM월 dd일", { locale: ko })}
+                              </p>
+                            </CardContent>
+                          </Card>
+                        );
+                      })}
+                    </div>
+                  );
+                })()
+              )}
+            </section>
           </TabsContent>
 
           <TabsContent value="summary" className="mt-6">
