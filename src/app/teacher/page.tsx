@@ -18,11 +18,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Users, BarChart2, Lightbulb, ListChecks, UserPlus, Trash2, Sparkles, MessageSquarePlus, MessageSquareX, Loader2, Wand2, KeyRound, LogIn, Image as ImageIconLucide, Edit, Settings2, School, PlusCircle, Edit3, AlertCircle, TrendingUp } from 'lucide-react';
+import { Users, BarChart2, Lightbulb, ListChecks, UserPlus, Trash2, Sparkles, MessageSquarePlus, MessageSquareX, Loader2, Wand2, KeyRound, LogIn, Image as ImageIconLucide, Edit, Settings2, School, PlusCircle, Edit3, AlertCircle, TrendingUp, CalendarDays, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle as UICardTitle, CardDescription as UICardDescription } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { format, parseISO, isToday } from 'date-fns';
+import { format, parseISO, isToday, subDays, addDays, isSameDay } from 'date-fns';
 import { ko } from 'date-fns/locale';
 import { useToast } from "@/hooks/use-toast";
 import { db } from '@/lib/firebase';
@@ -32,7 +32,9 @@ import {
 import NextImage from 'next/image';
 import { getIconByName } from '@/lib/iconMap';
 import { cn } from '@/lib/utils';
-import { v4 as uuidv4 } from 'uuid';
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+
 
 const DEFAULT_COMPLIMENTS_LIST = [
   "별처럼 빛나는", "항상 긍정적인", "꿈을 향해 달리는", "세상을 밝히는",
@@ -100,6 +102,8 @@ export default function TeacherPage() {
 
   const [isManagePinDialogOpen, setIsManagePinDialogOpen] = useState(false);
   const [studentForPinManage, setStudentForPinManage] = useState<Student | null>(null);
+
+  const [selectedLogDate, setSelectedLogDate] = useState<Date>(new Date());
 
   const chartColors = useMemo(() => generateChartColors(customExercises), [customExercises]);
 
@@ -586,6 +590,16 @@ export default function TeacherPage() {
     }
   };
 
+  const handlePreviousDay = () => {
+    setSelectedLogDate(prevDate => subDays(prevDate, 1));
+  };
+
+  const handleNextDay = () => {
+    setSelectedLogDate(prevDate => addDays(prevDate, 1));
+  };
+
+  const isNextDayDisabled = isToday(selectedLogDate) || selectedLogDate > new Date();
+
   const memoizedExerciseSummaryChart = useMemo(() => (
     <ExerciseSummaryChart recordedExercises={recordedExercises} students={students} customExercises={customExercises} />
   ), [recordedExercises, students, customExercises]);
@@ -746,9 +760,43 @@ export default function TeacherPage() {
 
           <TabsContent value="log" className="mt-6">
              <section aria-labelledby="activity-log-heading">
-                <h2 id="activity-log-heading" className="text-xl font-semibold mb-4 font-headline">
-                  {selectedClass ? `${selectedClass} 학급` : '전체'} 활동 기록 (오늘)
-                </h2>
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-4">
+                  <h2 id="activity-log-heading" className="text-xl font-semibold font-headline">
+                    {selectedClass ? `${selectedClass} 학급` : '전체'} 활동 기록 ({format(selectedLogDate, "yyyy년 MM월 dd일", { locale: ko })})
+                  </h2>
+                  <div className="flex items-center gap-2">
+                    <Button variant="outline" size="icon" onClick={handlePreviousDay} aria-label="이전 날짜">
+                      <ChevronLeft className="h-5 w-5" />
+                    </Button>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant={"outline"}
+                          className={cn(
+                            "w-[180px] justify-start text-left font-normal",
+                            !selectedLogDate && "text-muted-foreground"
+                          )}
+                        >
+                          <CalendarDays className="mr-2 h-5 w-5" />
+                          {selectedLogDate ? format(selectedLogDate, "PPP", { locale: ko }) : <span>날짜 선택</span>}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0">
+                        <Calendar
+                          mode="single"
+                          selected={selectedLogDate}
+                          onSelect={(date) => date && setSelectedLogDate(date)}
+                          initialFocus
+                          locale={ko}
+                          disabled={(date) => date > new Date() || date < new Date("2000-01-01")}
+                        />
+                      </PopoverContent>
+                    </Popover>
+                    <Button variant="outline" size="icon" onClick={handleNextDay} disabled={isNextDayDisabled} aria-label="다음 날짜">
+                      <ChevronRight className="h-5 w-5" />
+                    </Button>
+                  </div>
+                </div>
                 {isLoadingLogs || isLoadingStudents || isLoadingCustomExercises || isLoadingStudentGoals ? (
                   <div className="flex justify-center items-center h-40"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
                 ) : !selectedClass ? (
@@ -786,10 +834,10 @@ export default function TeacherPage() {
                             <TableCell className="sticky left-0 bg-card z-10">{student.studentNumber}</TableCell>
                             <TableCell className="sticky left-[60px] bg-card z-10">{student.name}</TableCell>
                             {customExercises.map(exercise => {
-                              const studentLogsForExerciseToday = recordedExercises.filter(log =>
+                              const studentLogsForExerciseSelectedDate = recordedExercises.filter(log =>
                                 log.studentId === student.id &&
                                 log.exerciseId === exercise.id &&
-                                isToday(parseISO(log.date))
+                                isSameDay(parseISO(log.date), selectedLogDate)
                               );
 
                               const studentGoalForExercise = allStudentGoals[student.id]?.[exercise.id];
@@ -800,21 +848,21 @@ export default function TeacherPage() {
                               let hasGoal = false;
 
                               if (exercise.id === 'squat' || exercise.id === 'jump_rope') {
-                                achievedValue = studentLogsForExerciseToday.reduce((sum, log) => sum + (log.countValue || 0), 0);
+                                achievedValue = studentLogsForExerciseSelectedDate.reduce((sum, log) => sum + (log.countValue || 0), 0);
                                 unit = exercise.countUnit || '회';
                                 if (studentGoalForExercise?.count !== undefined) {
                                   goalValue = studentGoalForExercise.count;
                                   hasGoal = true;
                                 }
                               } else if (exercise.id === 'plank') {
-                                achievedValue = studentLogsForExerciseToday.reduce((sum, log) => sum + (log.timeValue || 0), 0);
+                                achievedValue = studentLogsForExerciseSelectedDate.reduce((sum, log) => sum + (log.timeValue || 0), 0);
                                 unit = exercise.timeUnit || '초';
                                 if (studentGoalForExercise?.time !== undefined) {
                                   goalValue = studentGoalForExercise.time;
                                   hasGoal = true;
                                 }
                               } else if (exercise.id === 'walk_run') {
-                                achievedValue = studentLogsForExerciseToday.reduce((sum, log) => sum + (log.distanceValue || 0), 0);
+                                achievedValue = studentLogsForExerciseSelectedDate.reduce((sum, log) => sum + (log.distanceValue || 0), 0);
                                 unit = exercise.distanceUnit || 'm';
                                 if (studentGoalForExercise?.distance !== undefined) {
                                   goalValue = studentGoalForExercise.distance;
