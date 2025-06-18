@@ -29,14 +29,29 @@ const getInitials = (name: string) => {
 const StudentHeader: React.FC<StudentHeaderProps> = ({ studentName, gender, avatarId, onChangeAvatar, dailyCompliment }) => {
   const titleText = `${studentName}의 운동기록장`;
 
-  const headerBgClass = gender === 'male' 
-    ? 'bg-primary text-primary-foreground' 
-    : 'bg-[#E6E6FA] text-slate-700'; 
+  const headerStyles = {
+    male: {
+      bg: 'bg-primary',
+      text: 'text-primary-foreground',
+      complimentText: 'text-yellow-600 dark:text-yellow-400', // Deep yellow for compliment
+      avatarFallback: 'text-primary-foreground',
+      buttonText: 'text-primary-foreground hover:text-primary-foreground',
+    },
+    female: {
+      bg: 'bg-lime-100 dark:bg-lime-900', // Light green background
+      text: 'text-green-700 dark:text-green-300', // Green text
+      complimentText: 'text-yellow-600 dark:text-yellow-400', // Deep yellow for compliment
+      avatarFallback: 'text-green-600 dark:text-green-400',
+      buttonText: 'text-green-700 dark:text-green-300 hover:text-green-700 dark:hover:text-green-300',
+    }
+  };
+
+  const currentStyle = gender === 'male' ? headerStyles.male : headerStyles.female;
 
   const SelectedAvatarIcon = AVATAR_OPTIONS.find(opt => opt.id === avatarId)?.icon;
 
   return (
-    <header className={cn('p-4 shadow-md sticky top-0 z-50', headerBgClass)}>
+    <header className={cn('p-4 shadow-md sticky top-0 z-50', currentStyle.bg, currentStyle.text)}>
       <div className="container mx-auto flex items-center justify-between">
         <div className="flex items-center gap-3">
           {SelectedAvatarIcon ? (
@@ -44,14 +59,18 @@ const StudentHeader: React.FC<StudentHeaderProps> = ({ studentName, gender, avat
               <SelectedAvatarIcon className="h-full w-full p-1.5" />
             </Avatar>
           ) : (
-            <Avatar className="h-10 w-10 border-2 border-background/50 bg-background/20">
-              <AvatarFallback className={cn("text-lg", gender === 'male' ? 'text-primary-foreground' : 'text-slate-600', 'bg-transparent')}>
+            <Avatar className={cn("h-10 w-10 border-2 border-background/50", gender === 'male' ? 'bg-background/20' : 'bg-green-200/50 dark:bg-green-800/50')}>
+              <AvatarFallback className={cn("text-lg bg-transparent", currentStyle.avatarFallback)}>
                 {getInitials(studentName)}
               </AvatarFallback>
             </Avatar>
           )}
           <div className="flex flex-col">
-            {dailyCompliment && <p className={cn("text-xs hidden sm:block", gender === 'male' ? 'text-primary-foreground/80' : 'text-slate-600/80')}>{dailyCompliment}</p>}
+            {dailyCompliment && (
+              <p className={cn("text-xs", currentStyle.complimentText, "block")}> {/* Always block, removed sm:block */}
+                {dailyCompliment}
+              </p>
+            )}
             <h1 className="text-xl sm:text-2xl font-bold font-headline truncate" title={titleText}>
               {titleText}
             </h1>
@@ -61,7 +80,7 @@ const StudentHeader: React.FC<StudentHeaderProps> = ({ studentName, gender, avat
           variant="ghost" 
           size="icon" 
           onClick={onChangeAvatar} 
-          className={cn("rounded-full hover:bg-background/20", gender === 'male' ? 'text-primary-foreground hover:text-primary-foreground' : 'text-slate-700 hover:text-slate-700')}
+          className={cn("rounded-full hover:bg-background/20", currentStyle.buttonText)}
           aria-label="아바타 변경"
         >
           <UserCircle2 className="h-7 w-7" />
