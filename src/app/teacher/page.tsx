@@ -18,7 +18,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Users, BarChart2, Lightbulb, ListChecks, UserPlus, Trash2, Sparkles, MessageSquarePlus, MessageSquareX, Loader2, Wand2, KeyRound, LogIn, Image as ImageIcon, Edit, Settings2, School } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle as PinCardTitle, CardDescription as PinCardDescription } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle as PinCardTitle, CardDescription as PinCardDescription, CardFooter } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { format, parseISO } from 'date-fns';
 import { ko } from 'date-fns/locale';
@@ -1021,3 +1021,4 @@ export default function TeacherPage() {
     </div>
   );
 }
+
