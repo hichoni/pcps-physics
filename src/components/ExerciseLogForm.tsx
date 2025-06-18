@@ -9,7 +9,6 @@ import { Label } from "@/components/ui/label";
 import { CardContent } from "@/components/ui/card";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-// import { EXERCISES as DEFAULT_EXERCISES } from "@/data/mockData"; // prop으로 받도록 변경
 import { cn } from "@/lib/utils";
 import { CalendarIcon, PlusCircle, MinusCircle, Save, Camera, UploadCloud, Loader2, AlertTriangle } from "lucide-react";
 import { format } from "date-fns";
@@ -18,6 +17,7 @@ import { storage } from '@/lib/firebase';
 import { ref as storageRef, uploadBytesResumable, getDownloadURL } from "firebase/storage";
 import { useToast } from "@/hooks/use-toast";
 import Image from 'next/image';
+import { getIconByName } from '@/lib/iconMap';
 
 
 interface ExerciseLogFormProps {
@@ -27,7 +27,7 @@ interface ExerciseLogFormProps {
   onSave: (log: Omit<RecordedExercise, 'id'>) => void;
   recordedExercises: RecordedExercise[];
   onSwitchToCameraMode?: (exerciseId: string) => void;
-  availableExercises: Exercise[]; // 교사가 설정한 운동 목록을 받도록 추가
+  availableExercises: Exercise[]; 
 }
 
 const ExerciseLogForm: React.FC<ExerciseLogFormProps> = ({ student, isOpen, onClose, onSave, recordedExercises, onSwitchToCameraMode, availableExercises }) => {
@@ -76,26 +76,56 @@ const ExerciseLogForm: React.FC<ExerciseLogFormProps> = ({ student, isOpen, onCl
 
   useEffect(() => {
     if (student && isOpen) {
-      if (availableExercises.length > 0 && !selectedExerciseId) {
-        setSelectedExerciseId(availableExercises[0].id);
+      if (availableExercises.length > 0 && (!selectedExerciseId || !availableExercises.find(ex => ex.id === selectedExerciseId))) {
+         setSelectedExerciseId(availableExercises[0].id);
       }
-      resetFormState();
+      // selectedExerciseId가 변경될 때 resetFormState를 호출하도록 함
+      // 또는 selectedExerciseId 기반으로 값들을 설정
+      const currentExerciseDetails = availableExercises.find(ex => ex.id === (selectedExerciseId || availableExercises[0]?.id));
+      if (currentExerciseDetails) {
+          setSelectedExerciseId(currentExerciseDetails.id); // Ensure selectedExerciseId is set
+          if (currentExerciseDetails.category === 'count_time') {
+            setCountLogValue(currentExerciseDetails.defaultCount ?? 0);
+            setTimeLogValue(currentExerciseDetails.defaultTime ?? 0);
+            setStepsLogValue(0); // Reset other category values
+            setDistanceLogValue(0);
+          } else if (currentExerciseDetails.category === 'steps_distance') {
+            setStepsLogValue(currentExerciseDetails.defaultSteps ?? 0);
+            setDistanceLogValue(currentExerciseDetails.defaultDistance ?? 0);
+            setCountLogValue(0); // Reset other category values
+            setTimeLogValue(0);
+          }
+      } else { // No exercises available or selected ID not found
+        setSelectedExerciseId('');
+        setCountLogValue(0); setTimeLogValue(0); setStepsLogValue(0); setDistanceLogValue(0);
+      }
+      setLogDate(new Date());
+      setSelectedFile(null);
+      setFilePreview(null);
+      setIsUploading(false);
+      setUploadProgress(0);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [student, isOpen, availableExercises, selectedExerciseId]); // selectedExerciseId 추가
+  }, [student, isOpen, availableExercises, selectedExerciseId]);
 
+  // selectedExerciseId가 바뀔 때마다 해당 운동의 기본값으로 폼 값 업데이트
   useEffect(() => {
     const currentExerciseDetails = availableExercises.find(ex => ex.id === selectedExerciseId);
     if (currentExerciseDetails) {
       if (currentExerciseDetails.category === 'count_time') {
         setCountLogValue(currentExerciseDetails.defaultCount ?? 0);
         setTimeLogValue(currentExerciseDetails.defaultTime ?? 0);
+        setStepsLogValue(0); 
+        setDistanceLogValue(0);
       } else if (currentExerciseDetails.category === 'steps_distance') {
         setStepsLogValue(currentExerciseDetails.defaultSteps ?? 0);
         setDistanceLogValue(currentExerciseDetails.defaultDistance ?? 0);
+        setCountLogValue(0); 
+        setTimeLogValue(0);
       }
     }
   }, [selectedExerciseId, availableExercises]);
+
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     if (event.target.files && event.target.files[0]) {
@@ -210,6 +240,7 @@ const ExerciseLogForm: React.FC<ExerciseLogFormProps> = ({ student, isOpen, onCl
   };
 
   if (!student || !selectedExercise) return null;
+  if (availableExercises.length === 0) return null; // 운동 목록 없으면 폼 표시 안 함
 
   const todayStr = format(logDate, "yyyy-MM-dd");
   const exercisesLoggedTodayForStudent = recordedExercises.filter(
@@ -240,12 +271,13 @@ const ExerciseLogForm: React.FC<ExerciseLogFormProps> = ({ student, isOpen, onCl
       }
     }
   }
-
-  const canUseCameraForExercise = selectedExercise.id === 'ex4' && onSwitchToCameraMode; // 'ex4'는 줄넘기 ID
+  
+  const jumpRopeExercise = availableExercises.find(ex => ex.koreanName.includes("줄넘기"));
+  const canUseCameraForExercise = selectedExercise.id === jumpRopeExercise?.id && onSwitchToCameraMode;
   const IconComponent = selectedExercise.icon;
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => { if (!open) { onClose(); resetFormState(); } }}>
+    <Dialog open={isOpen} onOpenChange={(open) => { if (!open) { onClose(); } }}>
       <DialogContent className="sm:max-w-[480px] p-0 rounded-xl">
         <DialogHeader className="p-6 pb-4">
           <DialogTitle className="text-2xl font-headline">{student.name} 학생 운동 기록</DialogTitle>
@@ -259,7 +291,7 @@ const ExerciseLogForm: React.FC<ExerciseLogFormProps> = ({ student, isOpen, onCl
             {availableExercises.length > 0 ? (
               <div className="grid grid-cols-2 gap-3">
                 {availableExercises.map((exercise) => {
-                  const CurrentExIcon = exercise.icon; // LucideIcon 타입
+                  const CurrentExIcon = exercise.icon;
                   return (
                     <Button
                       key={exercise.id}

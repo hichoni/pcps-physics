@@ -2,41 +2,42 @@
 import type React from 'react';
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, Cell } from 'recharts';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import type { RecordedExercise, Student, Exercise } from '@/lib/types';
-import { EXERCISES } from '@/data/mockData';
+import type { RecordedExercise, Student, CustomExercise as CustomExerciseType } from '@/lib/types'; // Exercise -> CustomExerciseType
+// import { EXERCISES } from '@/data/mockData'; // Replaced by customExercises prop
 import { ChartConfig, ChartContainer } from '@/components/ui/chart'; 
+import { getIconByName } from '@/lib/iconMap';
 
 interface ExerciseSummaryChartProps {
   recordedExercises: RecordedExercise[];
   students: Student[]; 
   selectedStudent?: Student | null;
+  customExercises: CustomExerciseType[]; // Add customExercises prop
 }
 
-const chartConfig = EXERCISES.reduce((acc, ex, index) => {
-  acc[ex.id] = { 
-    label: ex.koreanName, 
-    color: `hsl(var(--chart-${(index % 5) + 1}))` 
-  };
-  return acc;
-}, {} as Record<string, { label: string, color: string }>) satisfies ChartConfig;
-
-
-const ExerciseSummaryChart: React.FC<ExerciseSummaryChartProps> = ({ recordedExercises, students, selectedStudent }) => {
+const ExerciseSummaryChart: React.FC<ExerciseSummaryChartProps> = ({ recordedExercises, students, selectedStudent, customExercises }) => {
   
+  const chartConfig = customExercises.reduce((acc, ex, index) => {
+    acc[ex.id] = { 
+      label: ex.koreanName, 
+      color: `hsl(var(--chart-${(index % 5) + 1}))`,
+      icon: getIconByName(ex.iconName)
+    };
+    return acc;
+  }, {} as Record<string, { label: string, color: string, icon?: React.ComponentType }>) satisfies ChartConfig;
+
   const relevantStudents = selectedStudent ? [selectedStudent] : students;
   const relevantStudentIds = relevantStudents.map(s => s.id);
 
   const dataToDisplay = recordedExercises.filter(log => relevantStudentIds.includes(log.studentId));
 
-  const aggregatedData = EXERCISES.map(exercise => {
+  const aggregatedData = customExercises.map(exercise => {
     const logsForExercise = dataToDisplay.filter(log => log.exerciseId === exercise.id);
     let primaryValue = 0;
     let primaryUnit = '';
     let valueCount = 0; 
 
     if (exercise.category === 'count_time') {
-      // 시간 기반 운동 (플랭크 등)의 경우 '시간'을 우선으로, 없으면 '횟수'
-      if (exercise.timeUnit) {
+      if (exercise.timeUnit && exercise.defaultTime && exercise.defaultTime > 0) { // 시간 목표가 설정되어 있으면 시간을 우선
         const totalTime = logsForExercise.reduce((sum, log) => {
           if (log.timeValue !== undefined && log.timeValue > 0) {
             valueCount++;
@@ -46,7 +47,7 @@ const ExerciseSummaryChart: React.FC<ExerciseSummaryChartProps> = ({ recordedExe
         }, 0);
         primaryValue = valueCount > 0 ? parseFloat((totalTime / valueCount).toFixed(1)) : 0;
         primaryUnit = exercise.timeUnit;
-      } else if (exercise.countUnit) { // 시간이 주요 단위가 아닌 경우 (스쿼트, 줄넘기)
+      } else if (exercise.countUnit) { 
         const totalCount = logsForExercise.reduce((sum, log) => {
           if (log.countValue !== undefined && log.countValue > 0) {
             valueCount++;
@@ -58,8 +59,7 @@ const ExerciseSummaryChart: React.FC<ExerciseSummaryChartProps> = ({ recordedExe
         primaryUnit = exercise.countUnit;
       }
     } else if (exercise.category === 'steps_distance') {
-      // 거리 기반 운동 (걷기/달리기)의 경우 '거리'를 우선으로, 없으면 '걸음수'
-       if (exercise.distanceUnit) {
+       if (exercise.distanceUnit && exercise.defaultDistance && exercise.defaultDistance > 0) { // 거리 목표가 있으면 거리 우선
         const totalDistance = logsForExercise.reduce((sum, log) => {
           if (log.distanceValue !== undefined && log.distanceValue > 0) {
             valueCount++;
@@ -91,7 +91,21 @@ const ExerciseSummaryChart: React.FC<ExerciseSummaryChartProps> = ({ recordedExe
     };
   });
 
-  const chartData = aggregatedData.filter(d => d.average > 0 && d.unit); // 유효한 데이터만 필터링
+  const chartData = aggregatedData.filter(d => d.average > 0 && d.unit); 
+
+  if (customExercises.length === 0) {
+    return (
+      <Card className="shadow-lg rounded-xl">
+        <CardHeader>
+          <CardTitle className="font-headline">운동 요약</CardTitle>
+          <CardDescription>운동 목록이 설정되지 않았습니다.</CardDescription>
+        </CardHeader>
+        <CardContent className="h-[300px] flex items-center justify-center">
+          <p className="text-muted-foreground">교사 페이지에서 운동을 추가해주세요.</p>
+        </CardContent>
+      </Card>
+    );
+  }
 
   if (dataToDisplay.length === 0) { 
     return (
@@ -192,4 +206,3 @@ const ExerciseSummaryChart: React.FC<ExerciseSummaryChartProps> = ({ recordedExe
 };
 
 export default ExerciseSummaryChart;
-

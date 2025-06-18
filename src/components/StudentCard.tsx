@@ -1,19 +1,22 @@
 
 import type React from 'react';
-import type { Student, RecordedExercise, Exercise as ExerciseType } from '@/lib/types';
+import type { Student, RecordedExercise, CustomExercise as CustomExerciseType } from '@/lib/types';
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Activity, CheckCircle2, Trash2, KeyRound, UserCircle } from 'lucide-react'; 
-import { EXERCISES } from '@/data/mockData';
+import { Activity, CheckCircle2, Trash2, KeyRound } from 'lucide-react'; 
+// import { EXERCISES } from '@/data/mockData'; // Replaced by customExercises prop
 import { AVATAR_OPTIONS } from '@/data/avatarOptions';
 import { cn } from '@/lib/utils';
+import { getIconByName } from '@/lib/iconMap';
+
 
 interface StudentCardProps {
   student: Student;
   onDeleteStudent: (student: Student) => void;
   onManagePin: (student: Student) => void;
   recordedExercises: RecordedExercise[];
+  customExercises: CustomExerciseType[]; // Add customExercises prop
 }
 
 const getInitials = (name: string) => {
@@ -25,19 +28,20 @@ const getInitials = (name: string) => {
   return initials;
 };
 
-const formatLastExercise = (exercise: ExerciseType, log: RecordedExercise): string => {
+const formatLastExercise = (exercise: CustomExerciseType | undefined, log: RecordedExercise): string => {
+  if (!exercise) return "운동 기록됨 (정보 없음)";
   let parts = [];
   if (exercise.category === 'count_time') {
-    if (log.countValue !== undefined && log.countValue > 0) parts.push(`${log.countValue}${exercise.countUnit}`);
-    if (log.timeValue !== undefined && log.timeValue > 0) parts.push(`${log.timeValue}${exercise.timeUnit}`);
+    if (log.countValue !== undefined && log.countValue > 0) parts.push(`${log.countValue}${exercise.countUnit || ''}`);
+    if (log.timeValue !== undefined && log.timeValue > 0) parts.push(`${log.timeValue}${exercise.timeUnit || ''}`);
   } else if (exercise.category === 'steps_distance') {
-    if (log.stepsValue !== undefined && log.stepsValue > 0) parts.push(`${log.stepsValue}${exercise.stepsUnit}`);
-    if (log.distanceValue !== undefined && log.distanceValue > 0) parts.push(`${log.distanceValue}${exercise.distanceUnit}`);
+    if (log.stepsValue !== undefined && log.stepsValue > 0) parts.push(`${log.stepsValue}${exercise.stepsUnit || ''}`);
+    if (log.distanceValue !== undefined && log.distanceValue > 0) parts.push(`${log.distanceValue}${exercise.distanceUnit || ''}`);
   }
-  return parts.length > 0 ? `${exercise.koreanName}: ${parts.join(', ')}` : "운동 기록됨";
+  return parts.length > 0 ? `${exercise.koreanName}: ${parts.join(', ')}` : `${exercise.koreanName} 기록됨`;
 };
 
-const StudentCard: React.FC<StudentCardProps> = ({ student, onDeleteStudent, onManagePin, recordedExercises }) => {
+const StudentCard: React.FC<StudentCardProps> = ({ student, onDeleteStudent, onManagePin, recordedExercises, customExercises }) => {
   const today = new Date().toISOString().split('T')[0];
   const exercisesLoggedToday = recordedExercises
     .filter(rec => rec.studentId === student.id && rec.date === today)
@@ -46,18 +50,18 @@ const StudentCard: React.FC<StudentCardProps> = ({ student, onDeleteStudent, onM
   const getLastExerciseLogged = () => {
     if (exercisesLoggedToday.length === 0) return "오늘 기록된 운동 없음";
     const lastLog = exercisesLoggedToday[0]; 
-    const exerciseInfo = EXERCISES.find(ex => ex.id === lastLog.exerciseId);
-    return exerciseInfo ? formatLastExercise(exerciseInfo, lastLog) : "운동 기록됨";
+    const exerciseInfo = customExercises.find(ex => ex.id === lastLog.exerciseId);
+    return formatLastExercise(exerciseInfo, lastLog);
   }
 
-  const SelectedAvatarIcon = AVATAR_OPTIONS.find(opt => opt.id === student.avatarSeed)?.icon;
+  const SelectedAvatarIcon = AVATAR_OPTIONS.find(opt => opt.id === student.avatarSeed)?.icon || getIconByName(null); // Fallback to default icon
 
   return (
     <Card className="w-full shadow-lg hover:shadow-xl transition-shadow duration-300 rounded-xl overflow-hidden flex flex-col justify-between">
       <div>
         <CardHeader className="flex flex-row items-center space-x-4 p-4 bg-secondary/30">
           <Avatar className={cn("h-16 w-16 border-2 border-primary p-0.5", SelectedAvatarIcon ? 'bg-background' : 'bg-primary text-primary-foreground')}>
-            {SelectedAvatarIcon ? (
+            {student.avatarSeed && AVATAR_OPTIONS.find(opt => opt.id === student.avatarSeed) ? (
               <SelectedAvatarIcon className="h-full w-full text-primary" />
             ) : (
               <AvatarFallback className="text-xl bg-transparent">

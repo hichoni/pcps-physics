@@ -7,12 +7,13 @@ import { Label } from "@/components/ui/label";
 import type { Exercise, Student, StudentGoal, ExerciseGoal } from '@/lib/types';
 import { Target, Save, X } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
+import { getIconByName } from '@/lib/iconMap'; // 아이콘 매핑 함수
 
 interface SetStudentGoalsDialogProps {
   isOpen: boolean;
   onClose: () => void;
   onSave: (goals: StudentGoal) => void;
-  exercises: Exercise[]; // 교사가 설정한 운동 목록을 받도록 수정
+  exercises: Exercise[]; 
   currentStudent: Student | null;
   initialGoals: StudentGoal;
 }
@@ -91,7 +92,7 @@ const SetStudentGoalsDialog: React.FC<SetStudentGoalsDialogProps> = ({
         <div className="p-6 space-y-6 max-h-[60vh] overflow-y-auto">
           {exercises && exercises.length > 0 ? (
             exercises.map(exercise => {
-              const IconComponent = exercise.icon as LucideIcon; // 명시적 타입 지정
+              const IconComponent = exercise.icon; 
               return (
                 <div key={exercise.id} className="p-4 border rounded-lg shadow-sm bg-secondary/20">
                   <h3 className="text-lg font-semibold mb-3 text-primary flex items-center">
@@ -102,7 +103,7 @@ const SetStudentGoalsDialog: React.FC<SetStudentGoalsDialogProps> = ({
                       <>
                         {exercise.countUnit && (
                         <div className="space-y-1">
-                          <Label htmlFor={`${exercise.id}-count`} className="text-sm">목표 횟수 ({exercise.countUnit})</Label>
+                          <Label htmlFor={`${exercise.id}-count`} className="text-sm">목표 {exercise.countUnit}</Label>
                           <Input
                             id={`${exercise.id}-count`}
                             type="number"
@@ -116,7 +117,7 @@ const SetStudentGoalsDialog: React.FC<SetStudentGoalsDialogProps> = ({
                         )}
                         {exercise.timeUnit && (
                         <div className="space-y-1">
-                          <Label htmlFor={`${exercise.id}-time`} className="text-sm">목표 시간 ({exercise.timeUnit})</Label>
+                          <Label htmlFor={`${exercise.id}-time`} className="text-sm">목표 {exercise.timeUnit}</Label>
                           <Input
                             id={`${exercise.id}-time`}
                             type="number"
@@ -135,7 +136,7 @@ const SetStudentGoalsDialog: React.FC<SetStudentGoalsDialogProps> = ({
                       <>
                         {exercise.stepsUnit && (
                         <div className="space-y-1">
-                          <Label htmlFor={`${exercise.id}-steps`} className="text-sm">목표 걸음 수 ({exercise.stepsUnit})</Label>
+                          <Label htmlFor={`${exercise.id}-steps`} className="text-sm">목표 {exercise.stepsUnit}</Label>
                           <Input
                             id={`${exercise.id}-steps`}
                             type="number"
@@ -149,7 +150,7 @@ const SetStudentGoalsDialog: React.FC<SetStudentGoalsDialogProps> = ({
                         )}
                         {exercise.distanceUnit && (
                         <div className="space-y-1">
-                          <Label htmlFor={`${exercise.id}-distance`} className="text-sm">목표 거리 ({exercise.distanceUnit})</Label>
+                          <Label htmlFor={`${exercise.id}-distance`} className="text-sm">목표 {exercise.distanceUnit}</Label>
                           <Input
                             id={`${exercise.id}-distance`}
                             type="number"

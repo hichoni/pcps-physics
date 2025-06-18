@@ -9,27 +9,31 @@ import ExerciseSummaryChart from '@/components/ExerciseSummaryChart';
 import AiSuggestionBox from '@/components/AiSuggestionBox';
 import AddStudentDialog from '@/components/AddStudentDialog';
 import ManageStudentPinDialog from '@/components/ManageStudentPinDialog';
+import ManageCustomExerciseDialog from '@/components/ManageCustomExerciseDialog'; // 새 컴포넌트
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import type { Student, ClassName, RecordedExercise, Exercise, Gender, TeacherExerciseRecommendation, CustomExercise } from '@/lib/types';
-import { EXERCISES as DEFAULT_EXERCISES } from '@/data/mockData'; // Renamed to avoid conflict
+import type { Student, ClassName, RecordedExercise, CustomExercise as CustomExerciseType, Gender, TeacherExerciseRecommendation } from '@/lib/types'; // Exercise -> CustomExerciseType
+import { EXERCISES_SEED_DATA } from '@/data/mockData';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Users, BarChart2, Lightbulb, ListChecks, UserPlus, Trash2, Sparkles, MessageSquarePlus, MessageSquareX, Loader2, Wand2, KeyRound, LogIn, Image as ImageIcon, Edit, Settings2, School } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle as PinCardTitle, CardDescription as PinCardDescription, CardFooter } from '@/components/ui/card';
+import { Users, BarChart2, Lightbulb, ListChecks, UserPlus, Trash2, Sparkles, MessageSquarePlus, MessageSquareX, Loader2, Wand2, KeyRound, LogIn, Image as ImageIcon, Edit, Settings2, School, PlusCircle, Edit3 } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle as UICardTitle, CardDescription as UICardDescription, CardFooter } from '@/components/ui/card'; // CardTitle, CardDescription 이름 충돌 방지
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { format, parseISO } from 'date-fns';
+import { format, parseISO, isToday } from 'date-fns';
 import { ko } from 'date-fns/locale';
 import { useToast } from "@/hooks/use-toast";
 import { db } from '@/lib/firebase';
 import { 
-  collection, getDocs, addDoc, deleteDoc, doc, writeBatch, query, where, setDoc, getDoc, updateDoc, arrayUnion, arrayRemove 
+  collection, getDocs, addDoc, deleteDoc, doc, writeBatch, query, where, setDoc, getDoc, updateDoc, arrayUnion, arrayRemove, onSnapshot 
 } from 'firebase/firestore';
 import NextImage from 'next/image';
+import { getIconByName } from '@/lib/iconMap'; // 아이콘 매핑 함수
+import { v4 as uuidv4 } from 'uuid'; // UUID 생성
 
-const formatExerciseValue = (exercise: Exercise, log: RecordedExercise): string => {
+const formatExerciseValue = (exercise: CustomExerciseType | undefined, log: RecordedExercise): string => {
+  if (!exercise) return "알 수 없는 운동";
   let parts = [];
   if (exercise.category === 'count_time') {
     if (log.countValue !== undefined && exercise.countUnit) parts.push(`${log.countValue}${exercise.countUnit}`);
@@ -38,7 +42,7 @@ const formatExerciseValue = (exercise: Exercise, log: RecordedExercise): string 
     if (log.stepsValue !== undefined && exercise.stepsUnit) parts.push(`${log.stepsValue}${exercise.stepsUnit}`);
     if (log.distanceValue !== undefined && exercise.distanceUnit) parts.push(`${log.distanceValue}${exercise.distanceUnit}`);
   }
-  return parts.join(', ');
+  return parts.length > 0 ? `${parts.join(', ')}` : "기록됨";
 };
 
 const DEFAULT_COMPLIMENTS_LIST = [
@@ -73,7 +77,7 @@ export default function TeacherPage() {
   const [exerciseRecommendations, setExerciseRecommendations] = useState<TeacherExerciseRecommendation[]>([]);
   const [studentWelcomeMessage, setStudentWelcomeMessage] = useState<string>(DEFAULT_STUDENT_WELCOME_MSG);
   const [studentWelcomeMessageInput, setStudentWelcomeMessageInput] = useState<string>('');
-  const [customExercises, setCustomExercises] = useState<CustomExercise[]>(DEFAULT_EXERCISES.map(ex => ({...ex}))); // 기본값으로 mockData 사용
+  const [customExercises, setCustomExercises] = useState<CustomExerciseType[]>([]); 
 
   const [isLoadingStudents, setIsLoadingStudents] = useState(true);
   const [isLoadingLogs, setIsLoadingLogs] = useState(true);
@@ -82,6 +86,10 @@ export default function TeacherPage() {
   const [isLoadingWelcomeMessage, setIsLoadingWelcomeMessage] = useState(true);
   const [isLoadingCustomExercises, setIsLoadingCustomExercises] = useState(true);
 
+  const [isManageExerciseDialogOpen, setIsManageExerciseDialogOpen] = useState(false);
+  const [exerciseToEdit, setExerciseToEdit] = useState<CustomExerciseType | null>(null);
+  const [exerciseToDelete, setExerciseToDelete] = useState<CustomExerciseType | null>(null);
+  const [isConfirmDeleteExerciseDialogOpen, setIsConfirmDeleteExerciseDialogOpen] = useState(false);
 
   const [studentsInClass, setStudentsInClass] = useState<Student[]>([]);
   const [activeTab, setActiveTab] = useState<string>("students");
@@ -98,7 +106,6 @@ export default function TeacherPage() {
 
   const handlePinSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    // 실제 학년별 PIN 로직은 추후 구현. 현재는 선택된 학년과 관계없이 고정 PIN으로 인증.
     if (pinInput === TEACHER_PIN) {
       setIsAuthenticated(true);
       setPinError('');
@@ -153,20 +160,21 @@ export default function TeacherPage() {
     }
   }, [toast]);
 
-
   const fetchCompliments = useCallback(async () => {
     setIsLoadingCompliments(true);
     try {
       const complimentsDocRef = doc(db, COMPLIMENTS_DOC_PATH);
-      const complimentsDocSnap = await getDoc(complimentsDocRef);
-      if (complimentsDocSnap.exists() && complimentsDocSnap.data().list) {
-        setCompliments(complimentsDocSnap.data().list);
-      } else {
-        setCompliments(DEFAULT_COMPLIMENTS_LIST);
-        if (!complimentsDocSnap.exists()) {
-            await setDoc(complimentsDocRef, { list: DEFAULT_COMPLIMENTS_LIST });
+      const unsub = onSnapshot(complimentsDocRef, (docSnap) => {
+        if (docSnap.exists() && docSnap.data().list) {
+          setCompliments(docSnap.data().list);
+        } else {
+          setCompliments(DEFAULT_COMPLIMENTS_LIST);
+          if (!docSnap.exists()) {
+              setDoc(complimentsDocRef, { list: DEFAULT_COMPLIMENTS_LIST });
+          }
         }
-      }
+      });
+      return unsub;
     } catch (error) {
       console.error("Error fetching compliments: ", error);
       toast({ title: "오류", description: "칭찬 문구를 불러오는 데 실패했습니다.", variant: "destructive"});
@@ -180,15 +188,17 @@ export default function TeacherPage() {
     setIsLoadingRecommendations(true);
     try {
       const recommendationsDocRef = doc(db, RECOMMENDATIONS_DOC_PATH);
-      const recommendationsDocSnap = await getDoc(recommendationsDocRef);
-      if (recommendationsDocSnap.exists() && recommendationsDocSnap.data().list) {
-        setExerciseRecommendations(recommendationsDocSnap.data().list);
-      } else {
-        setExerciseRecommendations([]); 
-        if (!recommendationsDocSnap.exists()) {
-             await setDoc(recommendationsDocRef, { list: [] });
+      const unsub = onSnapshot(recommendationsDocRef, (docSnap) => {
+        if (docSnap.exists() && docSnap.data().list) {
+          setExerciseRecommendations(docSnap.data().list);
+        } else {
+          setExerciseRecommendations([]); 
+          if (!docSnap.exists()) {
+               setDoc(recommendationsDocRef, { list: [] });
+          }
         }
-      }
+      });
+      return unsub;
     } catch (error) {
       console.error("Error fetching exercise recommendations: ", error);
       toast({ title: "오류", description: "추천 운동/팁 목록을 불러오는 데 실패했습니다.", variant: "destructive"});
@@ -202,15 +212,17 @@ export default function TeacherPage() {
     setIsLoadingWelcomeMessage(true);
     try {
       const welcomeMsgDocRef = doc(db, STUDENT_WELCOME_MESSAGE_DOC_PATH);
-      const welcomeMsgDocSnap = await getDoc(welcomeMsgDocRef);
-      if (welcomeMsgDocSnap.exists() && welcomeMsgDocSnap.data().text) {
-        setStudentWelcomeMessage(welcomeMsgDocSnap.data().text);
-        setStudentWelcomeMessageInput(welcomeMsgDocSnap.data().text);
-      } else {
-        setStudentWelcomeMessage(DEFAULT_STUDENT_WELCOME_MSG);
-        setStudentWelcomeMessageInput(DEFAULT_STUDENT_WELCOME_MSG);
-        await setDoc(welcomeMsgDocRef, { text: DEFAULT_STUDENT_WELCOME_MSG });
-      }
+      const unsub = onSnapshot(welcomeMsgDocRef, (docSnap) => {
+        if (docSnap.exists() && docSnap.data().text) {
+          setStudentWelcomeMessage(docSnap.data().text);
+          setStudentWelcomeMessageInput(docSnap.data().text);
+        } else {
+          setStudentWelcomeMessage(DEFAULT_STUDENT_WELCOME_MSG);
+          setStudentWelcomeMessageInput(DEFAULT_STUDENT_WELCOME_MSG);
+          setDoc(welcomeMsgDocRef, { text: DEFAULT_STUDENT_WELCOME_MSG });
+        }
+      });
+      return unsub;
     } catch (error) {
       console.error("Error fetching student welcome message:", error);
       toast({ title: "오류", description: "학생 환영 메시지를 불러오는 데 실패했습니다.", variant: "destructive" });
@@ -225,18 +237,21 @@ export default function TeacherPage() {
     setIsLoadingCustomExercises(true);
     try {
       const exercisesDocRef = doc(db, CUSTOM_EXERCISES_DOC_PATH);
-      const exercisesDocSnap = await getDoc(exercisesDocRef);
-      if (exercisesDocSnap.exists() && Array.isArray(exercisesDocSnap.data().list) && exercisesDocSnap.data().list.length > 0) {
-        setCustomExercises(exercisesDocSnap.data().list);
-      } else {
-        // Firestore에 데이터가 없으면 mockData로 초기화하고 저장 (선택적)
-        // await setDoc(exercisesDocRef, { list: DEFAULT_EXERCISES.map(ex => ({...ex})) });
-        setCustomExercises(DEFAULT_EXERCISES.map(ex => ({...ex}))); // icon prop 제외
-      }
+      const unsub = onSnapshot(exercisesDocRef, (docSnap) => {
+        if (docSnap.exists() && Array.isArray(docSnap.data()?.list)) {
+          setCustomExercises(docSnap.data()?.list || []);
+        } else {
+          // Firestore에 데이터가 없으면 EXERCISES_SEED_DATA로 초기화
+          setDoc(exercisesDocRef, { list: EXERCISES_SEED_DATA.map(ex => ({...ex})) });
+          setCustomExercises(EXERCISES_SEED_DATA.map(ex => ({...ex})));
+          toast({ title: "알림", description: "기본 운동 목록으로 초기화되었습니다."});
+        }
+      });
+      return unsub;
     } catch (error) {
       console.error("Error fetching custom exercises: ", error);
       toast({ title: "오류", description: "운동 목록을 불러오는 데 실패했습니다.", variant: "destructive"});
-      setCustomExercises(DEFAULT_EXERCISES.map(ex => ({...ex})));
+      setCustomExercises(EXERCISES_SEED_DATA.map(ex => ({...ex})));
     } finally {
       setIsLoadingCustomExercises(false);
     }
@@ -244,14 +259,18 @@ export default function TeacherPage() {
 
 
   useEffect(() => {
+    let unsubscribers: (() => void)[] = [];
     if (isAuthenticated) {
       fetchStudents();
       fetchLogs();
-      fetchCompliments();
-      fetchExerciseRecommendations();
-      fetchStudentWelcomeMessage();
-      fetchCustomExercises();
+      fetchCompliments().then(unsub => unsub && unsubscribers.push(unsub));
+      fetchExerciseRecommendations().then(unsub => unsub && unsubscribers.push(unsub));
+      fetchStudentWelcomeMessage().then(unsub => unsub && unsubscribers.push(unsub));
+      fetchCustomExercises().then(unsub => unsub && unsubscribers.push(unsub));
     }
+    return () => {
+      unsubscribers.forEach(unsub => unsub());
+    };
   }, [isAuthenticated, fetchStudents, fetchLogs, fetchCompliments, fetchExerciseRecommendations, fetchStudentWelcomeMessage, fetchCustomExercises]);
 
   useEffect(() => {
@@ -282,9 +301,10 @@ export default function TeacherPage() {
         avatarSeed: '', 
       };
       const docRef = await addDoc(collection(db, "students"), studentWithAvatarAndPin);
+      // No need to manually update state if using onSnapshot for students (but fetchStudents is not using onSnapshot)
+      // So, we'll manually update for now or switch fetchStudents to onSnapshot
       const newStudent = { ...studentWithAvatarAndPin, id: docRef.id };
-      setStudents(prevStudents => [...prevStudents, newStudent]);
-
+      setStudents(prevStudents => [...prevStudents, newStudent].sort((a,b) => a.class.localeCompare(b.class) || a.studentNumber - b.studentNumber));
       if (!dynamicClasses.includes(newStudent.class)) {
         setDynamicClasses(prevClasses => [...prevClasses, newStudent.class].sort());
       }
@@ -314,6 +334,8 @@ export default function TeacherPage() {
         const goalsDocRef = doc(db, "studentGoals", studentToDelete.id);
         batch.delete(goalsDocRef);
         await batch.commit();
+        // State update will be handled by onSnapshot if fetchStudents is converted
+        // For now, manual update:
         setStudents(prevStudents => prevStudents.filter(s => s.id !== studentToDelete.id));
         setRecordedExercises(prevLogs => prevLogs.filter(log => log.studentId !== studentToDelete.id));
         const remainingStudents = students.filter(s => s.id !== studentToDelete.id);
@@ -343,21 +365,11 @@ export default function TeacherPage() {
       await updateDoc(complimentsDocRef, {
         list: arrayUnion(newCompliment.trim())
       });
-      setCompliments(prev => [...prev, newCompliment.trim()]);
       setNewCompliment('');
       toast({ title: "성공", description: "칭찬 문구가 추가되었습니다."});
     } catch (error) {
       console.error("Error adding compliment: ", error);
-      const complimentsDocRef = doc(db, COMPLIMENTS_DOC_PATH);
-      const currentDoc = await getDoc(complimentsDocRef);
-      if (!currentDoc.exists()) {
-         await setDoc(complimentsDocRef, { list: [newCompliment.trim(), ...DEFAULT_COMPLIMENTS_LIST.filter(c => c !== newCompliment.trim())] });
-         setCompliments([newCompliment.trim(), ...DEFAULT_COMPLIMENTS_LIST.filter(c => c !== newCompliment.trim())]);
-         setNewCompliment('');
-         toast({ title: "성공", description: "칭찬 문구가 추가되었습니다 (새 목록 생성)."});
-      } else {
-        toast({ title: "오류", description: "칭찬 문구 추가에 실패했습니다.", variant: "destructive"});
-      }
+      toast({ title: "오류", description: "칭찬 문구 추가에 실패했습니다.", variant: "destructive"});
     }
   };
 
@@ -367,7 +379,6 @@ export default function TeacherPage() {
       await updateDoc(complimentsDocRef, {
         list: arrayRemove(complimentToDelete)
       });
-      setCompliments(prev => prev.filter(c => c !== complimentToDelete));
       toast({ title: "성공", description: "칭찬 문구가 삭제되었습니다."});
     } catch (error) {
       console.error("Error deleting compliment: ", error);
@@ -392,23 +403,12 @@ export default function TeacherPage() {
       await updateDoc(recommendationsDocRef, {
         list: arrayUnion(newRecommendation)
       });
-      setExerciseRecommendations(prev => [...prev, newRecommendation]);
       setNewRecommendationTitle('');
       setNewRecommendationDetail('');
       toast({ title: "성공", description: "추천 운동/팁이 추가되었습니다."});
     } catch (error) {
         console.error("Error adding exercise recommendation: ", error);
-        const recommendationsDocRef = doc(db, RECOMMENDATIONS_DOC_PATH);
-        const currentDoc = await getDoc(recommendationsDocRef);
-        if (!currentDoc.exists()) {
-            await setDoc(recommendationsDocRef, { list: [newRecommendation] });
-            setExerciseRecommendations([newRecommendation]);
-            setNewRecommendationTitle('');
-            setNewRecommendationDetail('');
-            toast({ title: "성공", description: "추천 운동/팁이 추가되었습니다 (새 목록 생성)."});
-        } else {
-            toast({ title: "오류", description: "추천 운동/팁 추가에 실패했습니다.", variant: "destructive"});
-        }
+        toast({ title: "오류", description: "추천 운동/팁 추가에 실패했습니다.", variant: "destructive"});
     }
   };
 
@@ -418,7 +418,6 @@ export default function TeacherPage() {
       await updateDoc(recommendationsDocRef, {
         list: arrayRemove(recommendationToDelete)
       });
-      setExerciseRecommendations(prev => prev.filter(rec => rec.recommendationTitle !== recommendationToDelete.recommendationTitle || rec.recommendationDetail !== recommendationToDelete.recommendationDetail));
       toast({ title: "성공", description: "추천 운동/팁이 삭제되었습니다."});
     } catch (error) {
       console.error("Error deleting exercise recommendation: ", error);
@@ -435,7 +434,6 @@ export default function TeacherPage() {
     try {
       const welcomeMsgDocRef = doc(db, STUDENT_WELCOME_MESSAGE_DOC_PATH);
       await setDoc(welcomeMsgDocRef, { text: messageToSave });
-      setStudentWelcomeMessage(messageToSave);
       toast({ title: "성공", description: "학생 환영 메시지가 저장되었습니다." });
     } catch (error) {
       console.error("Error saving student welcome message:", error);
@@ -443,14 +441,56 @@ export default function TeacherPage() {
     }
   };
   
-  const handleSaveCustomExercises = async (updatedExercises: CustomExercise[]) => {
-    // Firestore에 저장하는 로직 (다음 단계에서 구현)
-    // setCustomExercises(updatedExercises);
-    // toast({ title: "성공", description: "운동 목록이 저장되었습니다." });
-    console.log("운동 목록 저장 요청 (구현 예정):", updatedExercises);
-    toast({ title: "알림", description: "운동 목록 관리 기능은 현재 개발 중입니다."});
+  const handleSaveCustomExercise = async (exerciseData: CustomExerciseType) => {
+    try {
+      const exercisesDocRef = doc(db, CUSTOM_EXERCISES_DOC_PATH);
+      const currentExercises = [...customExercises];
+      
+      if (exerciseToEdit) { // 수정 모드
+        const index = currentExercises.findIndex(ex => ex.id === exerciseToEdit.id);
+        if (index > -1) {
+          currentExercises[index] = exerciseData;
+        }
+      } else { // 추가 모드
+         if (customExercises.length >= 6) {
+          toast({ title: "제한 초과", description: "운동은 최대 6개까지 추가할 수 있습니다.", variant: "destructive" });
+          setIsManageExerciseDialogOpen(false);
+          setExerciseToEdit(null);
+          return;
+        }
+        currentExercises.push({ ...exerciseData, id: uuidv4() });
+      }
+      
+      await setDoc(exercisesDocRef, { list: currentExercises });
+      toast({ title: "성공", description: `운동이 ${exerciseToEdit ? '수정' : '추가'}되었습니다.` });
+      setIsManageExerciseDialogOpen(false);
+      setExerciseToEdit(null);
+    } catch (error) {
+      console.error("Error saving custom exercise: ", error);
+      toast({ title: "오류", description: "운동 저장에 실패했습니다.", variant: "destructive"});
+    }
   };
 
+  const requestDeleteCustomExercise = (exercise: CustomExerciseType) => {
+    setExerciseToDelete(exercise);
+    setIsConfirmDeleteExerciseDialogOpen(true);
+  };
+
+  const confirmDeleteCustomExercise = async () => {
+    if (exerciseToDelete) {
+      try {
+        const exercisesDocRef = doc(db, CUSTOM_EXERCISES_DOC_PATH);
+        const updatedExercises = customExercises.filter(ex => ex.id !== exerciseToDelete.id);
+        await setDoc(exercisesDocRef, { list: updatedExercises });
+        toast({ title: "성공", description: `${exerciseToDelete.koreanName} 운동이 삭제되었습니다.` });
+      } catch (error) {
+        console.error("Error deleting custom exercise: ", error);
+        toast({ title: "오류", description: "운동 삭제에 실패했습니다.", variant: "destructive"});
+      }
+    }
+    setIsConfirmDeleteExerciseDialogOpen(false);
+    setExerciseToDelete(null);
+  };
 
   const handleOpenManagePinDialog = (student: Student) => {
     setStudentForPinManage(student);
@@ -474,15 +514,29 @@ export default function TeacherPage() {
       }
     }
   };
+  
+  const openAddExerciseDialog = () => {
+    if (customExercises.length >= 6) {
+      toast({ title: "제한 초과", description: "운동은 최대 6개까지 추가할 수 있습니다.", variant: "destructive" });
+      return;
+    }
+    setExerciseToEdit(null);
+    setIsManageExerciseDialogOpen(true);
+  };
+
+  const openEditExerciseDialog = (exercise: CustomExerciseType) => {
+    setExerciseToEdit(exercise);
+    setIsManageExerciseDialogOpen(true);
+  };
+
 
   const memoizedExerciseSummaryChart = useMemo(() => (
-    <ExerciseSummaryChart recordedExercises={recordedExercises} students={students} />
-  ), [recordedExercises, students]);
+    <ExerciseSummaryChart recordedExercises={recordedExercises} students={students} customExercises={customExercises} />
+  ), [recordedExercises, students, customExercises]);
 
   const memoizedAiSuggestionBox = useMemo(() => <AiSuggestionBox recordedExercises={recordedExercises} />, [recordedExercises]);
 
   const isLoading = isLoadingStudents || isLoadingLogs || isLoadingCompliments || isLoadingRecommendations || isLoadingWelcomeMessage || isLoadingCustomExercises;
-
 
   if (!isAuthenticated) {
     return (
@@ -492,10 +546,10 @@ export default function TeacherPage() {
             <div className="flex justify-center mb-6">
               <KeyRound className="h-16 w-16 text-primary" />
             </div>
-            <PinCardTitle className="text-3xl font-bold font-headline text-primary">교사용 페이지</PinCardTitle>
-            <PinCardDescription className="text-lg text-muted-foreground pt-1">
+            <UICardTitle className="text-3xl font-bold font-headline text-primary">교사용 페이지</UICardTitle>
+            <UICardDescription className="text-lg text-muted-foreground pt-1">
               계속하려면 학년 선택 후 PIN 번호를 입력하세요.
-            </PinCardDescription>
+            </UICardDescription>
           </CardHeader>
           <CardContent className="p-6 pt-2">
             <form onSubmit={handlePinSubmit} className="space-y-6">
@@ -585,7 +639,7 @@ export default function TeacherPage() {
               <Settings2 className="mr-2 h-5 w-5" /> 운동 관리
             </TabsTrigger>
             <TabsTrigger value="welcomeMessage" className="py-3 text-base data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-md">
-              <Edit className="mr-2 h-5 w-5" /> 환영 메시지
+              <Edit3 className="mr-2 h-5 w-5" /> 환영 메시지
             </TabsTrigger>
             <TabsTrigger value="compliments" className="py-3 text-base data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-md">
               <Sparkles className="mr-2 h-5 w-5" /> 칭찬 문구
@@ -628,6 +682,7 @@ export default function TeacherPage() {
                       onDeleteStudent={() => requestDeleteStudent(student)}
                       onManagePin={() => handleOpenManagePinDialog(student)}
                       recordedExercises={recordedExercises}
+                      customExercises={customExercises} // Pass customExercises
                     />
                   ))}
                 </div>
@@ -637,7 +692,9 @@ export default function TeacherPage() {
           
           <TabsContent value="log" className="mt-6">
              <section aria-labelledby="activity-log-heading">
-                <h2 id="activity-log-heading" className="text-xl font-semibold mb-4 font-headline">최근 활동 (최대 20개)</h2>
+                <h2 id="activity-log-heading" className="text-xl font-semibold mb-4 font-headline">
+                  {selectedClass ? `${selectedClass} 학급` : '전체'} 최근 활동 (최대 20개)
+                </h2>
                 {isLoadingLogs ? (
                   <div className="flex justify-center items-center h-40"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
                 ) : recordedExercises.length > 0 ? (
@@ -648,15 +705,14 @@ export default function TeacherPage() {
                       .slice(0, 20) 
                       .map(log => {
                         const student = students.find(s => s.id === log.studentId);
-                        const exerciseInfo = DEFAULT_EXERCISES.find(ex => ex.id === log.exerciseId); // Use DEFAULT_EXERCISES for now
-                        if (!exerciseInfo) return null;
+                        const exerciseInfo = customExercises.find(ex => ex.id === log.exerciseId); 
                         const formattedValue = formatExerciseValue(exerciseInfo, log);
                         return (
                           <div key={log.id} className="p-3 bg-secondary/30 rounded-lg shadow-sm text-sm">
                             <div className="flex justify-between items-start">
                                 <div>
                                     <p><strong>{student?.name || '알 수 없는 학생'}</strong> ({log.className} {student?.studentNumber}번)</p>
-                                    <p>{exerciseInfo?.koreanName || '알 수 없는 운동'}: {formattedValue}</p>
+                                    <p>{exerciseInfo?.koreanName || log.exerciseId}: {formattedValue}</p>
                                     <p className="text-xs text-muted-foreground">
                                     날짜: {format(parseISO(log.date), "PPP", { locale: ko })}
                                     </p>
@@ -689,7 +745,9 @@ export default function TeacherPage() {
                     })}
                   </div>
                 ) : (
-                  <p className="text-muted-foreground">아직 기록된 활동이 없습니다.</p>
+                  <p className="text-muted-foreground text-center py-4">
+                    {selectedClass ? `${selectedClass} 학급의` : '전체'} 활동 기록이 없습니다.
+                  </p>
                 )}
              </section>
           </TabsContent>
@@ -711,14 +769,14 @@ export default function TeacherPage() {
                     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime() || (b.id && a.id ? b.id.localeCompare(a.id) : 0));
 
                   if (photos.length === 0) {
-                    return <p className="text-muted-foreground">업로드된 인증샷이 없습니다.</p>;
+                    return <p className="text-muted-foreground text-center py-4">업로드된 인증샷이 없습니다.</p>;
                   }
 
                   return (
                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                       {photos.map(log => {
                         const student = students.find(s => s.id === log.studentId);
-                        const exerciseInfo = DEFAULT_EXERCISES.find(ex => ex.id === log.exerciseId);
+                        const exerciseInfo = customExercises.find(ex => ex.id === log.exerciseId);
                         return (
                           <Card key={log.id} className="overflow-hidden shadow-md hover:shadow-lg transition-shadow">
                             <a href={log.imageUrl} target="_blank" rel="noopener noreferrer" className="block aspect-square relative bg-muted">
@@ -745,8 +803,8 @@ export default function TeacherPage() {
                               <p className="text-sm font-semibold truncate" title={student?.name || '알 수 없는 학생'}>
                                 {student?.name || '알 수 없는 학생'}
                               </p>
-                              <p className="text-xs text-muted-foreground truncate" title={exerciseInfo?.koreanName || '알 수 없는 운동'}>
-                                {exerciseInfo?.koreanName || '알 수 없는 운동'}
+                              <p className="text-xs text-muted-foreground truncate" title={exerciseInfo?.koreanName || log.exerciseId}>
+                                {exerciseInfo?.koreanName || log.exerciseId}
                               </p>
                               <p className="text-xs text-muted-foreground">
                                 {format(parseISO(log.date), "yyyy년 MM월 dd일", { locale: ko })}
@@ -778,59 +836,73 @@ export default function TeacherPage() {
           
           <TabsContent value="exerciseManagement" className="mt-6">
             <section aria-labelledby="exercise-management-heading" className="bg-card p-6 rounded-xl shadow-md">
-              <h2 id="exercise-management-heading" className="text-xl font-semibold mb-6 font-headline flex items-center">
-                <Settings2 className="mr-3 h-6 w-6 text-primary" />
-                학생 운동 목록 관리
-              </h2>
+              <div className="flex justify-between items-center mb-6">
+                <h2 id="exercise-management-heading" className="text-xl font-semibold font-headline flex items-center">
+                  <Settings2 className="mr-3 h-6 w-6 text-primary" />
+                  학생 운동 목록 관리 (최대 6개)
+                </h2>
+                <Button onClick={openAddExerciseDialog} disabled={customExercises.length >= 6} className="rounded-lg">
+                  <PlusCircle className="mr-2 h-5 w-5" /> 새 운동 추가
+                </Button>
+              </div>
               {isLoadingCustomExercises ? (
                  <div className="flex justify-center py-4"><Loader2 className="h-6 w-6 animate-spin text-primary" /> 운동 목록 로딩 중...</div>
+              ) : customExercises.length === 0 ? (
+                <div className="text-center py-6">
+                    <p className="text-muted-foreground mb-3">등록된 운동이 없습니다. 새 운동을 추가해주세요.</p>
+                    <Button onClick={() => { // Firestore에 시드 데이터로 초기화
+                        const exercisesDocRef = doc(db, CUSTOM_EXERCISES_DOC_PATH);
+                        setDoc(exercisesDocRef, { list: EXERCISES_SEED_DATA.map(ex => ({...ex, id: uuidv4()})) })
+                            .then(() => toast({title: "성공", description: "기본 운동 목록으로 초기화되었습니다."}))
+                            .catch(() => toast({title: "오류", description: "초기화에 실패했습니다.", variant: "destructive"}));
+                    }}>기본 운동 목록으로 초기화</Button>
+                </div>
               ) : (
                 <div className="space-y-4">
-                  <p className="text-muted-foreground text-sm">
-                    학생 앱에 표시될 운동 종류 (최대 6개)를 설정합니다. 운동 이름, 아이콘, 단위 등을 커스터마이징 할 수 있습니다.
-                  </p>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {customExercises.slice(0, 6).map((ex, index) => (
-                       <Card key={ex.id || index} className="shadow-sm">
-                        <CardHeader>
-                          <PinCardTitle className="text-lg flex items-center">
-                            {React.createElement(DEFAULT_EXERCISES.find(defEx => defEx.iconName === ex.iconName)?.icon || Settings2, { className: "mr-2 h-5 w-5"})}
-                            {ex.koreanName}
-                          </PinCardTitle>
+                  {customExercises.map((ex) => {
+                    const Icon = getIconByName(ex.iconName);
+                    return (
+                       <Card key={ex.id} className="shadow-sm">
+                        <CardHeader className="flex flex-row justify-between items-start">
+                          <div>
+                            <UICardTitle className="text-lg flex items-center">
+                              <Icon className="mr-2 h-5 w-5 text-primary" />
+                              {ex.koreanName}
+                            </UICardTitle>
+                            <UICardDescription className="text-xs">{ex.category === 'count_time' ? '횟수/시간 기반' : '걸음/거리 기반'}</UICardDescription>
+                          </div>
+                          <div className="flex gap-2">
+                            <Button variant="ghost" size="icon" onClick={() => openEditExerciseDialog(ex)} aria-label="운동 수정 (개발중)">
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                            <Button variant="ghost" size="icon" onClick={() => requestDeleteCustomExercise(ex)} aria-label="운동 삭제" className="text-destructive hover:text-destructive/80">
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
                         </CardHeader>
-                        <CardContent className="text-xs space-y-1">
-                          <p>유형: {ex.category === 'count_time' ? '횟수/시간' : '걸음/거리'}</p>
-                          {ex.countUnit && <p>횟수 단위: {ex.countUnit} (기본: {ex.defaultCount}, 증가폭: {ex.countStep})</p>}
-                          {ex.timeUnit && <p>시간 단위: {ex.timeUnit} (기본: {ex.defaultTime}, 증가폭: {ex.timeStep})</p>}
-                          {ex.stepsUnit && <p>걸음 단위: {ex.stepsUnit} (기본: {ex.defaultSteps}, 증가폭: {ex.stepsStep})</p>}
-                          {ex.distanceUnit && <p>거리 단위: {ex.distanceUnit} (기본: {ex.defaultDistance}, 증가폭: {ex.distanceStep})</p>}
+                        <CardContent className="text-xs space-y-1 pl-6 pr-6 pb-4">
+                          <p>아이콘 이름: {ex.iconName}</p>
+                          {ex.countUnit && <p>{ex.countUnit}: 기본 {ex.defaultCount ?? 0}, 증가폭 {ex.countStep ?? 0}</p>}
+                          {ex.timeUnit && <p>{ex.timeUnit}: 기본 {ex.defaultTime ?? 0}, 증가폭 {ex.timeStep ?? 0}</p>}
+                          {ex.stepsUnit && <p>{ex.stepsUnit}: 기본 {ex.defaultSteps ?? 0}, 증가폭 {ex.stepsStep ?? 0}</p>}
+                          {ex.distanceUnit && <p>{ex.distanceUnit}: 기본 {ex.defaultDistance ?? 0}, 증가폭 {ex.distanceStep ?? 0}</p>}
+                          <p>AI 힌트: {ex.dataAiHint}</p>
                         </CardContent>
-                        <CardFooter className="p-2">
-                           <Button variant="outline" size="sm" className="w-full text-xs" onClick={() => toast({title: "알림", description:"운동 수정 기능은 개발 중입니다."})}>
-                             <Edit className="mr-1 h-3 w-3"/> 수정 (개발중)
-                           </Button>
-                        </CardFooter>
                        </Card>
-                    ))}
-                  </div>
-                  {customExercises.length < 6 && (
-                    <Button className="mt-4" onClick={() => toast({title: "알림", description:"운동 추가 기능은 개발 중입니다."})}>
-                      <UserPlus className="mr-2 h-5 w-5" /> 새 운동 추가 (개발중)
-                    </Button>
-                  )}
+                    );
+                  })}
                    <p className="text-xs text-muted-foreground mt-4">
-                    * 실제 운동 추가, 수정, 삭제 및 순서 변경 기능은 다음 업데이트에서 제공될 예정입니다.
+                    * 운동 수정 기능은 현재 개발 중입니다. 삭제 후 새로 추가해주세요.
                   </p>
                 </div>
               )}
             </section>
           </TabsContent>
 
-
           <TabsContent value="welcomeMessage" className="mt-6">
             <section aria-labelledby="welcome-message-management-heading" className="bg-card p-6 rounded-xl shadow-md">
               <h2 id="welcome-message-management-heading" className="text-xl font-semibold mb-6 font-headline flex items-center">
-                <Edit className="mr-2 h-6 w-6 text-primary" />
+                <Edit3 className="mr-2 h-6 w-6 text-primary" />
                 학생 환영 메시지 관리
               </h2>
               {isLoadingWelcomeMessage ? (
@@ -996,6 +1068,16 @@ export default function TeacherPage() {
           />
         )}
 
+        <ManageCustomExerciseDialog
+          isOpen={isManageExerciseDialogOpen}
+          onClose={() => {
+            setIsManageExerciseDialogOpen(false);
+            setExerciseToEdit(null);
+          }}
+          onSave={handleSaveCustomExercise}
+          exerciseToEdit={exerciseToEdit}
+        />
+
         {studentToDelete && (
           <AlertDialog open={isConfirmDeleteDialogOpen} onOpenChange={setIsConfirmDeleteDialogOpen}>
             <AlertDialogContent>
@@ -1014,6 +1096,26 @@ export default function TeacherPage() {
             </AlertDialogContent>
           </AlertDialog>
         )}
+
+        {exerciseToDelete && (
+            <AlertDialog open={isConfirmDeleteExerciseDialogOpen} onOpenChange={setIsConfirmDeleteExerciseDialogOpen}>
+                <AlertDialogContent>
+                <AlertDialogHeader>
+                    <AlertDialogTitle>운동 삭제 확인</AlertDialogTitle>
+                    <AlertDialogDescription>
+                    <strong>{exerciseToDelete.koreanName}</strong> 운동을 정말 삭제하시겠습니까? 이 운동과 관련된 학생들의 목표 설정 및 기록에는 영향을 주지 않지만, 더 이상 이 운동을 기록하거나 목표로 설정할 수 없게 됩니다.
+                    </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                    <AlertDialogCancel onClick={() => setIsConfirmDeleteExerciseDialogOpen(false)}>취소</AlertDialogCancel>
+                    <AlertDialogAction onClick={confirmDeleteCustomExercise} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                    <Trash2 className="mr-2 h-4 w-4" /> 삭제
+                    </AlertDialogAction>
+                </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+        )}
+
       </main>
       <footer className="text-center p-4 text-sm text-muted-foreground border-t">
         &copy; {new Date().getFullYear()} 풍풍이의 운동기록장. 학생들이 활동적으로 지낼 수 있도록!
@@ -1021,4 +1123,3 @@ export default function TeacherPage() {
     </div>
   );
 }
-

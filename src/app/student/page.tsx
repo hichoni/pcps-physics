@@ -8,8 +8,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dumbbell, Target, History, PlusCircle, LogOut, UserCheck, Loader2, AlertTriangle, KeyRound, Edit3, Camera, ImageIcon, CheckSquare, Flag, Heart, Star as GoalStarIcon } from 'lucide-react';
-import type { Student, ClassName, Exercise, StudentGoal, RecordedExercise, Gender } from '@/lib/types';
-import { EXERCISES } from '@/data/mockData';
+import type { Student, ClassName, RecordedExercise, Gender, StudentGoal, CustomExercise as CustomExerciseType, Exercise as ExerciseType } from '@/lib/types';
+import { EXERCISES_SEED_DATA } from '@/data/mockData'; // Seed data for fallback
 import SetStudentGoalsDialog from '@/components/SetStudentGoalsDialog';
 import ExerciseLogForm from '@/components/ExerciseLogForm';
 import ChangeOwnPinDialog from '@/components/ChangeOwnPinDialog';
@@ -19,12 +19,12 @@ import StudentActivityChart from '@/components/StudentActivityChart';
 import { useToast } from "@/hooks/use-toast";
 import { recommendStudentExercise, RecommendStudentExerciseOutput } from '@/ai/flows/recommend-student-exercise';
 import { db } from '@/lib/firebase';
-import { collection, getDocs, doc, getDoc, setDoc, query, where, addDoc, updateDoc } from 'firebase/firestore';
+import { collection, getDocs, doc, getDoc, setDoc, query, where, addDoc, updateDoc, onSnapshot } from 'firebase/firestore';
 import { format, parseISO, isToday } from 'date-fns'; 
 import { ko } from 'date-fns/locale';
 import NextImage from 'next/image';
 import { cn } from '@/lib/utils';
-
+import { getIconByName } from '@/lib/iconMap';
 
 const DEFAULT_POSITIVE_ADJECTIVES_KR = [
   "별처럼 빛나는", "항상 긍정적인", "꿈을 향해 달리는", "세상을 밝히는",
@@ -35,6 +35,15 @@ const DEFAULT_POSITIVE_ADJECTIVES_KR = [
 const COMPLIMENTS_DOC_PATH = "appConfig/complimentsDoc";
 const STUDENT_WELCOME_MESSAGE_DOC_PATH = "appConfig/studentWelcomeMessageDoc";
 const DEFAULT_STUDENT_WELCOME_MESSAGE = "오늘도 즐겁게 운동하고 건강해져요! 어떤 활동을 계획하고 있나요?";
+const CUSTOM_EXERCISES_DOC_PATH = "appConfig/customExercisesDoc";
+
+// CustomExerciseType (Firestore) to ExerciseType (App internal)
+const convertCustomToInternalExercise = (customEx: CustomExerciseType): ExerciseType => {
+  return {
+    ...customEx,
+    icon: getIconByName(customEx.iconName), // Map iconName to LucideIcon component
+  };
+};
 
 export default function StudentPage() {
   const [allStudents, setAllStudents] = useState<Student[]>([]);
@@ -50,6 +59,7 @@ export default function StudentPage() {
   
   const [isLoadingLoginOptions, setIsLoadingLoginOptions] = useState(true);
   const [isLoadingStudentData, setIsLoadingStudentData] = useState(false);
+  const [isLoadingExercises, setIsLoadingExercises] = useState(true);
 
   const [isGoalsDialogOpen, setIsGoalsDialogOpen] = useState(false);
   const [isLogFormOpen, setIsLogFormOpen] = useState(false);
@@ -61,13 +71,14 @@ export default function StudentPage() {
   const [isRecommendationLoading, setIsRecommendationLoading] = useState(false);
   const [dailyCompliment, setDailyCompliment] = useState<string>('');
   const [studentWelcomeMessage, setStudentWelcomeMessage] = useState<string>(DEFAULT_STUDENT_WELCOME_MESSAGE);
+  
+  const [availableExercises, setAvailableExercises] = useState<ExerciseType[]>([]);
 
 
   const [isCameraModeOpen, setIsCameraModeOpen] = useState(false);
   const [cameraExerciseId, setCameraExerciseId] = useState<string | null>(null);
 
   const [activityChartTimeFrame, setActivityChartTimeFrame] = useState<'today' | 'week' | 'month'>('today');
-
 
   const { toast } = useToast();
 
@@ -93,6 +104,30 @@ export default function StudentPage() {
   useEffect(() => {
     fetchLoginOptions();
   }, [fetchLoginOptions]);
+  
+  // Fetch custom exercises from Firestore
+  useEffect(() => {
+    setIsLoadingExercises(true);
+    const exercisesDocRef = doc(db, CUSTOM_EXERCISES_DOC_PATH);
+    const unsubscribe = onSnapshot(exercisesDocRef, (docSnap) => {
+      if (docSnap.exists() && Array.isArray(docSnap.data()?.list)) {
+        const customExercisesFromDb = docSnap.data()?.list as CustomExerciseType[];
+        setAvailableExercises(customExercisesFromDb.map(convertCustomToInternalExercise));
+      } else {
+        // Fallback to seed data if Firestore has no list or document doesn't exist
+        toast({ title: "알림", description: "기본 운동 목록을 사용합니다. 교사가 운동 목록을 설정할 수 있습니다.", variant: "default" });
+        setAvailableExercises(EXERCISES_SEED_DATA.map(convertCustomToInternalExercise));
+      }
+      setIsLoadingExercises(false);
+    }, (error) => {
+      console.error("Error fetching custom exercises:", error);
+      toast({ title: "오류", description: "운동 목록 로딩에 실패했습니다. 기본 목록을 사용합니다.", variant: "destructive" });
+      setAvailableExercises(EXERCISES_SEED_DATA.map(convertCustomToInternalExercise));
+      setIsLoadingExercises(false);
+    });
+    return () => unsubscribe(); // Cleanup listener on component unmount
+  }, [toast]);
+
 
   const fetchStudentSpecificData = useCallback(async (studentId: string, studentName: string) => {
     if (!studentId) return;
@@ -250,6 +285,10 @@ export default function StudentPage() {
 
   const handleOpenLogForm = () => {
     if (currentStudent) {
+      if (availableExercises.length === 0) {
+        toast({ title: "알림", description: "선생님께서 아직 운동을 설정하지 않으셨어요.", variant: "default"});
+        return;
+      }
       setIsLogFormOpen(true);
     }
   };
@@ -316,16 +355,22 @@ export default function StudentPage() {
   };
 
   const handleSaveFromCamera = (count: number) => {
-    if (currentStudent && cameraExerciseId === 'ex4') { 
-      const logEntry: Omit<RecordedExercise, 'id'> = {
-        studentId: currentStudent.id,
-        exerciseId: cameraExerciseId,
-        date: format(new Date(), "yyyy-MM-dd"), 
-        className: currentStudent.class as ClassName,
-        countValue: count,
-        timeValue: 0, 
-      };
-      handleSaveExerciseLog(logEntry);
+    if (currentStudent && cameraExerciseId) { 
+      // 줄넘기 ID ('ex4' 대신 cameraExerciseId 사용)
+      const exerciseDetails = availableExercises.find(ex => ex.id === cameraExerciseId);
+      if (exerciseDetails && exerciseDetails.koreanName.includes("줄넘기")) { // 줄넘기 운동인지 이름으로 확인 (더 나은 방법은 ID 고정 또는 태그 사용)
+        const logEntry: Omit<RecordedExercise, 'id'> = {
+          studentId: currentStudent.id,
+          exerciseId: cameraExerciseId,
+          date: format(new Date(), "yyyy-MM-dd"), 
+          className: currentStudent.class as ClassName,
+          countValue: count,
+          timeValue: 0, 
+        };
+        handleSaveExerciseLog(logEntry);
+      } else {
+        toast({title: "알림", description: "카메라 기록은 줄넘기 운동 전용입니다.", variant: "default"});
+      }
     }
     handleCloseCameraMode();
   };
@@ -347,12 +392,12 @@ export default function StudentPage() {
   
   const getExerciseProgressText = useCallback((exerciseId: string): string => {
     if (!currentStudent) return "";
-    const exercise = EXERCISES.find(ex => ex.id === exerciseId);
+    const exercise = availableExercises.find(ex => ex.id === exerciseId);
     if (!exercise) return "";
 
     const goal = studentGoals[exerciseId];
     if (!goal || Object.values(goal).every(v => v === undefined || v === 0)) {
-      return ""; // 목표 없음
+      return ""; 
     }
 
     const logsForToday = studentActivityLogs.filter(log => log.studentId === currentStudent.id && log.exerciseId === exerciseId && isToday(parseISO(log.date)));
@@ -366,12 +411,12 @@ export default function StudentPage() {
       const totalTimeAchieved = logsForToday.reduce((sum, log) => sum + (log.timeValue || 0), 0);
 
       if (goal.count && exercise.countUnit) {
-        const percent = goal.count > 0 ? Math.min(100, Math.round((totalCountAchieved / goal.count) * 100)) : 100;
+        const percent = goal.count > 0 ? Math.min(100, Math.round((totalCountAchieved / goal.count) * 100)) : (totalCountAchieved > 0 ? 100 : 0);
         achievedText = `${totalCountAchieved}${exercise.countUnit}`;
         goalText = `${goal.count}${exercise.countUnit}`;
         percentageText = ` (${percent}%)`;
-      } else if (goal.time && exercise.timeUnit) {
-        const percent = goal.time > 0 ? Math.min(100, Math.round((totalTimeAchieved / goal.time) * 100)) : 100;
+      } else if (goal.time && exercise.timeUnit) { // 'else if' to prioritize count if both present
+        const percent = goal.time > 0 ? Math.min(100, Math.round((totalTimeAchieved / goal.time) * 100)) : (totalTimeAchieved > 0 ? 100 : 0);
         achievedText = `${totalTimeAchieved}${exercise.timeUnit}`;
         goalText = `${goal.time}${exercise.timeUnit}`;
         percentageText = ` (${percent}%)`;
@@ -381,12 +426,12 @@ export default function StudentPage() {
       const totalDistanceAchieved = logsForToday.reduce((sum, log) => sum + (log.distanceValue || 0), 0);
 
       if (goal.steps && exercise.stepsUnit) {
-        const percent = goal.steps > 0 ? Math.min(100, Math.round((totalStepsAchieved / goal.steps) * 100)) : 100;
+        const percent = goal.steps > 0 ? Math.min(100, Math.round((totalStepsAchieved / goal.steps) * 100)) : (totalStepsAchieved > 0 ? 100 : 0);
         achievedText = `${totalStepsAchieved}${exercise.stepsUnit}`;
         goalText = `${goal.steps}${exercise.stepsUnit}`;
         percentageText = ` (${percent}%)`;
       } else if (goal.distance && exercise.distanceUnit) {
-        const percent = goal.distance > 0 ? Math.min(100, Math.round((totalDistanceAchieved / goal.distance) * 100)) : 100;
+        const percent = goal.distance > 0 ? Math.min(100, Math.round((totalDistanceAchieved / goal.distance) * 100)) : (totalDistanceAchieved > 0 ? 100 : 0);
         achievedText = `${totalDistanceAchieved}${exercise.distanceUnit}`;
         goalText = `${goal.distance}${exercise.distanceUnit}`;
         percentageText = ` (${percent}%)`;
@@ -398,11 +443,11 @@ export default function StudentPage() {
     }
     return "";
 
-  }, [studentGoals, studentActivityLogs, currentStudent]);
+  }, [studentGoals, studentActivityLogs, currentStudent, availableExercises]);
 
 
-  if (isLoadingLoginOptions) {
-    return <div className="flex justify-center items-center min-h-screen"><Loader2 className="h-8 w-8 animate-spin text-primary" /> 학생 정보 로딩 중...</div>;
+  if (isLoadingLoginOptions || isLoadingExercises) {
+    return <div className="flex justify-center items-center min-h-screen"><Loader2 className="h-8 w-8 animate-spin text-primary" /> {isLoadingLoginOptions ? '학생 정보' : '운동 목록'} 로딩 중...</div>;
   }
 
   if (!currentStudent) {
@@ -513,10 +558,12 @@ export default function StudentPage() {
   }
 
   if (isCameraModeOpen) {
+    const jumpRopeExercise = availableExercises.find(ex => ex.koreanName.includes("줄넘기"));
     return (
       <JumpRopeCameraMode
         onClose={handleCloseCameraMode}
         onSave={handleSaveFromCamera}
+        exerciseIdForCamera={jumpRopeExercise?.id}
       />
     );
   }
@@ -598,7 +645,7 @@ export default function StudentPage() {
                     />
                     </a>
                     <p className="text-xs text-muted-foreground mt-2 text-center">
-                    {EXERCISES.find(ex => ex.id === latestTodayImage.exerciseId)?.koreanName || '운동'} 인증
+                    {availableExercises.find(ex => ex.id === latestTodayImage.exerciseId)?.koreanName || '운동'} 인증
                     </p>
                 </CardContent>
                 </Card>
@@ -615,10 +662,16 @@ export default function StudentPage() {
               <CardDescription>목표를 설정하고 달성해봐요! (오늘 기록 기준)</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3 flex-grow flex flex-col">
-              {hasEffectiveGoals ? (
+              {isLoadingExercises ? <Loader2 className="h-6 w-6 animate-spin text-primary mx-auto my-4" /> : 
+              availableExercises.length === 0 ? (
+                <div className="flex items-center justify-center text-center py-4 flex-grow min-h-[10rem] rounded-lg">
+                  <p className="text-muted-foreground">선생님께서 아직 운동을 설정하지 않으셨어요.</p>
+                </div>
+              ) :
+              hasEffectiveGoals ? (
                  <div className="flex items-center justify-center min-h-[10rem] bg-secondary/20 rounded-lg p-3 flex-grow">
                   <ul className="text-sm list-none space-y-1.5 pl-0 text-left w-full overflow-y-auto max-h-full">
-                    {EXERCISES.filter(ex => studentGoals[ex.id] && Object.values(studentGoals[ex.id]).some(v => v !== undefined && v > 0) ).map(exercise => {
+                    {availableExercises.filter(ex => studentGoals[ex.id] && Object.values(studentGoals[ex.id]).some(v => v !== undefined && v > 0) ).map(exercise => {
                       const goal = studentGoals[exercise.id];
                       let goalText = "";
                       const parts = [];
@@ -631,12 +684,13 @@ export default function StudentPage() {
                       }
                       goalText = parts.join(', ');
                       const progressText = getExerciseProgressText(exercise.id);
+                      const IconComp = getIconByName(exercise.iconName);
 
                       return (
                         <li key={exercise.id} className="truncate py-1 border-b border-border/50 last:border-b-0" title={`${exercise.koreanName}: ${goalText}`}>
                           <div className="flex items-center justify-between">
-                            <span className="font-medium text-primary">
-                              {React.createElement(exercise.icon, {className: "inline-block mr-2 h-4 w-4"})}
+                            <span className="font-medium text-primary flex items-center">
+                              <IconComp className="inline-block mr-2 h-4 w-4" />
                               {exercise.koreanName}
                             </span>
                             <span className="text-xs text-muted-foreground">{goalText}</span>
@@ -652,7 +706,7 @@ export default function StudentPage() {
                   <p className="text-muted-foreground">나의 운동 목표를 설정해봐요!</p>
                 </div>
               )}
-              <Button variant="outline" className="w-full rounded-lg mt-auto py-3 text-base" onClick={() => setIsGoalsDialogOpen(true)}>목표 설정/확인</Button>
+              <Button variant="outline" className="w-full rounded-lg mt-auto py-3 text-base" onClick={() => setIsGoalsDialogOpen(true)} disabled={availableExercises.length === 0}>목표 설정/확인</Button>
             </CardContent>
           </Card>
           
@@ -713,10 +767,15 @@ export default function StudentPage() {
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
-            <StudentActivityChart logs={studentActivityLogs} timeFrame={activityChartTimeFrame} studentGoals={studentGoals} />
+           {isLoadingExercises ? <Loader2 className="h-6 w-6 animate-spin text-primary mx-auto my-4" /> : 
+            availableExercises.length === 0 ? 
+              <p className="text-sm text-muted-foreground text-center py-2">운동 목록이 설정되지 않았습니다.</p> :
+              <StudentActivityChart logs={studentActivityLogs} timeFrame={activityChartTimeFrame} studentGoals={studentGoals} availableExercises={availableExercises} />
+            }
             
             <h4 className="text-md font-semibold pt-6 border-t mt-8">최근 5개 활동:</h4>
-            {studentActivityLogs.length === 0 ? (
+            {isLoadingExercises ? <Loader2 className="h-6 w-6 animate-spin text-primary mx-auto my-2" /> :
+            studentActivityLogs.length === 0 ? (
                 <p className="text-sm text-muted-foreground text-center py-2">기록된 활동이 없습니다.</p>
             ) : (
                 <div className="space-y-2 max-h-[200px] overflow-y-auto p-3 bg-secondary/20 rounded-lg text-sm">
@@ -724,7 +783,7 @@ export default function StudentPage() {
                       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime() || (b.id && a.id ? b.id.localeCompare(a.id) : 0))
                       .slice(0, 5) 
                       .map(log => {
-                          const exerciseInfo = EXERCISES.find(ex => ex.id === log.exerciseId);
+                          const exerciseInfo = availableExercises.find(ex => ex.id === log.exerciseId);
                           if (!exerciseInfo) return null;
                           let valueDisplay = "";
                           if (exerciseInfo.category === 'count_time') {
@@ -785,7 +844,7 @@ export default function StudentPage() {
             onSave={handleSaveExerciseLog}
             recordedExercises={studentActivityLogs} 
             onSwitchToCameraMode={handleSwitchToCameraMode}
-            availableExercises={EXERCISES} // 기본 운동 목록 전달 (향후 커스텀 목록으로 대체)
+            availableExercises={availableExercises} 
           />
         )}
 
@@ -793,7 +852,7 @@ export default function StudentPage() {
           isOpen={isGoalsDialogOpen}
           onClose={() => setIsGoalsDialogOpen(false)}
           onSave={handleSaveGoals}
-          exercises={EXERCISES} // 기본 운동 목록 전달 (향후 커스텀 목록으로 대체)
+          exercises={availableExercises} 
           currentStudent={currentStudent}
           initialGoals={studentGoals}
         />

@@ -1,5 +1,5 @@
 
-import type { LucideIcon } from 'lucide-react'; // LucideIcon 임포트
+import type { LucideIcon } from 'lucide-react'; 
 
 export type ClassName = string; 
 
@@ -17,11 +17,12 @@ export interface Student {
 
 export type ExerciseCategory = 'count_time' | 'steps_distance';
 
+// 앱 내부에서 사용되는 Exercise 타입 (아이콘 컴포넌트 포함)
 export interface Exercise {
   id: string;
   koreanName: string; 
-  icon: LucideIcon; // React.FC에서 LucideIcon으로 변경
-  iconName: string; // Lucide 아이콘 이름을 위한 필드
+  icon: LucideIcon; 
+  iconName: string; 
   category: ExerciseCategory;
 
   countUnit?: string; 
@@ -41,10 +42,34 @@ export interface Exercise {
   dataAiHint: string;
 }
 
+// Firestore에 저장될 운동 항목 타입 (아이콘 이름 문자열만 포함)
+export interface CustomExercise {
+  id: string; // UUID
+  koreanName: string; 
+  iconName: string; // Lucide 아이콘 이름 문자열
+  category: ExerciseCategory;
+
+  countUnit?: string; 
+  defaultCount?: number;
+  countStep?: number;
+  timeUnit?: string; 
+  defaultTime?: number;
+  timeStep?: number;
+
+  stepsUnit?: string; 
+  defaultSteps?: number;
+  stepsStep?: number;
+  distanceUnit?: string; 
+  defaultDistance?: number;
+  distanceStep?: number;
+  
+  dataAiHint: string;
+}
+
 export interface RecordedExercise {
   id: string;
   studentId: string;
-  exerciseId: string;
+  exerciseId: string; // CustomExercise의 id와 매칭
   date: string; 
   
   countValue?: number;    
@@ -77,14 +102,9 @@ export interface ExerciseGoal {
   distance?: number; 
 }
 
-export type StudentGoal = Record<string, ExerciseGoal>; 
+export type StudentGoal = Record<string, ExerciseGoal>; // key는 CustomExercise의 id
 
 export interface TeacherExerciseRecommendation {
   recommendationTitle: string;
   recommendationDetail: string;
-}
-
-// 교사가 관리할 운동 항목 타입 (Firestore 저장용)
-export interface CustomExercise extends Omit<Exercise, 'icon'> {
-  // icon 필드는 iconName으로 대체됨
 }

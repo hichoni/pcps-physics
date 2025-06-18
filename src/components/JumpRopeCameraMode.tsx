@@ -11,9 +11,10 @@ import { useToast } from "@/hooks/use-toast";
 interface JumpRopeCameraModeProps {
   onClose: () => void;
   onSave: (count: number) => void;
+  exerciseIdForCamera?: string | null; // 부모로부터 운동 ID를 받을 수 있도록
 }
 
-const JumpRopeCameraMode: React.FC<JumpRopeCameraModeProps> = ({ onClose, onSave }) => {
+const JumpRopeCameraMode: React.FC<JumpRopeCameraModeProps> = ({ onClose, onSave, exerciseIdForCamera }) => {
   const [jumpCount, setJumpCount] = useState(0);
   const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -50,7 +51,6 @@ const JumpRopeCameraMode: React.FC<JumpRopeCameraModeProps> = ({ onClose, onSave
     getCameraPermission();
 
     return () => {
-      // Clean up: stop camera stream when component unmounts
       if (videoRef.current && videoRef.current.srcObject) {
         const stream = videoRef.current.srcObject as MediaStream;
         stream.getTracks().forEach(track => track.stop());
@@ -59,11 +59,15 @@ const JumpRopeCameraMode: React.FC<JumpRopeCameraModeProps> = ({ onClose, onSave
   }, [toast]);
 
   const handleIncrementJump = () => {
-    // 실제 AI 감지 로직 대신 시뮬레이션
     setJumpCount(prevCount => prevCount + 1);
   };
 
   const handleSaveAndClose = () => {
+    if (!exerciseIdForCamera) {
+        toast({title: "오류", description: "카메라 기록을 위한 운동 ID가 지정되지 않았습니다.", variant: "destructive"});
+        onClose(); // 운동 ID 없으면 그냥 닫기
+        return;
+    }
     onSave(jumpCount);
   };
 
@@ -126,7 +130,7 @@ const JumpRopeCameraMode: React.FC<JumpRopeCameraModeProps> = ({ onClose, onSave
           <Button onClick={onClose} variant="outline" className="flex-1 py-3 text-base rounded-lg">
             <XCircle className="mr-2 h-5 w-5" /> 닫기
           </Button>
-          <Button onClick={handleSaveAndClose} className="flex-1 py-3 text-base rounded-lg">
+          <Button onClick={handleSaveAndClose} className="flex-1 py-3 text-base rounded-lg" disabled={!exerciseIdForCamera}>
             <Save className="mr-2 h-5 w-5" /> 운동 종료 및 저장
           </Button>
         </div>
@@ -136,5 +140,3 @@ const JumpRopeCameraMode: React.FC<JumpRopeCameraModeProps> = ({ onClose, onSave
 };
 
 export default JumpRopeCameraMode;
-
-    

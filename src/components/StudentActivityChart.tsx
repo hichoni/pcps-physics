@@ -3,8 +3,7 @@
 
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import type { RecordedExercise, Exercise, StudentGoal } from '@/lib/types';
-import { EXERCISES } from '@/data/mockData';
+import type { RecordedExercise, Exercise as ExerciseType, StudentGoal } from '@/lib/types'; // Exercise -> ExerciseType
 import { 
   startOfWeek, 
   endOfWeek, 
@@ -15,23 +14,18 @@ import {
   parseISO 
 } from 'date-fns';
 import { cn } from '@/lib/utils';
-import { Target, TrendingUp, CheckCircle2 } from 'lucide-react';
+import { Target, TrendingUp, CheckCircle2, Flag, Star, AlertCircle } from 'lucide-react';
+import { Progress } from "@/components/ui/progress"; // Progress 컴포넌트 사용
 
 
 interface StudentActivityChartProps {
   logs: RecordedExercise[];
   timeFrame: 'today' | 'week' | 'month';
-  studentGoals: StudentGoal; // 학생 목표 데이터 추가
+  studentGoals: StudentGoal; 
+  availableExercises: ExerciseType[]; // 교사가 설정한 운동 목록
 }
 
-const exerciseColors: Record<string, string> = {
-  'ex1': 'hsl(var(--chart-1))', 
-  'ex2': 'hsl(var(--chart-2))', 
-  'ex3': 'hsl(var(--chart-3))', 
-  'ex4': 'hsl(var(--chart-4))', 
-};
-
-const StudentActivityChart: React.FC<StudentActivityChartProps> = ({ logs, timeFrame, studentGoals }) => {
+const StudentActivityChart: React.FC<StudentActivityChartProps> = ({ logs, timeFrame, studentGoals, availableExercises }) => {
   const today = new Date();
 
   const filteredLogs = logs.filter(log => {
@@ -52,80 +46,149 @@ const StudentActivityChart: React.FC<StudentActivityChartProps> = ({ logs, timeF
     return false;
   });
 
-  const exerciseSummaries = EXERCISES.map((exercise: Exercise) => {
+  if (availableExercises.length === 0) {
+    return (
+      <div className="min-h-[150px] flex flex-col items-center justify-center text-muted-foreground bg-secondary/10 rounded-lg p-4 text-center mt-4">
+        <AlertCircle className="h-8 w-8 mb-2 text-destructive" />
+        <p>표시할 운동 목록이 없습니다.</p>
+        <p className="text-xs">교사 페이지에서 운동을 먼저 설정해주세요.</p>
+      </div>
+    );
+  }
+  
+  const exerciseSummaries = availableExercises.map((exercise: ExerciseType) => {
     const logsForThisExercise = filteredLogs.filter(log => log.exerciseId === exercise.id);
     let totalAchievedValue = 0;
     let goalValue: number | undefined = undefined;
     let unit = '';
-    let progressText = '';
+    let progress = 0;
+    let isPrimaryGoalCount = false; // count 목표가 주 목표인지 (count_time 카테고리에서)
 
     if (exercise.category === 'count_time') {
-      totalAchievedValue = logsForThisExercise.reduce((sum, log) => sum + ((log.countValue || 0) || (log.timeValue || 0)), 0); // 주 단위 우선
-      unit = exercise.countUnit || exercise.timeUnit || '';
-      goalValue = studentGoals[exercise.id]?.count ?? studentGoals[exercise.id]?.time;
-      if (goalValue && unit) {
-         const percent = goalValue > 0 ? Math.min(100, Math.round((totalAchievedValue / goalValue) * 100)) : (totalAchievedValue > 0 ? 100 : 0);
-         progressText = `목표: ${goalValue}${unit} (${percent}%)`;
+      const totalCount = logsForThisExercise.reduce((sum, log) => sum + (log.countValue || 0), 0);
+      const totalTime = logsForThisExercise.reduce((sum, log) => sum + (log.timeValue || 0), 0);
+
+      if (studentGoals[exercise.id]?.count && exercise.countUnit) { // 횟수 목표가 우선
+        totalAchievedValue = totalCount;
+        unit = exercise.countUnit;
+        goalValue = studentGoals[exercise.id]?.count;
+        isPrimaryGoalCount = true;
+      } else if (studentGoals[exercise.id]?.time && exercise.timeUnit) { // 횟수 목표가 없으면 시간 목표
+        totalAchievedValue = totalTime;
+        unit = exercise.timeUnit;
+        goalValue = studentGoals[exercise.id]?.time;
+      } else { // 목표가 없으면, 기록된 값 중 하나를 표시 (횟수 우선)
+        if (totalCount > 0 && exercise.countUnit) {
+            totalAchievedValue = totalCount;
+            unit = exercise.countUnit;
+        } else if (totalTime > 0 && exercise.timeUnit) {
+            totalAchievedValue = totalTime;
+            unit = exercise.timeUnit;
+        } else { // 기록도 없으면
+             totalAchievedValue = 0;
+             unit = exercise.countUnit || exercise.timeUnit || '';
+        }
       }
     } else if (exercise.category === 'steps_distance') {
-      totalAchievedValue = logsForThisExercise.reduce((sum, log) => sum + ((log.stepsValue || 0) || (log.distanceValue || 0)), 0); // 주 단위 우선
-      unit = exercise.stepsUnit || exercise.distanceUnit || '';
-      goalValue = studentGoals[exercise.id]?.steps ?? studentGoals[exercise.id]?.distance;
-       if (goalValue && unit) {
-         const percent = goalValue > 0 ? Math.min(100, Math.round((totalAchievedValue / goalValue) * 100)) : (totalAchievedValue > 0 ? 100 : 0);
-         progressText = `목표: ${goalValue}${unit} (${percent}%)`;
+      const totalSteps = logsForThisExercise.reduce((sum, log) => sum + (log.stepsValue || 0), 0);
+      const totalDistance = logsForThisExercise.reduce((sum, log) => sum + (log.distanceValue || 0), 0);
+
+      if (studentGoals[exercise.id]?.steps && exercise.stepsUnit) { // 걸음수 목표 우선
+        totalAchievedValue = totalSteps;
+        unit = exercise.stepsUnit;
+        goalValue = studentGoals[exercise.id]?.steps;
+      } else if (studentGoals[exercise.id]?.distance && exercise.distanceUnit) { // 걸음수 목표 없으면 거리 목표
+        totalAchievedValue = totalDistance;
+        unit = exercise.distanceUnit;
+        goalValue = studentGoals[exercise.id]?.distance;
+      } else { // 목표 없으면 기록된 값 표시 (걸음수 우선)
+         if (totalSteps > 0 && exercise.stepsUnit) {
+            totalAchievedValue = totalSteps;
+            unit = exercise.stepsUnit;
+        } else if (totalDistance > 0 && exercise.distanceUnit) {
+            totalAchievedValue = totalDistance;
+            unit = exercise.distanceUnit;
+        } else {
+            totalAchievedValue = 0;
+            unit = exercise.stepsUnit || exercise.distanceUnit || '';
+        }
       }
     }
     
+    if (goalValue && goalValue > 0) {
+      progress = Math.min(100, Math.round((totalAchievedValue / goalValue) * 100));
+    } else if (totalAchievedValue > 0) { // 목표는 없지만 기록이 있는 경우
+      progress = 0; // 또는 100으로 표시할 수도 있음, 여기선 0으로
+    }
+
     const IconComponent = exercise.icon;
+    const goalDisplay = goalValue ? `${goalValue.toLocaleString()}${unit}` : "목표 없음";
+    const achievedDisplay = `${totalAchievedValue.toLocaleString()}${unit}`;
 
     return {
       id: exercise.id,
       name: exercise.koreanName,
       IconComponent: IconComponent,
       achievedValue: totalAchievedValue,
+      achievedDisplay,
       unit: unit,
-      color: exerciseColors[exercise.id] || 'hsl(var(--foreground))',
-      goalText: progressText || (goalValue ? `목표: ${goalValue}${unit}` : "목표 없음"),
-      hasGoal: !!goalValue,
-      isAchieved: goalValue !== undefined && totalAchievedValue >= goalValue,
+      color: `hsl(var(--chart-${(availableExercises.findIndex(e => e.id === exercise.id) % 5) + 1}))`, // Use index for color
+      goalDisplay,
+      hasGoal: !!goalValue && goalValue > 0,
+      isAchieved: !!goalValue && goalValue > 0 && totalAchievedValue >= goalValue,
+      progress,
+      isPrimaryGoalCount,
     };
   });
 
-  if (filteredLogs.length === 0) {
+  if (filteredLogs.length === 0 && !exerciseSummaries.some(s => s.hasGoal)) {
     return (
       <div className="min-h-[150px] flex items-center justify-center text-muted-foreground bg-secondary/10 rounded-lg p-4 text-center mt-4">
-        선택된 기간에 기록된 운동 데이터가 없습니다.
+        선택된 기간에 기록된 운동 데이터가 없으며, 설정된 목표도 없습니다.
       </div>
     );
   }
 
+
   return (
-    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 pt-4">
+    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 pt-4"> {/* Max 3 cols for better visibility */}
       {exerciseSummaries.map(summary => {
         const IconComp = summary.IconComponent;
         return (
           <Card key={summary.id} className="shadow-sm rounded-xl hover:shadow-lg transition-shadow duration-200 ease-in-out flex flex-col">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                {summary.name}
-              </CardTitle>
-              <IconComp className="h-5 w-5" style={{ color: summary.color }} />
-            </CardHeader>
-            <CardContent className="flex-grow">
-              <div className="text-3xl font-bold" style={{ color: summary.color }}>
-                {summary.achievedValue.toLocaleString()}
-                <span className="text-xl ml-1">{summary.unit}</span>
+            <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2">
+              <div className="space-y-1">
+                <CardTitle className="text-base font-medium text-muted-foreground flex items-center">
+                  <IconComp className="h-5 w-5 mr-2" style={{ color: summary.color }} />
+                  {summary.name}
+                </CardTitle>
+                <CardDescription className="text-xs">
+                  {summary.hasGoal ? (
+                    <>
+                      <Target className="inline-block h-3 w-3 mr-1 text-accent" /> 목표: {summary.goalDisplay}
+                    </>
+                  ) : (
+                    <TrendingUp className="inline-block h-3 w-3 mr-1 opacity-50" /> 목표 없음
+                  )}
+                </CardDescription>
               </div>
-              <p className={cn("text-xs mt-1", summary.hasGoal ? "text-accent" : "text-muted-foreground/70")}>
-                {summary.hasGoal ? (
-                    <Target className="inline-block h-3 w-3 mr-1" />
-                ) : (
-                    <TrendingUp className="inline-block h-3 w-3 mr-1 opacity-50" />
+              {summary.isAchieved && <Flag className="h-5 w-5 text-green-500" />}
+              {!summary.isAchieved && summary.hasGoal && summary.achievedValue > 0 && <Star className="h-5 w-5 text-yellow-400" />}
+            </CardHeader>
+            <CardContent className="flex-grow flex flex-col justify-between">
+              <div>
+                <div className="text-3xl font-bold" style={{ color: summary.color }}>
+                  {summary.achievedDisplay}
+                </div>
+                {summary.hasGoal && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    달성도: {summary.progress}%
+                  </p>
                 )}
-                {summary.goalText}
-                {summary.isAchieved && <CheckCircle2 className="inline-block h-3.5 w-3.5 ml-1.5 text-green-500" />}
-              </p>
+              </div>
+              {summary.hasGoal && (
+                <Progress value={summary.progress} indicatorClassName={summary.isAchieved ? "bg-green-500" : ""} className="h-2 mt-2" />
+              )}
             </CardContent>
           </Card>
         );
