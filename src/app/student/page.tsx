@@ -7,13 +7,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from '@/components/ui/button';
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dumbbell, Target, History, PlusCircle, LogOut, UserCheck, Loader2, AlertTriangle, KeyRound, Edit3, Camera, ImageIcon, CheckSquare } from 'lucide-react';
+import { Dumbbell, Target, History, PlusCircle, LogOut, UserCheck, Loader2, AlertTriangle, KeyRound, Edit3, Camera, ImageIcon, CheckSquare, PlusSquare } from 'lucide-react';
 import type { Student, ClassName, RecordedExercise, Gender, StudentGoal, CustomExercise as CustomExerciseType, Exercise as ExerciseType } from '@/lib/types';
 import { EXERCISES_SEED_DATA } from '@/data/mockData'; 
 import SetStudentGoalsDialog from '@/components/SetStudentGoalsDialog';
 import ExerciseLogForm from '@/components/ExerciseLogForm';
 import ChangeOwnPinDialog from '@/components/ChangeOwnPinDialog';
 import ChangeAvatarDialog from '@/components/ChangeAvatarDialog';
+import UploadProofShotDialog from '@/components/UploadProofShotDialog'; // New Dialog
 import JumpRopeCameraMode from '@/components/JumpRopeCameraMode';
 import StudentActivityChart from '@/components/StudentActivityChart';
 import { useToast } from "@/hooks/use-toast";
@@ -64,6 +65,8 @@ export default function StudentPage() {
   const [isLogFormOpen, setIsLogFormOpen] = useState(false);
   const [isChangeOwnPinDialogOpen, setIsChangeOwnPinDialogOpen] = useState(false); 
   const [isChangeAvatarDialogOpen, setIsChangeAvatarDialogOpen] = useState(false);
+  const [isUploadProofShotDialogOpen, setIsUploadProofShotDialogOpen] = useState(false); // New state for dialog
+
   const [studentGoals, setStudentGoals] = useState<StudentGoal>({});
   const [studentActivityLogs, setStudentActivityLogs] = useState<RecordedExercise[]>([]);
   const [recommendedExercise, setRecommendedExercise] = useState<RecommendStudentExerciseOutput | null>(null);
@@ -107,13 +110,11 @@ export default function StudentPage() {
     const unsubscribe = onSnapshot(exercisesDocRef, (docSnap) => {
       if (docSnap.exists() && Array.isArray(docSnap.data()?.list)) {
         const customExercisesFromDb = docSnap.data()?.list as CustomExerciseType[];
-        // Filter to ensure only the 4 allowed exercises are used, and they have correct IDs
         const allowedExercises = customExercisesFromDb
           .filter(ex => ['squat', 'plank', 'walk_run', 'jump_rope'].includes(ex.id))
           .map(convertCustomToInternalExercise);
         
         if (allowedExercises.length < 4 && customExercisesFromDb.length > 0) {
-            // If DB has exercises but not the 4 core ones with correct IDs, try to find by name from DB and map, then seed if necessary
             const seededByName = EXERCISES_SEED_DATA.map(seedEx => {
                 const dbMatch = customExercisesFromDb.find(dbEx => dbEx.koreanName === seedEx.koreanName);
                 return dbMatch ? convertCustomToInternalExercise(dbMatch) : convertCustomToInternalExercise(seedEx);
@@ -123,7 +124,7 @@ export default function StudentPage() {
         } else if (allowedExercises.length === 4) {
             setAvailableExercises(allowedExercises);
         }
-         else { // Fallback to seed data if Firestore has no list or document doesn't exist or not enough allowed exercises
+         else { 
           toast({ title: "알림", description: "기본 운동 목록을 사용합니다. 교사가 운동 목록을 설정할 수 있습니다.", variant: "default" });
           setAvailableExercises(EXERCISES_SEED_DATA.map(convertCustomToInternalExercise));
         }
@@ -150,19 +151,27 @@ export default function StudentPage() {
       setStudentGoals(goalsDocSnap.exists() ? (goalsDocSnap.data().goals || {}) : {});
 
       const logsQuery = query(collection(db, "exerciseLogs"), where("studentId", "==", studentId));
-      const logsSnapshot = await getDocs(logsQuery);
-      const logsList = logsSnapshot.docs.map(lDoc => {
-        const data = lDoc.data();
-        let dateStr = data.date;
-        if (data.date && typeof data.date.toDate === 'function') { 
-          dateStr = format(data.date.toDate(), "yyyy-MM-dd");
-        } else if (typeof data.date === 'string' && data.date.includes('T')) { 
-           dateStr = data.date.split('T')[0];
-        }
-        return { id: lDoc.id, ...data, date: dateStr } as RecordedExercise;
+      // Use onSnapshot for real-time updates to logs
+      const unsubscribeLogs = onSnapshot(logsQuery, (logsSnapshot) => {
+        const logsList = logsSnapshot.docs.map(lDoc => {
+          const data = lDoc.data();
+          let dateStr = data.date;
+          if (data.date && typeof data.date.toDate === 'function') { 
+            dateStr = format(data.date.toDate(), "yyyy-MM-dd");
+          } else if (typeof data.date === 'string' && data.date.includes('T')) { 
+             dateStr = data.date.split('T')[0];
+          }
+          return { id: lDoc.id, ...data, date: dateStr } as RecordedExercise;
+        });
+        setStudentActivityLogs(logsList.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime() || (b.id && a.id ? b.id.localeCompare(a.id) : 0)));
+      }, (error) => {
+        console.error("Error fetching student logs in real-time:", error);
+        toast({ title: "오류", description: "운동 기록 실시간 업데이트에 실패했습니다.", variant: "destructive" });
       });
-      setStudentActivityLogs(logsList);
-      
+      // Store unsubscribe function to call on cleanup or when student changes
+      // This part is tricky if this function itself is in a dependency array.
+      // For simplicity in this example, we might not return it here, but ideally, it should be managed.
+
       const complimentsDocRef = doc(db, COMPLIMENTS_DOC_PATH);
       const complimentsDocSnap = await getDoc(complimentsDocRef);
       let adjectiveList = DEFAULT_POSITIVE_ADJECTIVES_KR;
@@ -181,17 +190,21 @@ export default function StudentPage() {
         setStudentWelcomeMessage(DEFAULT_STUDENT_WELCOME_MESSAGE);
       }
       fetchRecommendation();
+      return unsubscribeLogs; // Return for potential cleanup
     } catch (error) {
       console.error("Error fetching student specific data:", error);
       toast({ title: "오류", description: "학생 데이터를 불러오는 데 실패했습니다.", variant: "destructive" });
     } finally {
       setIsLoadingStudentData(false);
     }
-  }, [toast]);
+  }, [toast]); // Removed fetchRecommendation from here as it's called inside
 
   useEffect(() => {
+    let unsubscribeLogs: (() => void) | undefined;
     if (currentStudent) {
-      fetchStudentSpecificData(currentStudent.id, currentStudent.name);
+      fetchStudentSpecificData(currentStudent.id, currentStudent.name).then(unsub => {
+        unsubscribeLogs = unsub;
+      });
     } else {
       setStudentGoals({}); 
       setStudentActivityLogs([]);
@@ -199,6 +212,11 @@ export default function StudentPage() {
       setDailyCompliment('');
       setStudentWelcomeMessage(DEFAULT_STUDENT_WELCOME_MESSAGE);
     }
+    return () => {
+      if (unsubscribeLogs) {
+        unsubscribeLogs();
+      }
+    };
   }, [currentStudent, fetchStudentSpecificData]); 
 
   useEffect(() => {
@@ -302,12 +320,15 @@ export default function StudentPage() {
     setIsLogFormOpen(false);
   };
 
-  const handleSaveExerciseLog = async (logData: Omit<RecordedExercise, 'id'>) => {
+  // ExerciseLogForm no longer sends imageUrl
+  const handleSaveExerciseLog = async (logData: Omit<RecordedExercise, 'id' | 'imageUrl'>) => {
     if (!currentStudent) return;
     try {
+      // Log data does not include imageUrl here. It's added separately.
       const docRef = await addDoc(collection(db, "exerciseLogs"), logData);
       const newLogEntry = { ...logData, id: docRef.id, date: format(parseISO(logData.date), "yyyy-MM-dd") };
-      setStudentActivityLogs(prev => [...prev, newLogEntry].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
+      // The studentActivityLogs state will be updated by the onSnapshot listener
+      // setStudentActivityLogs(prev => [...prev, newLogEntry].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
       toast({ title: "기록 완료!", description: "오늘의 운동이 성공적으로 기록되었어요! 참 잘했어요!" });
       setIsLogFormOpen(false); 
       setIsCameraModeOpen(false); 
@@ -317,6 +338,14 @@ export default function StudentPage() {
       toast({ title: "기록 실패", description: "운동 기록 중 오류가 발생했어요. 다시 시도해주세요.", variant: "destructive" });
     }
   };
+  
+  const handleProofShotUploadComplete = (logId: string, imageUrl: string) => {
+    setStudentActivityLogs(prevLogs =>
+      prevLogs.map(l => (l.id === logId ? { ...l, imageUrl } : l))
+                 .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime() || (b.id && a.id ? b.id.localeCompare(a.id) : 0))
+    );
+  };
+
 
   const handleSaveOwnNewPin = async (newPin: string) => {
     if (currentStudent) {
@@ -362,8 +391,8 @@ export default function StudentPage() {
   const handleSaveFromCamera = (count: number) => {
     if (currentStudent && cameraExerciseId) { 
       const exerciseDetails = availableExercises.find(ex => ex.id === cameraExerciseId);
-      if (exerciseDetails && exerciseDetails.id === 'jump_rope') { // 줄넘기 운동 ID로 직접 확인
-        const logEntry: Omit<RecordedExercise, 'id'> = {
+      if (exerciseDetails && exerciseDetails.id === 'jump_rope') { 
+        const logEntry: Omit<RecordedExercise, 'id' | 'imageUrl'> = { // imageUrl removed
           studentId: currentStudent.id,
           exerciseId: cameraExerciseId,
           date: format(new Date(), "yyyy-MM-dd"), 
@@ -395,11 +424,17 @@ export default function StudentPage() {
     if (!currentStudent) return null;
     const todayLogsWithImages = studentActivityLogs
       .filter(log => log.studentId === currentStudent.id && isToday(parseISO(log.date)) && log.imageUrl)
-      .sort((a, b) => {
+      .sort((a, b) => { // Sort by ID descending to get the truly latest if multiple have images
         if (a.id && b.id) return b.id.localeCompare(a.id); 
         return 0;
       });
     return todayLogsWithImages.length > 0 ? todayLogsWithImages[0] : null;
+  }, [currentStudent, studentActivityLogs]);
+
+  const todaysLogsWithoutImage = useMemo(() => {
+    if (!currentStudent) return [];
+    return studentActivityLogs
+      .filter(log => log.studentId === currentStudent.id && isToday(parseISO(log.date)) && !log.imageUrl);
   }, [currentStudent, studentActivityLogs]);
   
   const getExerciseProgressText = useCallback((exerciseId: string): string => {
@@ -436,6 +471,9 @@ export default function StudentPage() {
     }
     return "";
   }, [studentGoals, studentActivityLogs, currentStudent, availableExercises]);
+
+  const showProofShotSection = latestTodayImage || todaysLogsWithoutImage.length > 0;
+
 
   if (isLoadingLoginOptions || isLoadingExercises) {
     return <div className="flex justify-center items-center min-h-screen"><Loader2 className="h-8 w-8 animate-spin text-primary" /> {isLoadingLoginOptions ? '학생 정보' : '운동 목록'} 로딩 중...</div>;
@@ -549,7 +587,6 @@ export default function StudentPage() {
   }
 
   if (isCameraModeOpen) {
-    // Ensure cameraExerciseId for JumpRopeCameraMode is explicitly 'jump_rope'
     return (
       <JumpRopeCameraMode
         onClose={handleCloseCameraMode}
@@ -573,7 +610,7 @@ export default function StudentPage() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-stretch">
             <Card className={cn(
                 "shadow-lg rounded-xl flex flex-col",
-                latestTodayImage ? "lg:col-span-2" : "lg:col-span-3"
+                showProofShotSection ? "lg:col-span-2" : "lg:col-span-3"
             )}>
                 <CardHeader className="pb-4">
                     <CardTitle className="text-2xl sm:text-3xl font-bold font-headline text-primary text-center lg:text-left">
@@ -605,7 +642,7 @@ export default function StudentPage() {
                 </CardContent>
             </Card>
 
-            {latestTodayImage && (
+            {latestTodayImage ? (
                 <Card className="shadow-lg rounded-xl lg:col-span-1 flex flex-col">
                 <CardHeader>
                     <CardTitle className="flex items-center font-headline text-xl">
@@ -640,7 +677,24 @@ export default function StudentPage() {
                     </p>
                 </CardContent>
                 </Card>
-            )}
+            ) : todaysLogsWithoutImage.length > 0 ? (
+                 <Card 
+                    className="shadow-lg rounded-xl lg:col-span-1 flex flex-col items-center justify-center cursor-pointer hover:bg-muted/30 transition-colors"
+                    onClick={() => setIsUploadProofShotDialogOpen(true)}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setIsUploadProofShotDialogOpen(true);}}
+                    aria-label="오늘 운동 인증샷 추가하기"
+                >
+                    <CardContent className="flex flex-col items-center justify-center p-6 text-center">
+                        <PlusSquare className="h-12 w-12 text-primary mb-3" />
+                        <p className="font-semibold text-primary">오.운.완 인증샷 추가</p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                            오늘 기록된 운동에 사진을 올려보세요!
+                        </p>
+                    </CardContent>
+                </Card>
+            ) : null}
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-stretch">
@@ -766,8 +820,8 @@ export default function StudentPage() {
               (currentStudent && 
                 <StudentActivityChart 
                   logs={studentActivityLogs} 
-                  selectedStudent={currentStudent} // Pass currentStudent as selectedStudent
-                  students={allStudents.filter(s => s.id === currentStudent.id)} // Pass an array with only currentStudent
+                  selectedStudent={currentStudent} 
+                  students={allStudents.filter(s => s.id === currentStudent.id)} 
                   timeFrame={activityChartTimeFrame} 
                   studentGoals={studentGoals} 
                   availableExercises={availableExercises} 
@@ -781,8 +835,7 @@ export default function StudentPage() {
                 <p className="text-sm text-muted-foreground text-center py-2">기록된 활동이 없습니다.</p>
             ) : (
                 <div className="space-y-2 max-h-[200px] overflow-y-auto p-3 bg-secondary/20 rounded-lg text-sm">
-                  {studentActivityLogs
-                      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime() || (b.id && a.id ? b.id.localeCompare(a.id) : 0))
+                  {studentActivityLogs 
                       .slice(0, 5) 
                       .map(log => {
                           const exerciseInfo = availableExercises.find(ex => ex.id === log.exerciseId);
@@ -859,6 +912,17 @@ export default function StudentPage() {
           currentStudent={currentStudent}
           initialGoals={studentGoals}
         />
+        
+        {currentStudent && (
+          <UploadProofShotDialog
+            isOpen={isUploadProofShotDialogOpen}
+            onClose={() => setIsUploadProofShotDialogOpen(false)}
+            student={currentStudent}
+            logsWithoutImageToday={todaysLogsWithoutImage}
+            availableExercises={availableExercises}
+            onUploadComplete={handleProofShotUploadComplete}
+          />
+        )}
 
         {currentStudent && (
           <ChangeOwnPinDialog
@@ -884,3 +948,5 @@ export default function StudentPage() {
     </div>
   );
 }
+
+    
