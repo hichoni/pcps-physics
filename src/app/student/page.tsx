@@ -130,7 +130,7 @@ export default function StudentPage() {
       setDailyCompliment(adjectiveList[adjectiveIndex] || adjectiveList[0] || "");
 
       // Welcome Message
-      const welcomeMsgDocRef = doc(db, STUDENT_WELCOME_MESSAGE_DOC_PATH, "message");
+      const welcomeMsgDocRef = doc(db, STUDENT_WELCOME_MESSAGE_DOC_PATH);
       const welcomeMsgDocSnap = await getDoc(welcomeMsgDocRef);
       if (welcomeMsgDocSnap.exists() && welcomeMsgDocSnap.data().text) {
         setStudentWelcomeMessage(welcomeMsgDocSnap.data().text);
@@ -339,7 +339,6 @@ export default function StudentPage() {
     const todayLogsWithImages = studentActivityLogs
       .filter(log => log.studentId === currentStudent.id && isToday(parseISO(log.date)) && log.imageUrl)
       .sort((a, b) => {
-        // Assuming IDs are sortable chronologically (e.g., Firestore auto-IDs or timestamps)
         if (a.id && b.id) return b.id.localeCompare(a.id); 
         return 0;
       });
@@ -477,10 +476,9 @@ export default function StudentPage() {
       />
       <main className="flex-grow container mx-auto p-4 sm:p-6 lg:p-8 space-y-8">
         
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-stretch"> {/* items-stretch for equal height */}
-            {/* Welcome Section */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-stretch">
             <Card className={cn(
-                "shadow-lg rounded-xl flex flex-col", // flex flex-col for flex-grow in CardContent
+                "shadow-lg rounded-xl flex flex-col",
                 latestTodayImage ? "lg:col-span-2" : "lg:col-span-3"
             )}>
                 <CardHeader className="pb-4">
@@ -488,7 +486,7 @@ export default function StudentPage() {
                     {currentStudent.name}님, 안녕하세요!
                     </CardTitle>
                 </CardHeader>
-                <CardContent className="flex-grow flex flex-col justify-center"> {/* flex-grow */}
+                <CardContent className="flex-grow flex flex-col justify-center">
                     <p className="text-base sm:text-lg text-muted-foreground mb-6 text-center lg:text-left">
                         {studentWelcomeMessage}
                     </p>
@@ -513,9 +511,8 @@ export default function StudentPage() {
                 </CardContent>
             </Card>
 
-            {/* Today's Workout Proof Section */}
             {latestTodayImage && (
-                <Card className="shadow-lg rounded-xl lg:col-span-1 flex flex-col"> {/* flex flex-col for flex-grow in CardContent */}
+                <Card className="shadow-lg rounded-xl lg:col-span-1 flex flex-col">
                 <CardHeader>
                     <CardTitle className="flex items-center font-headline text-xl">
                     <CheckSquare className="mr-3 h-7 w-7 text-green-500" />
@@ -523,7 +520,7 @@ export default function StudentPage() {
                     </CardTitle>
                     <CardDescription>오늘 나의 멋진 운동 모습!</CardDescription>
                 </CardHeader>
-                <CardContent className="flex-grow flex flex-col items-center justify-center p-3"> {/* flex-grow and p-3 */}
+                <CardContent className="flex-grow flex flex-col items-center justify-center p-3">
                     <a href={latestTodayImage.imageUrl} target="_blank" rel="noopener noreferrer" className="block w-full aspect-square relative rounded-lg overflow-hidden shadow-inner bg-muted">
                     <NextImage
                         src={latestTodayImage.imageUrl!}
@@ -552,7 +549,7 @@ export default function StudentPage() {
             )}
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-stretch"> {/* items-stretch for equal height */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-stretch">
           <Card className="shadow-md hover:shadow-lg transition-shadow rounded-xl flex flex-col">
             <CardHeader>
               <CardTitle className="flex items-center font-headline text-xl">
@@ -663,7 +660,7 @@ export default function StudentPage() {
                           let valueDisplay = "";
                           if (exerciseInfo.category === 'count_time') {
                               if (log.countValue !== undefined && log.countValue > 0) valueDisplay += `${log.countValue}${exerciseInfo.countUnit || ''} `;
-                              if (log.timeValue !== undefined && log.timeValue > 0) valueDisplay += `${log.timeLogValue}${exerciseInfo.timeUnit || ''}`;
+                              if (log.timeValue !== undefined && log.timeValue > 0) valueDisplay += `${log.timeValue}${exerciseInfo.timeUnit || ''}`; // Corrected from timeLogValue
                           } else if (exerciseInfo.category === 'steps_distance') {
                               if (log.stepsValue !== undefined && log.stepsValue > 0) valueDisplay += `${log.stepsValue}${exerciseInfo.stepsUnit || ''} `;
                               if (log.distanceValue !== undefined && log.distanceValue > 0) valueDisplay += `${log.distanceValue}${exerciseInfo.distanceUnit || ''}`;

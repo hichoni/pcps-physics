@@ -195,7 +195,7 @@ export default function TeacherPage() {
   const fetchStudentWelcomeMessage = useCallback(async () => {
     setIsLoadingWelcomeMessage(true);
     try {
-      const welcomeMsgDocRef = doc(db, STUDENT_WELCOME_MESSAGE_DOC_PATH, "message");
+      const welcomeMsgDocRef = doc(db, STUDENT_WELCOME_MESSAGE_DOC_PATH);
       const welcomeMsgDocSnap = await getDoc(welcomeMsgDocRef);
       if (welcomeMsgDocSnap.exists() && welcomeMsgDocSnap.data().text) {
         setStudentWelcomeMessage(welcomeMsgDocSnap.data().text);
@@ -203,6 +203,8 @@ export default function TeacherPage() {
       } else {
         setStudentWelcomeMessage(DEFAULT_STUDENT_WELCOME_MESSAGE);
         setStudentWelcomeMessageInput(DEFAULT_STUDENT_WELCOME_MESSAGE);
+        // Optionally create the document if it doesn't exist with default message
+        await setDoc(welcomeMsgDocRef, { text: DEFAULT_STUDENT_WELCOME_MESSAGE });
       }
     } catch (error) {
       console.error("Error fetching student welcome message:", error);
@@ -404,7 +406,7 @@ export default function TeacherPage() {
       return;
     }
     try {
-      const welcomeMsgDocRef = doc(db, STUDENT_WELCOME_MESSAGE_DOC_PATH, "message");
+      const welcomeMsgDocRef = doc(db, STUDENT_WELCOME_MESSAGE_DOC_PATH);
       await setDoc(welcomeMsgDocRef, { text: messageToSave });
       setStudentWelcomeMessage(messageToSave);
       toast({ title: "성공", description: "학생 환영 메시지가 저장되었습니다." });
