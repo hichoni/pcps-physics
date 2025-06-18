@@ -279,9 +279,9 @@ export default function StudentPage() {
           .then(unsub => {
             if (unsub) unsubscribeLogsFunction = unsub;
           });
-    } else if (!currentStudent) { 
+    } else if (!currentStudent) { // Only reset if currentStudent is null
       setStudentGoals({});
-      setStudentActivityLogs([]); 
+      setStudentActivityLogs([]);
       setRecommendedExercise(null);
       setDailyCompliment('');
       setStudentWelcomeMessage(DEFAULT_STUDENT_WELCOME_MESSAGE);
@@ -486,8 +486,9 @@ export default function StudentPage() {
 
     try {
         const logDocRef = doc(db, "exerciseLogs", logId);
-        await updateDoc(logDocRef, { imageUrl: null });
+        await updateDoc(logDocRef, { imageUrl: null }); // Firestore에서 imageUrl을 null로 설정
 
+        // 로컬 상태 업데이트: 해당 로그의 imageUrl을 null로 설정 (undefined 대신 null로 통일)
         setStudentActivityLogs(prevLogs =>
             prevLogs.map(log =>
                 log.id === logId ? { ...log, imageUrl: null } : log
@@ -578,7 +579,8 @@ export default function StudentPage() {
     const todayLogsWithImages = studentActivityLogs
       .filter(log => log.studentId === currentStudent.id && isToday(parseISO(log.date)) && log.imageUrl)
       .sort((a, b) => {
-        if (a.id && b.id) return b.id.localeCompare(a.id); 
+        // Firestore에서 ID는 시간 순서대로 생성되므로 최신 것을 찾기 위해 ID 역순 정렬
+        if (a.id && b.id) return b.id.localeCompare(a.id);
         return 0;
       });
     return todayLogsWithImages.length > 0 ? todayLogsWithImages[0] : null;
@@ -590,7 +592,7 @@ export default function StudentPage() {
       .filter(log =>
         log.studentId === currentStudent.id &&
         isToday(parseISO(log.date)) &&
-        (log.imageUrl === undefined || log.imageUrl === null) 
+        (log.imageUrl === undefined || log.imageUrl === null) // null도 명시적으로 체크
       );
   }, [currentStudent, studentActivityLogs]);
 
@@ -842,7 +844,7 @@ export default function StudentPage() {
             </Card>
             
             {showProofShotArea && (
-              <div key={latestTodayImage ? `image-${latestTodayImage.id}-${latestTodayImage.imageUrl}` : `upload-prompt-${todaysLogsWithoutImage.length}`} className="lg:col-span-1">
+              <div key={`proof-shot-area-${showProofShotArea}`} className="lg:col-span-1">
                   {latestTodayImage ? (
                       <Card className="shadow-lg rounded-xl flex flex-col h-full">
                       <CardHeader className="pb-2 pt-4">
