@@ -209,7 +209,7 @@ export default function StudentPage() {
             id: lDoc.id, 
             ...data, 
             date: dateStr, 
-            imageUrl: data.imageUrl ?? null // Firestore에서 undefined일 경우 null로 통일
+            imageUrl: data.imageUrl ?? null 
           } as RecordedExercise;
         });
         const sortedLogs = logsList.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime() || (b.id && a.id ? b.id.localeCompare(a.id) : 0));
@@ -284,7 +284,7 @@ export default function StudentPage() {
           .then(unsub => {
             if (unsub) unsubscribeLogsFunction = unsub;
           });
-    } else if (!currentStudent) { // 학생이 로그아웃한 경우에만 상태 초기화
+    } else if (!currentStudent) {
       setStudentGoals({});
       setStudentActivityLogs([]);
       setRecommendedExercise(null);
@@ -491,7 +491,6 @@ export default function StudentPage() {
         const logDocRef = doc(db, "exerciseLogs", logId);
         await updateDoc(logDocRef, { imageUrl: null }); 
 
-        // Optimistic UI update
         setStudentActivityLogs(prevLogs =>
             prevLogs.map(log =>
                 log.id === logId ? { ...log, imageUrl: null } : log
@@ -582,7 +581,7 @@ export default function StudentPage() {
     const todayLogsWithImages = studentActivityLogs
       .filter(log => log.studentId === currentStudent.id && isToday(parseISO(log.date)) && log.imageUrl)
       .sort((a, b) => {
-        if (a.id && b.id) return b.id.localeCompare(a.id); // 최신 ID가 먼저 오도록 (내림차순)
+        if (a.id && b.id) return b.id.localeCompare(a.id);
         return 0;
       });
     return todayLogsWithImages.length > 0 ? todayLogsWithImages[0] : null;
@@ -594,8 +593,13 @@ export default function StudentPage() {
       .filter(log =>
         log.studentId === currentStudent.id &&
         isToday(parseISO(log.date)) &&
-        log.imageUrl === null // Firestore에서 오거나 로컬에서 null로 설정된 경우
+        log.imageUrl === null
       );
+  }, [currentStudent, studentActivityLogs]);
+
+  const hasAnyLogForToday = useMemo(() => {
+    if (!currentStudent) return false;
+    return studentActivityLogs.some(log => log.studentId === currentStudent.id && isToday(parseISO(log.date)));
   }, [currentStudent, studentActivityLogs]);
 
   const getExerciseProgressText = useCallback((exerciseId: string): string => {
@@ -644,11 +648,7 @@ export default function StudentPage() {
     return xpForNextLevel > 0 ? (xpInCurrentLevel / xpForNextLevel) * 100 : 0;
   }, [currentStudent, currentLevelInfo]);
 
-
-  // Directly calculate showProofShotArea in the render function
-  const hasLatestImageForArea = !!latestTodayImage;
-  const hasLogsWithoutImageForArea = todaysLogsWithoutImage.length > 0;
-  const showProofShotArea = hasLatestImageForArea || hasLogsWithoutImageForArea;
+  const showProofShotArea = !!latestTodayImage || hasAnyLogForToday;
 
 
   if (isLoadingLoginOptions || isLoadingExercises) {
@@ -849,7 +849,7 @@ export default function StudentPage() {
             
             {showProofShotArea && (
               <div
-                key={`proof-shot-area-${latestTodayImage?.id || 'no-image'}-${todaysLogsWithoutImage.length}`}
+                key={`proof-shot-area-${latestTodayImage?.id || (hasAnyLogForToday ? 'add-mode' : 'hidden')}`}
                 className="lg:col-span-1"
               >
                   {latestTodayImage ? (
@@ -907,7 +907,7 @@ export default function StudentPage() {
                               <PlusSquare className="h-12 w-12 text-primary mb-3" />
                               <p className="font-semibold text-primary">오.운.완 인증샷 추가</p>
                               <p className="text-xs text-muted-foreground mt-1">
-                                  오늘 기록된 운동에 사진을 올려보세요!
+                                  {todaysLogsWithoutImage.length > 0 ? "오늘 기록된 운동에 사진을 올려보세요!" : "운동을 먼저 기록해주세요."}
                               </p>
                           </CardContent>
                       </Card>
