@@ -209,7 +209,7 @@ export default function StudentPage() {
             id: lDoc.id, 
             ...data, 
             date: dateStr, 
-            imageUrl: data.imageUrl ?? null 
+            imageUrl: data.imageUrl ?? null // Firestore에서 undefined일 경우 null로 통일
           } as RecordedExercise;
         });
         const sortedLogs = logsList.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime() || (b.id && a.id ? b.id.localeCompare(a.id) : 0));
@@ -276,7 +276,7 @@ export default function StudentPage() {
     }
     return unsubscribeLogs;
   }, [toast, fetchRecommendation]);
-
+  
   useEffect(() => {
     let unsubscribeLogsFunction: (() => void) | undefined;
     if (currentStudent && availableExercises.length > 0) {
@@ -284,7 +284,7 @@ export default function StudentPage() {
           .then(unsub => {
             if (unsub) unsubscribeLogsFunction = unsub;
           });
-    } else if (!currentStudent) { 
+    } else if (!currentStudent) { // 학생이 로그아웃한 경우에만 상태 초기화
       setStudentGoals({});
       setStudentActivityLogs([]);
       setRecommendedExercise(null);
@@ -491,6 +491,7 @@ export default function StudentPage() {
         const logDocRef = doc(db, "exerciseLogs", logId);
         await updateDoc(logDocRef, { imageUrl: null }); 
 
+        // Optimistic UI update
         setStudentActivityLogs(prevLogs =>
             prevLogs.map(log =>
                 log.id === logId ? { ...log, imageUrl: null } : log
@@ -581,7 +582,7 @@ export default function StudentPage() {
     const todayLogsWithImages = studentActivityLogs
       .filter(log => log.studentId === currentStudent.id && isToday(parseISO(log.date)) && log.imageUrl)
       .sort((a, b) => {
-        if (a.id && b.id) return b.id.localeCompare(a.id);
+        if (a.id && b.id) return b.id.localeCompare(a.id); // 최신 ID가 먼저 오도록 (내림차순)
         return 0;
       });
     return todayLogsWithImages.length > 0 ? todayLogsWithImages[0] : null;
@@ -593,7 +594,7 @@ export default function StudentPage() {
       .filter(log =>
         log.studentId === currentStudent.id &&
         isToday(parseISO(log.date)) &&
-        log.imageUrl === null
+        log.imageUrl === null // Firestore에서 오거나 로컬에서 null로 설정된 경우
       );
   }, [currentStudent, studentActivityLogs]);
 
@@ -642,6 +643,7 @@ export default function StudentPage() {
     const xpForNextLevel = currentLevelInfo.maxXp - currentLevelInfo.minXp;
     return xpForNextLevel > 0 ? (xpInCurrentLevel / xpForNextLevel) * 100 : 0;
   }, [currentStudent, currentLevelInfo]);
+
 
   // Directly calculate showProofShotArea in the render function
   const hasLatestImageForArea = !!latestTodayImage;
@@ -846,7 +848,10 @@ export default function StudentPage() {
             </Card>
             
             {showProofShotArea && (
-              <div key={latestTodayImage ? `img-${latestTodayImage.id}` : (todaysLogsWithoutImage.length > 0 ? `upload-${todaysLogsWithoutImage.length}` : 'no-proof')} className="lg:col-span-1">
+              <div
+                key={`proof-shot-area-${latestTodayImage?.id || 'no-image'}-${todaysLogsWithoutImage.length}`}
+                className="lg:col-span-1"
+              >
                   {latestTodayImage ? (
                       <Card className="shadow-lg rounded-xl flex flex-col h-full">
                       <CardHeader className="pb-2 pt-4">
