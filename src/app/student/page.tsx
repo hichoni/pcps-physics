@@ -209,7 +209,7 @@ export default function StudentPage() {
             id: lDoc.id, 
             ...data, 
             date: dateStr, 
-            imageUrl: data.imageUrl ?? null // Ensure imageUrl is string or null
+            imageUrl: data.imageUrl ?? null 
           } as RecordedExercise;
         });
         const sortedLogs = logsList.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime() || (b.id && a.id ? b.id.localeCompare(a.id) : 0));
@@ -643,11 +643,10 @@ export default function StudentPage() {
     return xpForNextLevel > 0 ? (xpInCurrentLevel / xpForNextLevel) * 100 : 0;
   }, [currentStudent, currentLevelInfo]);
 
-  const showProofShotArea = useMemo(() => {
-    const hasLatestImage = !!latestTodayImage;
-    const hasLogsWithoutImage = todaysLogsWithoutImage.length > 0;
-    return hasLatestImage || hasLogsWithoutImage;
-  }, [latestTodayImage, todaysLogsWithoutImage]);
+  // Directly calculate showProofShotArea in the render function
+  const hasLatestImageForArea = !!latestTodayImage;
+  const hasLogsWithoutImageForArea = todaysLogsWithoutImage.length > 0;
+  const showProofShotArea = hasLatestImageForArea || hasLogsWithoutImageForArea;
 
 
   if (isLoadingLoginOptions || isLoadingExercises) {
@@ -847,7 +846,7 @@ export default function StudentPage() {
             </Card>
             
             {showProofShotArea && (
-              <div key={showProofShotArea ? (latestTodayImage ? `img-${latestTodayImage.id}` : 'upload-prompt') : 'no-proof-shot-area'} className="lg:col-span-1">
+              <div key={latestTodayImage ? `img-${latestTodayImage.id}` : (todaysLogsWithoutImage.length > 0 ? `upload-${todaysLogsWithoutImage.length}` : 'no-proof')} className="lg:col-span-1">
                   {latestTodayImage ? (
                       <Card className="shadow-lg rounded-xl flex flex-col h-full">
                       <CardHeader className="pb-2 pt-4">
