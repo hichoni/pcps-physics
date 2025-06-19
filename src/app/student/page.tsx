@@ -84,6 +84,7 @@ export default function StudentPage() {
   const [isLoadingStudentData, setIsLoadingStudentData] = useState(false); 
   const [isLoadingExercises, setIsLoadingExercises] = useState(true);
   const [isStudentActivityLogsLoading, setIsStudentActivityLogsLoading] = useState(true);
+  const [canShowProofShotSection, setCanShowProofShotSection] = useState(false);
 
 
   const [isGoalsDialogOpen, setIsGoalsDialogOpen] = useState(false);
@@ -218,6 +219,12 @@ export default function StudentPage() {
         const sortedLogs = logsList.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime() || (b.id && a.id ? b.id.localeCompare(a.id) : 0));
         setStudentActivityLogs(sortedLogs);
 
+        const todayImage = sortedLogs
+            .filter(log => log.studentId === studentId && isToday(parseISO(log.date)) && log.imageUrl)
+            .sort((a, b) => (b.id && a.id ? b.id.localeCompare(a.id) : 0))[0] || null;
+        const anyLogTodayForStudent = sortedLogs.some(log => log.studentId === studentId && isToday(parseISO(log.date)));
+        setCanShowProofShotSection(!!todayImage || anyLogTodayForStudent);
+
         const today = format(new Date(), "yyyy-MM-dd");
         const metToday = new Set<string>();
         currentExercises.forEach(exercise => {
@@ -252,6 +259,7 @@ export default function StudentPage() {
         console.error("Error fetching student logs in real-time:", error);
         toast({ title: "오류", description: "운동 기록 실시간 업데이트에 실패했습니다.", variant: "destructive" });
         setIsStudentActivityLogsLoading(false); 
+        setCanShowProofShotSection(false);
       });
 
       const complimentsDocRef = doc(db, COMPLIMENTS_DOC_PATH);
@@ -275,7 +283,8 @@ export default function StudentPage() {
     } catch (error) {
       console.error("Error fetching student specific data:", error);
       toast({ title: "오류", description: "학생 데이터를 불러오는 데 실패했습니다.", variant: "destructive" });
-      setIsStudentActivityLogsLoading(false); // Ensure loading state is false on error
+      setIsStudentActivityLogsLoading(false); 
+      setCanShowProofShotSection(false);
     } finally {
       setIsLoadingStudentData(false); 
     }
@@ -285,15 +294,18 @@ export default function StudentPage() {
   useEffect(() => {
     let unsubscribeLogsFunction: (() => void) | undefined;
     if (currentStudent) {
-        setDeleteTrigger(0); // Reset trigger when student changes
-        setIsStudentActivityLogsLoading(true); // Set loading true for logs when student context is established
+        setDeleteTrigger(0); 
+        setIsStudentActivityLogsLoading(true); 
+        setCanShowProofShotSection(false); 
         if (availableExercises.length > 0) {
             fetchStudentSpecificData(currentStudent.id, currentStudent.name, availableExercises)
               .then(unsub => {
                 if (unsub) unsubscribeLogsFunction = unsub;
               });
         } else {
-            setIsStudentActivityLogsLoading(false); // No exercises, so no logs to load for them
+            setIsStudentActivityLogsLoading(false); 
+            setCanShowProofShotSection(false);
+            setStudentActivityLogs([]); 
         }
     } else { 
       setStudentGoals({});
@@ -303,6 +315,7 @@ export default function StudentPage() {
       setStudentWelcomeMessage(DEFAULT_STUDENT_WELCOME_MESSAGE);
       setGoalsMetTodayForXp(new Set());
       setIsStudentActivityLogsLoading(true); 
+      setCanShowProofShotSection(false);
     }
     return () => {
       if (unsubscribeLogsFunction) {
@@ -492,7 +505,7 @@ export default function StudentPage() {
         log.id === logId ? { ...log, imageUrl: imageUrl } : log
       )
     );
-    setDeleteTrigger(prev => prev + 1); // Trigger re-render for proof shot area
+    // setDeleteTrigger(prev => prev + 1); // No longer relying on deleteTrigger for this
   };
 
   const handleDeleteProofShot = async (logId: string) => {
@@ -504,12 +517,21 @@ export default function StudentPage() {
         const logDocRef = doc(db, "exerciseLogs", logId);
         await updateDoc(logDocRef, { imageUrl: null }); 
 
+        // Optimistic update locally
         setStudentActivityLogs(prevLogs =>
             prevLogs.map(log =>
                 log.id === logId ? { ...log, imageUrl: null } : log
             )
         );
-        setDeleteTrigger(prev => prev + 1); // Trigger re-render for proof shot area
+        
+        // Re-evaluate if the proof shot section should be shown
+        const updatedLogs = studentActivityLogs.map(log => log.id === logId ? { ...log, imageUrl: null } : log);
+        const todayImage = updatedLogs
+            .filter(log => log.studentId === currentStudent.id && isToday(parseISO(log.date)) && log.imageUrl)
+            .sort((a, b) => (b.id && a.id ? b.id.localeCompare(a.id) : 0))[0] || null;
+        const anyLogTodayForStudent = updatedLogs.some(log => log.studentId === currentStudent.id && isToday(parseISO(log.date)));
+        setCanShowProofShotSection(!!todayImage || anyLogTodayForStudent);
+
         toast({ title: "성공", description: "인증샷이 삭제되었습니다." });
     } catch (error) {
         console.error("Error deleting proof shot:", error);
@@ -591,23 +613,22 @@ export default function StudentPage() {
   }, [studentGoals, availableExercises]);
 
   const latestTodayImage = useMemo(() => {
-    if (!currentStudent || isStudentActivityLogsLoading) return null;
+    if (!currentStudent || studentActivityLogs.length === 0) return null;
     const todayLogsWithImages = studentActivityLogs
       .filter(log => log.studentId === currentStudent.id && isToday(parseISO(log.date)) && log.imageUrl)
       .sort((a, b) => {
-        if (a.id && b.id) return b.id.localeCompare(a.id);
+        if (a.id && b.id) return b.id.localeCompare(a.id); // More recent logs first by ID if dates are same
         return 0;
       });
     return todayLogsWithImages.length > 0 ? todayLogsWithImages[0] : null;
-  }, [currentStudent, studentActivityLogs, isStudentActivityLogsLoading]);
-
+  }, [currentStudent, studentActivityLogs]);
+  
   const hasAnyLogForToday = useMemo(() => {
-    if (!currentStudent || isStudentActivityLogsLoading) return false;
+    if (!currentStudent || studentActivityLogs.length === 0) return false;
     return studentActivityLogs.some(log => log.studentId === currentStudent.id && isToday(parseISO(log.date)));
-  }, [currentStudent, studentActivityLogs, isStudentActivityLogsLoading]);
+  }, [currentStudent, studentActivityLogs]);
 
-  const showProofShotArea = currentStudent && !isStudentActivityLogsLoading && (!!latestTodayImage || hasAnyLogForToday);
-  const shouldShowUploadButton = currentStudent && !isStudentActivityLogsLoading && !latestTodayImage && hasAnyLogForToday;
+  const shouldShowUploadButton = !isStudentActivityLogsLoading && !latestTodayImage && hasAnyLogForToday;
 
 
   const getExerciseProgressText = useCallback((exerciseId: string): string => {
@@ -794,7 +815,7 @@ export default function StudentPage() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-stretch">
              <Card className={cn(
                 "shadow-lg rounded-xl flex flex-col",
-                (!showProofShotArea) ? "lg:col-span-3" : "lg:col-span-2"
+                (isStudentActivityLogsLoading || !canShowProofShotSection) ? "lg:col-span-3" : "lg:col-span-2"
             )}>
                 <CardHeader className="pb-4">
                     <CardTitle className="text-2xl sm:text-3xl font-bold font-headline text-primary text-center lg:text-left">
@@ -863,9 +884,9 @@ export default function StudentPage() {
                     </Card>
                  </div>
             )}
-            { !isStudentActivityLogsLoading && showProofShotArea && (
+            { !isStudentActivityLogsLoading && canShowProofShotSection && (
               <div
-                key={`proof-shot-area-${latestTodayImage?.id || 'no-image'}-${hasAnyLogForToday}-${deleteTrigger}`}
+                key={`proof-shot-area-${currentStudent?.id}-${latestTodayImage?.id || 'no-image'}-${shouldShowUploadButton}`}
                 className="lg:col-span-1"
               >
                   {latestTodayImage ? (
