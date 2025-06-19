@@ -84,8 +84,6 @@ export default function StudentPage() {
   const [isLoadingStudentData, setIsLoadingStudentData] = useState(false);
   const [isLoadingExercises, setIsLoadingExercises] = useState(true);
   const [isActivityLogsLoading, setIsActivityLogsLoading] = useState(true);
-  const [canShowProofShotSection, setCanShowProofShotSection] = useState(false);
-
 
   const [isGoalsDialogOpen, setIsGoalsDialogOpen] = useState(false);
   const [isLogFormOpen, setIsLogFormOpen] = useState(false);
@@ -103,7 +101,6 @@ export default function StudentPage() {
   const [availableExercises, setAvailableExercises] = useState<ExerciseType[]>([]);
   const [goalsMetTodayForXp, setGoalsMetTodayForXp] = useState<Set<string>>(new Set());
   const [deleteTrigger, setDeleteTrigger] = useState(0);
-
 
   const [isCameraModeOpen, setIsCameraModeOpen] = useState(false);
   const [cameraExerciseId, setCameraExerciseId] = useState<string | null>(null);
@@ -186,9 +183,6 @@ export default function StudentPage() {
 
   const fetchStudentSpecificData = useCallback(async (studentId: string, studentName: string, currentExercises: ExerciseType[]) => {
     if (!studentId) return Promise.resolve(undefined);
-    // setIsLoadingStudentData(true); // This is handled by the calling useEffect
-    // setIsActivityLogsLoading(true); // This is handled by the calling useEffect
-    // setCanShowProofShotSection(false); // This is handled by the calling useEffect
 
     let unsubscribeLogs: (() => void) | undefined;
 
@@ -217,10 +211,6 @@ export default function StudentPage() {
         });
         const sortedLogs = logsList.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime() || (b.id && a.id ? b.id.localeCompare(a.id) : 0));
         setStudentActivityLogs(sortedLogs);
-
-        const todayImage = sortedLogs.find(log => log.studentId === studentId && isToday(parseISO(log.date)) && log.imageUrl);
-        const anyLogTodayForStudent = sortedLogs.some(log => log.studentId === studentId && isToday(parseISO(log.date)));
-        setCanShowProofShotSection(!!todayImage || anyLogTodayForStudent);
 
         const today = format(new Date(), "yyyy-MM-dd");
         const metToday = new Set<string>();
@@ -252,13 +242,12 @@ export default function StudentPage() {
         });
         setGoalsMetTodayForXp(metToday);
         setIsActivityLogsLoading(false);
-        setIsLoadingStudentData(false); // Also set student data loading to false
+        setIsLoadingStudentData(false);
       }, (error) => {
         console.error("Error fetching student logs in real-time:", error);
         toast({ title: "오류", description: "운동 기록 실시간 업데이트에 실패했습니다.", variant: "destructive" });
         setIsActivityLogsLoading(false);
         setIsLoadingStudentData(false);
-        setCanShowProofShotSection(false);
       });
 
       const complimentsDocRef = doc(db, COMPLIMENTS_DOC_PATH);
@@ -284,9 +273,7 @@ export default function StudentPage() {
       toast({ title: "오류", description: "학생 데이터를 불러오는 데 실패했습니다.", variant: "destructive" });
       setIsActivityLogsLoading(false);
       setIsLoadingStudentData(false);
-      setCanShowProofShotSection(false);
     }
-    // Removed setIsLoadingStudentData(false) from here, it's handled inside onSnapshot
     return unsubscribeLogs;
   }, [toast, fetchRecommendation]);
 
@@ -295,9 +282,6 @@ export default function StudentPage() {
     if (currentStudent) {
         setIsLoadingStudentData(true);
         setIsActivityLogsLoading(true);
-        setCanShowProofShotSection(false);
-
-        // console.log(`Fetching data for ${currentStudent.name}, deleteTrigger: ${deleteTrigger}, availableExercises: ${availableExercises.length}`);
 
         if (availableExercises.length > 0) {
             fetchStudentSpecificData(currentStudent.id, currentStudent.name, availableExercises)
@@ -305,10 +289,8 @@ export default function StudentPage() {
                 if (unsub) unsubscribeLogsFunction = unsub;
               });
         } else {
-            // If no exercises, still need to set loading states to false
             setIsLoadingStudentData(false);
             setIsActivityLogsLoading(false);
-            setCanShowProofShotSection(false);
             setStudentActivityLogs([]);
         }
     } else {
@@ -318,18 +300,15 @@ export default function StudentPage() {
       setDailyCompliment('');
       setStudentWelcomeMessage(DEFAULT_STUDENT_WELCOME_MESSAGE);
       setGoalsMetTodayForXp(new Set());
-      setIsLoadingStudentData(false); // No student, so not loading student data
-      setIsActivityLogsLoading(false); // No student, so not loading logs
-      setCanShowProofShotSection(false);
+      setIsLoadingStudentData(false);
+      setIsActivityLogsLoading(false);
     }
     return () => {
       if (unsubscribeLogsFunction) {
-        // console.log("Unsubscribing logs for student: ", currentStudent?.name);
         unsubscribeLogsFunction();
       }
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentStudent, deleteTrigger, fetchStudentSpecificData]); // availableExercises removed, as fetchStudentSpecificData takes it as arg. deleteTrigger added.
+  }, [currentStudent, deleteTrigger, fetchStudentSpecificData, availableExercises]);
 
 
   useEffect(() => {
@@ -374,7 +353,7 @@ export default function StudentPage() {
       setLoginError(null);
       setStudentForPinCheck(null);
       setEnteredPin('');
-      setDeleteTrigger(0); // Reset deleteTrigger for new student
+      setDeleteTrigger(0);
     } else {
       setLoginError("PIN 번호가 올바르지 않습니다. 다시 시도해주세요.");
       setEnteredPin('');
@@ -423,7 +402,7 @@ export default function StudentPage() {
     setLoginError(null);
     setIsCameraModeOpen(false);
     setCameraExerciseId(null);
-    setDeleteTrigger(0); // Reset deleteTrigger on logout
+    setDeleteTrigger(0);
   };
 
   const handleOpenLogForm = () => {
@@ -463,9 +442,7 @@ export default function StudentPage() {
         );
         const logsSnapshot = await getDocs(logsQuery);
         const logsForExerciseToday = logsSnapshot.docs.map(d => d.data() as RecordedExercise);
-        // The new log isn't in Firestore yet for this query, so add it manually for calculation
         const combinedLogs = [...logsForExerciseToday, { ...logData, id: docRef.id, imageUrl: null }];
-
 
         let achievedValue = 0;
         if (exercise.id === 'squat' || exercise.id === 'jump_rope') {
@@ -502,7 +479,7 @@ export default function StudentPage() {
           }
         }
       }
-      setDeleteTrigger(prev => prev + 1); // Trigger re-fetch to ensure UI consistency for proof shot area
+      setDeleteTrigger(prev => prev + 1);
     } catch (error) {
       console.error("Error saving exercise log for student: ", error);
       toast({ title: "기록 실패", description: "운동 기록 중 오류가 발생했어요. 다시 시도해주세요.", variant: "destructive" });
@@ -515,7 +492,7 @@ export default function StudentPage() {
         log.id === logId ? { ...log, imageUrl: imageUrl } : log
       )
     );
-    setDeleteTrigger(prev => prev + 1); // Refresh proof shot area
+    setDeleteTrigger(prev => prev + 1);
   };
 
   const handleDeleteProofShot = async (logId: string) => {
@@ -526,14 +503,12 @@ export default function StudentPage() {
     try {
         const logDocRef = doc(db, "exerciseLogs", logId);
         await updateDoc(logDocRef, { imageUrl: null });
-
-        // Optimistic update for faster UI response
         setStudentActivityLogs(prevLogs =>
             prevLogs.map(log =>
                 log.id === logId ? { ...log, imageUrl: null } : log
             )
         );
-        setDeleteTrigger(prev => prev + 1); // Trigger re-fetch and UI update
+        setDeleteTrigger(prev => prev + 1);
         toast({ title: "성공", description: "인증샷이 삭제되었습니다." });
     } catch (error) {
         console.error("Error deleting proof shot:", error);
@@ -602,25 +577,25 @@ export default function StudentPage() {
   };
 
   const hasAnyLogForToday = useMemo(() => {
-    if (isActivityLogsLoading || !currentStudent) return false;
+    if (!currentStudent) return false;
     return studentActivityLogs.some(log => log.studentId === currentStudent.id && isToday(parseISO(log.date)));
-  }, [currentStudent, studentActivityLogs, isActivityLogsLoading]);
+  }, [currentStudent, studentActivityLogs]);
 
   const latestTodayImage = useMemo(() => {
-    if (isActivityLogsLoading || !currentStudent || studentActivityLogs.length === 0) return null;
+    if (!currentStudent || studentActivityLogs.length === 0) return null;
     const todayLogsWithImages = studentActivityLogs
       .filter(log => log.studentId === currentStudent.id && isToday(parseISO(log.date)) && log.imageUrl)
-      .sort((a, b) => (b.id && a.id ? b.id.localeCompare(a.id) : 0)); // Sort by ID to get the most recent if multiple on same day
+      .sort((a, b) => (b.id && a.id ? b.id.localeCompare(a.id) : 0));
     return todayLogsWithImages.length > 0 ? todayLogsWithImages[0] : null;
-  }, [currentStudent, studentActivityLogs, isActivityLogsLoading]);
+  }, [currentStudent, studentActivityLogs]);
 
-  const showProofShotArea = useMemo(() => {
-    if (isActivityLogsLoading) return false;
+  const showProofShotSection = useMemo(() => {
+    if (isActivityLogsLoading) return false; // 데이터 로딩 중에는 표시하지 않음
     return !!latestTodayImage || hasAnyLogForToday;
   }, [isActivityLogsLoading, latestTodayImage, hasAnyLogForToday]);
 
   const shouldShowUploadButton = useMemo(() => {
-      if (isActivityLogsLoading) return false;
+      if (isActivityLogsLoading) return false; // 데이터 로딩 중에는 표시하지 않음
       return !latestTodayImage && hasAnyLogForToday;
   }, [isActivityLogsLoading, latestTodayImage, hasAnyLogForToday]);
 
@@ -810,7 +785,7 @@ export default function StudentPage() {
   }
 
   const LevelIcon = currentLevelInfo.icon || Gem;
-  const proofShotSectionVisible = !isActivityLogsLoading && canShowProofShotSection;
+  const displayProofShotSection = !isActivityLogsLoading && showProofShotSection;
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -825,7 +800,7 @@ export default function StudentPage() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-stretch">
             <Card className={cn(
                 "shadow-lg rounded-xl flex flex-col",
-                (isActivityLogsLoading || !proofShotSectionVisible) ? "lg:col-span-3" : "lg:col-span-2"
+                (isActivityLogsLoading || !showProofShotSection) ? "lg:col-span-3" : "lg:col-span-2"
             )}>
                 <CardHeader className="pb-4">
                     <CardTitle className="text-2xl sm:text-3xl font-bold font-headline text-primary text-center lg:text-left">
@@ -884,10 +859,10 @@ export default function StudentPage() {
                 </CardContent>
             </Card>
 
-            { proofShotSectionVisible && (
-              <div key={`proof-shot-section-${currentStudent?.id}-${deleteTrigger}-${latestTodayImage?.id || 'no-image'}`} className="lg:col-span-1">
+            { !isActivityLogsLoading && showProofShotSection && (
+              <div key={`proof-shot-wrapper-${currentStudent?.id}-${latestTodayImage?.id || 'no-image'}-${hasAnyLogForToday}-${deleteTrigger}`} className="lg:col-span-1">
                   {latestTodayImage ? (
-                      <Card key={latestTodayImage.id} className="shadow-lg rounded-xl flex flex-col h-full"> {/* Added key here */}
+                      <Card key={latestTodayImage.id} className="shadow-lg rounded-xl flex flex-col h-full">
                       <CardHeader className="pb-2 pt-4">
                           <CardTitle className="flex items-center font-headline text-xl justify-center">
                             <CheckSquare className="mr-3 h-7 w-7 text-green-500" />
@@ -930,7 +905,7 @@ export default function StudentPage() {
                       </Card>
                   ) : shouldShowUploadButton ? (
                       <Card
-                          key={`upload-card-${currentStudent?.id}`} // Added a more stable key
+                          key={`upload-card-${currentStudent?.id}-${deleteTrigger}`}
                           className="shadow-lg rounded-xl flex flex-col items-center justify-center cursor-pointer hover:bg-muted/30 transition-colors h-full"
                           onClick={() => setIsUploadProofShotDialogOpen(true)}
                           role="button"
