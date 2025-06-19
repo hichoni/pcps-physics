@@ -81,9 +81,10 @@ export default function StudentPage() {
   const [currentStudent, setCurrentStudent] = useState<Student | null>(null);
 
   const [isLoadingLoginOptions, setIsLoadingLoginOptions] = useState(true);
-  const [isLoadingStudentData, setIsLoadingStudentData] = useState(false);
+  const [isLoadingStudentData, setIsLoadingStudentData] = useState(false); // For goals, compliment, etc.
+  const [isActivityLogsLoading, setIsActivityLogsLoading] = useState(true); // Specifically for studentActivityLogs
+
   const [isLoadingExercises, setIsLoadingExercises] = useState(true);
-  const [isActivityLogsLoading, setIsActivityLogsLoading] = useState(true);
 
   const [isGoalsDialogOpen, setIsGoalsDialogOpen] = useState(false);
   const [isLogFormOpen, setIsLogFormOpen] = useState(false);
@@ -151,8 +152,7 @@ export default function StudentPage() {
             setAvailableExercises(seededByName);
         } else if (allowedExercises.length === 4) {
             setAvailableExercises(allowedExercises);
-        }
-         else {
+        } else {
           setAvailableExercises(EXERCISES_SEED_DATA.map(convertCustomToInternalExercise));
         }
       } else {
@@ -183,15 +183,20 @@ export default function StudentPage() {
 
   const fetchStudentSpecificData = useCallback(async (studentId: string, studentName: string, currentExercises: ExerciseType[]) => {
     if (!studentId) return Promise.resolve(undefined);
+    
+    setIsLoadingStudentData(true); // For goals, compliment, etc.
+    // isActivityLogsLoading is set by the caller effect
 
     let unsubscribeLogs: (() => void) | undefined;
 
     try {
+      // Fetch goals
       const goalsDocRef = doc(db, "studentGoals", studentId);
       const goalsDocSnap = await getDoc(goalsDocRef);
       const fetchedGoals = goalsDocSnap.exists() ? (goalsDocSnap.data().goals || {}) : {};
       setStudentGoals(fetchedGoals);
 
+      // Setup logs listener
       const logsQuery = query(collection(db, "exerciseLogs"), where("studentId", "==", studentId));
       unsubscribeLogs = onSnapshot(logsQuery, (logsSnapshot) => {
         const logsList = logsSnapshot.docs.map(lDoc => {
@@ -206,7 +211,7 @@ export default function StudentPage() {
             id: lDoc.id,
             ...data,
             date: dateStr,
-            imageUrl: data.imageUrl === undefined || data.imageUrl === '' ? null : data.imageUrl
+            imageUrl: data.imageUrl === undefined || data.imageUrl === '' || data.imageUrl === null ? null : data.imageUrl
           } as RecordedExercise;
         });
         const sortedLogs = logsList.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime() || (b.id && a.id ? b.id.localeCompare(a.id) : 0));
@@ -241,38 +246,39 @@ export default function StudentPage() {
           }
         });
         setGoalsMetTodayForXp(metToday);
-        setIsActivityLogsLoading(false);
-        setIsLoadingStudentData(false);
+        setIsActivityLogsLoading(false); // Logs are now loaded or updated
       }, (error) => {
         console.error("Error fetching student logs in real-time:", error);
         toast({ title: "오류", description: "운동 기록 실시간 업데이트에 실패했습니다.", variant: "destructive" });
         setIsActivityLogsLoading(false);
-        setIsLoadingStudentData(false);
       });
 
+      // Fetch compliments
       const complimentsDocRef = doc(db, COMPLIMENTS_DOC_PATH);
       const complimentsDocSnap = await getDoc(complimentsDocRef);
       let adjectiveList = DEFAULT_POSITIVE_ADJECTIVES_KR;
-      if (complimentsDocSnap.exists() && complimentsDocSnap.data().list && complimentsDocSnap.data().list.length > 0) {
-        adjectiveList = complimentsDocSnap.data().list;
+      if (complimentsDocSnap.exists() && complimentsDocSnap.data()?.list && complimentsDocSnap.data()!.list.length > 0) {
+        adjectiveList = complimentsDocSnap.data()!.list;
       }
       const dayOfMonth = new Date().getDate();
       const adjectiveIndex = (dayOfMonth - 1 + studentName.length) % adjectiveList.length;
       setDailyCompliment(adjectiveList[adjectiveIndex] || adjectiveList[0] || "");
 
+      // Fetch welcome message
       const welcomeMsgDocRef = doc(db, STUDENT_WELCOME_MESSAGE_DOC_PATH);
       const welcomeMsgDocSnap = await getDoc(welcomeMsgDocRef);
-      if (welcomeMsgDocSnap.exists() && welcomeMsgDocSnap.data().text) {
-        setStudentWelcomeMessage(welcomeMsgDocSnap.data().text);
+      if (welcomeMsgDocSnap.exists() && welcomeMsgDocSnap.data()?.text) {
+        setStudentWelcomeMessage(welcomeMsgDocSnap.data()!.text);
       } else {
         setStudentWelcomeMessage(DEFAULT_STUDENT_WELCOME_MESSAGE);
       }
-      fetchRecommendation();
+      fetchRecommendation(); // Fetch AI recommendation
+      setIsLoadingStudentData(false); // Other student data loaded
     } catch (error) {
       console.error("Error fetching student specific data:", error);
       toast({ title: "오류", description: "학생 데이터를 불러오는 데 실패했습니다.", variant: "destructive" });
-      setIsActivityLogsLoading(false);
       setIsLoadingStudentData(false);
+      setIsActivityLogsLoading(false); // Ensure loading is stopped on error
     }
     return unsubscribeLogs;
   }, [toast, fetchRecommendation]);
@@ -280,8 +286,8 @@ export default function StudentPage() {
   useEffect(() => {
     let unsubscribeLogsFunction: (() => void) | undefined;
     if (currentStudent) {
-        setIsLoadingStudentData(true);
-        setIsActivityLogsLoading(true);
+        setIsActivityLogsLoading(true); // Set before fetching
+        // isLoadingStudentData is handled by fetchStudentSpecificData
 
         if (availableExercises.length > 0) {
             fetchStudentSpecificData(currentStudent.id, currentStudent.name, availableExercises)
@@ -289,11 +295,13 @@ export default function StudentPage() {
                 if (unsub) unsubscribeLogsFunction = unsub;
               });
         } else {
+            // If no exercises, no logs can be meaningfully processed for goals/XP
             setIsLoadingStudentData(false);
             setIsActivityLogsLoading(false);
-            setStudentActivityLogs([]);
+            setStudentActivityLogs([]); // Clear logs if exercises are not available
         }
     } else {
+      // Reset states if no student is current (e.g., on logout)
       setStudentGoals({});
       setStudentActivityLogs([]);
       setRecommendedExercise(null);
@@ -302,6 +310,7 @@ export default function StudentPage() {
       setGoalsMetTodayForXp(new Set());
       setIsLoadingStudentData(false);
       setIsActivityLogsLoading(false);
+      setDeleteTrigger(0);
     }
     return () => {
       if (unsubscribeLogsFunction) {
@@ -353,7 +362,7 @@ export default function StudentPage() {
       setLoginError(null);
       setStudentForPinCheck(null);
       setEnteredPin('');
-      setDeleteTrigger(0);
+      setDeleteTrigger(0); // Reset delete trigger on new login
     } else {
       setLoginError("PIN 번호가 올바르지 않습니다. 다시 시도해주세요.");
       setEnteredPin('');
@@ -394,7 +403,7 @@ export default function StudentPage() {
   };
 
   const handleLogout = () => {
-    setCurrentStudent(null);
+    setCurrentStudent(null); // This will trigger the useEffect to clear data
     setSelectedClass('');
     setSelectedStudentId('');
     setStudentForPinCheck(null);
@@ -402,7 +411,6 @@ export default function StudentPage() {
     setLoginError(null);
     setIsCameraModeOpen(false);
     setCameraExerciseId(null);
-    setDeleteTrigger(0);
   };
 
   const handleOpenLogForm = () => {
@@ -479,7 +487,7 @@ export default function StudentPage() {
           }
         }
       }
-      setDeleteTrigger(prev => prev + 1);
+      // Instead of setDeleteTrigger, onSnapshot should handle updates
     } catch (error) {
       console.error("Error saving exercise log for student: ", error);
       toast({ title: "기록 실패", description: "운동 기록 중 오류가 발생했어요. 다시 시도해주세요.", variant: "destructive" });
@@ -487,12 +495,10 @@ export default function StudentPage() {
   };
 
   const handleProofShotUploadComplete = (logId: string, imageUrl: string) => {
-    setStudentActivityLogs(prevLogs =>
-      prevLogs.map(log =>
-        log.id === logId ? { ...log, imageUrl: imageUrl } : log
-      )
-    );
-    setDeleteTrigger(prev => prev + 1);
+    // onSnapshot should handle this update, but we can force a re-check of goals/XP if needed
+    // or simply trust the listener. For now, primarily rely on listener.
+    // Optionally, re-trigger deleteTrigger to force re-evaluation of display logic.
+    setDeleteTrigger(prev => prev + 1); // This can help if local state derivation is complex
   };
 
   const handleDeleteProofShot = async (logId: string) => {
@@ -502,13 +508,15 @@ export default function StudentPage() {
 
     try {
         const logDocRef = doc(db, "exerciseLogs", logId);
-        await updateDoc(logDocRef, { imageUrl: null });
+        await updateDoc(logDocRef, { imageUrl: null }); // Firestore update
+        
+        // Optimistic local update
         setStudentActivityLogs(prevLogs =>
             prevLogs.map(log =>
                 log.id === logId ? { ...log, imageUrl: null } : log
             )
         );
-        setDeleteTrigger(prev => prev + 1);
+        setDeleteTrigger(prev => prev + 1); // Force re-render and re-calculation of derived states
         toast({ title: "성공", description: "인증샷이 삭제되었습니다." });
     } catch (error) {
         console.error("Error deleting proof shot:", error);
@@ -576,29 +584,6 @@ export default function StudentPage() {
     handleCloseCameraMode();
   };
 
-  const hasAnyLogForToday = useMemo(() => {
-    if (!currentStudent) return false;
-    return studentActivityLogs.some(log => log.studentId === currentStudent.id && isToday(parseISO(log.date)));
-  }, [currentStudent, studentActivityLogs]);
-
-  const latestTodayImage = useMemo(() => {
-    if (!currentStudent || studentActivityLogs.length === 0) return null;
-    const todayLogsWithImages = studentActivityLogs
-      .filter(log => log.studentId === currentStudent.id && isToday(parseISO(log.date)) && log.imageUrl)
-      .sort((a, b) => (b.id && a.id ? b.id.localeCompare(a.id) : 0));
-    return todayLogsWithImages.length > 0 ? todayLogsWithImages[0] : null;
-  }, [currentStudent, studentActivityLogs]);
-
-  const showProofShotSection = useMemo(() => {
-    if (isActivityLogsLoading) return false; // 데이터 로딩 중에는 표시하지 않음
-    return !!latestTodayImage || hasAnyLogForToday;
-  }, [isActivityLogsLoading, latestTodayImage, hasAnyLogForToday]);
-
-  const shouldShowUploadButton = useMemo(() => {
-      if (isActivityLogsLoading) return false; // 데이터 로딩 중에는 표시하지 않음
-      return !latestTodayImage && hasAnyLogForToday;
-  }, [isActivityLogsLoading, latestTodayImage, hasAnyLogForToday]);
-
 
   const getExerciseProgressText = useCallback((exerciseId: string): string => {
     if (!currentStudent) return "";
@@ -658,6 +643,38 @@ export default function StudentPage() {
       return false;
     }).length > 0;
   }, [studentGoals, availableExercises]);
+
+
+  // ---- Start of new direct calculation logic ----
+  let latestTodayImageRender: RecordedExercise | null = null;
+  let hasAnyLogForTodayRender = false;
+  let showProofShotSectionRender = false;
+  let shouldShowUploadButtonRender = false;
+  let todaysLogsWithoutImageRender: RecordedExercise[] = [];
+
+  if (currentStudent && !isActivityLogsLoading) { // Only calculate if logs are loaded and student exists
+    const currentLogs = studentActivityLogs.filter(log => log.studentId === currentStudent.id);
+    const todayLogs = currentLogs.filter(log => {
+        try {
+            return isToday(parseISO(log.date));
+        } catch (e) {
+            console.warn("Invalid date encountered in studentActivityLogs for isToday check:", log.date);
+            return false;
+        }
+    });
+
+    latestTodayImageRender = todayLogs
+      .filter(log => log.imageUrl)
+      .sort((a, b) => (b.id && a.id ? b.id.localeCompare(a.id) : 0))[0] || null;
+      
+    hasAnyLogForTodayRender = todayLogs.length > 0;
+
+    showProofShotSectionRender = !!latestTodayImageRender || hasAnyLogForTodayRender;
+
+    todaysLogsWithoutImageRender = todayLogs.filter(log => !log.imageUrl);
+    shouldShowUploadButtonRender = !latestTodayImageRender && hasAnyLogForTodayRender;
+  }
+  // ---- End of new direct calculation logic ----
 
 
   if (isLoadingLoginOptions || isLoadingExercises) {
@@ -750,7 +767,7 @@ export default function StudentPage() {
     );
   }
 
-  // Combined loading state check
+  // Combined loading state check for main content
   if (isLoadingStudentData || isActivityLogsLoading || (currentStudent && availableExercises.length === 0 && !isLoadingExercises) ) {
      return (
       <div className="flex flex-col min-h-screen">
@@ -785,7 +802,6 @@ export default function StudentPage() {
   }
 
   const LevelIcon = currentLevelInfo.icon || Gem;
-  const displayProofShotSection = !isActivityLogsLoading && showProofShotSection;
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -800,7 +816,7 @@ export default function StudentPage() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-stretch">
             <Card className={cn(
                 "shadow-lg rounded-xl flex flex-col",
-                (isActivityLogsLoading || !showProofShotSection) ? "lg:col-span-3" : "lg:col-span-2"
+                (isActivityLogsLoading || !showProofShotSectionRender) ? "lg:col-span-3" : "lg:col-span-2"
             )}>
                 <CardHeader className="pb-4">
                     <CardTitle className="text-2xl sm:text-3xl font-bold font-headline text-primary text-center lg:text-left">
@@ -858,11 +874,12 @@ export default function StudentPage() {
                     )}
                 </CardContent>
             </Card>
-
-            { !isActivityLogsLoading && showProofShotSection && (
-              <div key={`proof-shot-wrapper-${currentStudent?.id}-${latestTodayImage?.id || 'no-image'}-${hasAnyLogForToday}-${deleteTrigger}`} className="lg:col-span-1">
-                  {latestTodayImage ? (
-                      <Card key={latestTodayImage.id} className="shadow-lg rounded-xl flex flex-col h-full">
+            
+            {/* Proof Shot Section - Use Render variables */}
+            { !isActivityLogsLoading && showProofShotSectionRender && (
+              <div key={`proof-shot-area-${currentStudent?.id}-${showProofShotSectionRender}-${deleteTrigger}`} className="lg:col-span-1">
+                  {latestTodayImageRender ? (
+                      <Card key={latestTodayImageRender.id} className="shadow-lg rounded-xl flex flex-col h-full">
                       <CardHeader className="pb-2 pt-4">
                           <CardTitle className="flex items-center font-headline text-xl justify-center">
                             <CheckSquare className="mr-3 h-7 w-7 text-green-500" />
@@ -870,10 +887,10 @@ export default function StudentPage() {
                           </CardTitle>
                       </CardHeader>
                       <CardContent className="flex-grow flex flex-col items-center justify-center p-3 space-y-2">
-                          <a href={latestTodayImage.imageUrl!} target="_blank" rel="noopener noreferrer" className="block w-full aspect-square relative rounded-lg overflow-hidden shadow-inner bg-muted">
+                          <a href={latestTodayImageRender.imageUrl!} target="_blank" rel="noopener noreferrer" className="block w-full aspect-square relative rounded-lg overflow-hidden shadow-inner bg-muted">
                           <NextImage
-                              key={latestTodayImage.imageUrl}
-                              src={latestTodayImage.imageUrl!}
+                              key={latestTodayImageRender.imageUrl} // Keyed for image change
+                              src={latestTodayImageRender.imageUrl!}
                               alt="오늘의 운동 인증샷"
                               layout="fill"
                               objectFit="cover"
@@ -896,14 +913,14 @@ export default function StudentPage() {
                               variant="destructive"
                               size="sm"
                               className="w-full rounded-md text-xs py-1.5 h-auto"
-                              onClick={() => handleDeleteProofShot(latestTodayImage.id!)}
+                              onClick={() => handleDeleteProofShot(latestTodayImageRender.id!)}
                           >
                               <Trash2 className="mr-1.5 h-3.5 w-3.5" />
                               인증샷 삭제
                           </Button>
                       </CardContent>
                       </Card>
-                  ) : shouldShowUploadButton ? (
+                  ) : shouldShowUploadButtonRender ? (
                       <Card
                           key={`upload-card-${currentStudent?.id}-${deleteTrigger}`}
                           className="shadow-lg rounded-xl flex flex-col items-center justify-center cursor-pointer hover:bg-muted/30 transition-colors h-full"
@@ -1149,7 +1166,7 @@ export default function StudentPage() {
             isOpen={isUploadProofShotDialogOpen}
             onClose={() => setIsUploadProofShotDialogOpen(false)}
             student={currentStudent}
-            logsWithoutImageToday={studentActivityLogs.filter(log => log.studentId === currentStudent.id && isToday(parseISO(log.date)) && !log.imageUrl)}
+            logsWithoutImageToday={todaysLogsWithoutImageRender} // Use render-time calculated value
             availableExercises={availableExercises}
             onUploadComplete={handleProofShotUploadComplete}
           />
@@ -1179,3 +1196,4 @@ export default function StudentPage() {
     </div>
   );
 }
+
