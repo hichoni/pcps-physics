@@ -16,7 +16,7 @@ const ptSans = PT_Sans({
   variable: '--font-pt-sans',
 });
 
-const APP_VERSION = "1.0.3"; // PWA 캐시 무효화를 위한 버전 업데이트
+const APP_VERSION = "1.0.4"; // PWA 캐시 무효화를 위한 버전 업데이트
 
 export const metadata: Metadata = {
   title: '풍풍이 운동기록장',
@@ -40,7 +40,7 @@ export default function RootLayout({
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="theme-color" content="#3B82F6" /> 
         <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" data-ai-hint="app icon" />
-        <link rel="icon" type="image/png" sizes="192x192" href="/icons/app-icon-192x192.png" data-ai-hint="app icon" />
+        <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192x192-(2).png" data-ai-hint="app icon" />
         <link rel="icon" type="image/png" sizes="512x512" href="/icons/app-icon-512x512.png" data-ai-hint="app icon" />
         <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32x32.png" data-ai-hint="favicon browser" />
         <link rel="icon" type="image/png" sizes="16x16" href="/icons/favicon-16x16.png" data-ai-hint="favicon browser" />
