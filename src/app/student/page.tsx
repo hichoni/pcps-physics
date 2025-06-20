@@ -682,6 +682,10 @@ export default function StudentPage() {
   }, [studentGoals, availableExercises]);
 
   const mainContentKey = `${currentStudent?.id || 'no-student'}-${isActivityLogsLoading}-${isAiWelcomeLoading}`;
+  
+  const todayDayIndex = useMemo(() => new Date().getDay(), []); // 0 for Sunday, ..., 6 for Saturday
+  const dayEngMapping = useMemo(() => ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"], []);
+
 
   if (isLoadingLoginOptions || isLoadingExercises) {
     return <div className="flex justify-center items-center min-h-screen"><Loader2 className="h-8 w-8 animate-spin text-primary" /> {isLoadingLoginOptions ? '학생 정보' : '운동 목록'} 로딩 중...</div>;
@@ -1007,29 +1011,49 @@ export default function StudentPage() {
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-3">
-              {weeklyPlanDays.map((item, index) => (
-                <Card key={index} className={cn("flex flex-col text-center shadow-sm", item.color)}>
-                  <CardHeader className="p-2 pt-3">
-                    <CardTitle className="text-lg font-semibold">{item.day}</CardTitle>
-                    <CardDescription className="text-xs">{item.dayEng}</CardDescription>
-                  </CardHeader>
-                  <CardContent className="p-2 flex-grow flex flex-col items-center justify-between">
-                    <div className="w-full aspect-[4/3] relative mb-2 rounded overflow-hidden">
-                       <Image 
-                         src={`https://placehold.co/200x150.png`} 
-                         alt={`${item.day} 운동 계획 예시`} 
-                         layout="fill" 
-                         objectFit="cover"
-                         data-ai-hint={item.imageHint}
-                       />
-                    </div>
-                    <p className="text-xs mb-2 flex-grow min-h-[3em]">{item.defaultText}</p>
-                    <Button variant="outline" size="sm" className="w-full text-xs mt-auto bg-background/70 hover:bg-background">
-                      <Edit className="mr-1 h-3 w-3" /> 계획 수정
-                    </Button>
-                  </CardContent>
-                </Card>
-              ))}
+              {weeklyPlanDays.map((item, index) => {
+                const isCurrentDay = item.dayEng === dayEngMapping[todayDayIndex];
+                const isWeekend = item.day === "일" || item.day === "토";
+                const showSimulatedXp = item.day === "수"; // Simulate XP for Wednesday
+
+                return (
+                  <Card 
+                    key={index} 
+                    className={cn(
+                      "flex flex-col text-center shadow-sm", 
+                      item.color, 
+                      isCurrentDay && "ring-2 ring-primary ring-offset-2 shadow-lg"
+                    )}
+                  >
+                    <CardHeader className="p-2 pt-3">
+                      <CardTitle className={cn("text-lg font-semibold", isWeekend && "text-red-600 dark:text-red-400")}>{item.day}</CardTitle>
+                      <CardDescription className="text-xs">{item.dayEng}</CardDescription>
+                    </CardHeader>
+                    <CardContent className="p-2 flex-grow flex flex-col items-center justify-between">
+                      <div className="w-full aspect-[4/3] relative mb-2 rounded overflow-hidden">
+                         <Image 
+                           src={`https://placehold.co/200x150.png`} 
+                           alt={`${item.day} 운동 계획 예시`} 
+                           layout="fill" 
+                           objectFit="cover"
+                           data-ai-hint={item.imageHint}
+                         />
+                      </div>
+                      <div className="text-xs mb-1 flex-grow flex flex-col justify-start min-h-[calc(3em+1.5em)]">
+                        <p className="min-h-[3em]">{item.defaultText}</p>
+                        {showSimulatedXp && (
+                          <p className="font-semibold text-green-600 dark:text-green-400 mt-0.5">
+                            +40XP 😊
+                          </p>
+                        )}
+                      </div>
+                      <Button variant="outline" size="sm" className="w-full text-xs mt-auto bg-background/70 hover:bg-background">
+                        <Edit className="mr-1 h-3 w-3" /> 계획 수정
+                      </Button>
+                    </CardContent>
+                  </Card>
+                );
+              })}
             </div>
           </CardContent>
         </Card>
@@ -1169,3 +1193,4 @@ export default function StudentPage() {
     </div>
   );
 }
+
