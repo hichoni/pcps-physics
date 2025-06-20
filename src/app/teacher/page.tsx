@@ -19,7 +19,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Users, BarChart2, Lightbulb, ListChecks, UserPlus, Trash2, Sparkles, MessageSquarePlus, MessageSquareX, Loader2, Wand2, KeyRound, LogIn, Image as ImageIconLucide, Edit, Settings2, School, PlusCircle, Edit3, AlertCircle, TrendingUp, CalendarDays, ChevronLeft, ChevronRight, Activity as ActivityIcon } from 'lucide-react';
+import { Users, BarChart2, Lightbulb, ListChecks, UserPlus, Trash2, Sparkles, MessageSquarePlus, MessageSquareX, Loader2, Wand2, KeyRound, LogIn, Image as ImageIconLucide, Edit, Settings2, School, PlusCircle, Edit3, AlertCircle, TrendingUp, CalendarDays, ChevronLeft, ChevronRight, Activity as ActivityIcon, Construction } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle as UICardTitle, CardDescription as UICardDescription } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -30,7 +30,7 @@ import { db } from '@/lib/firebase';
 import {
   collection, getDocs, addDoc, deleteDoc, doc, writeBatch, query, where, setDoc, getDoc, updateDoc, arrayUnion, arrayRemove, onSnapshot
 } from 'firebase/firestore';
-import NextImage from 'next/image';
+// import NextImage from 'next/image'; // Removed as gallery is disabled
 import { getIconByName } from '@/lib/iconMap';
 import { cn } from '@/lib/utils';
 import { Calendar } from "@/components/ui/calendar";
@@ -352,7 +352,7 @@ export default function TeacherPage() {
     }
   };
 
-  const handleAddStudent = async (newStudentData: { name: string; class: string; studentNumber: number; gender: Gender; pin: string }) => {
+  const handleAddStudent = async (newStudentData: { name: string; class: string; studentNumber: number; gender: Gender; pin: string; totalXp: number }) => {
     try {
       const studentWithAvatarAndPin = {
         ...newStudentData,
@@ -918,70 +918,18 @@ export default function TeacherPage() {
           </TabsContent>
 
           <TabsContent value="gallery" className="mt-6">
-            <section aria-labelledby="photo-gallery-heading">
-              <h2 id="photo-gallery-heading" className="text-xl font-semibold mb-4 font-headline">
-                {selectedClass ? `${selectedClass} 학급 인증샷 갤러리` : '전체 인증샷 갤러리'}
+            <section aria-labelledby="photo-gallery-heading" className="bg-card p-6 rounded-xl shadow-md">
+              <h2 id="photo-gallery-heading" className="text-xl font-semibold mb-4 font-headline flex items-center">
+                <ImageIconLucide className="mr-3 h-6 w-6 text-primary" />
+                사진 갤러리
               </h2>
-              {isLoadingLogs ? (
-                <div className="flex justify-center items-center h-64">
-                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                  <span className="ml-2">갤러리 로딩 중...</span>
-                </div>
-              ) : (
-                (() => {
-                  const photos = recordedExercises
-                    .filter(log => log.imageUrl && (!selectedClass || log.className === selectedClass))
-                    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime() || (b.id && a.id ? b.id.localeCompare(a.id) : 0));
-
-                  if (photos.length === 0) {
-                    return <p className="text-muted-foreground text-center py-4">업로드된 인증샷이 없습니다.</p>;
-                  }
-
-                  return (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                      {photos.map(log => {
-                        const student = students.find(s => s.id === log.studentId);
-                        const exerciseInfo = customExercises.find(ex => ex.id === log.exerciseId);
-                        return (
-                          <Card key={log.id} className="overflow-hidden shadow-md hover:shadow-lg transition-shadow">
-                            <a href={log.imageUrl} target="_blank" rel="noopener noreferrer" className="block aspect-square relative bg-muted">
-                              <NextImage
-                                src={log.imageUrl!}
-                                alt={`${student?.name || '학생'}의 ${exerciseInfo?.koreanName || '운동'} 인증샷`}
-                                layout="fill"
-                                objectFit="cover"
-                                className="transition-transform duration-300 hover:scale-105"
-                                onError={(e) => {
-                                  const target = e.target as HTMLImageElement;
-                                  target.style.display = 'none';
-                                  const parent = target.parentElement;
-                                  if (parent && !parent.querySelector('.image-error-placeholder')) {
-                                    const placeholder = document.createElement('div');
-                                    placeholder.className = 'image-error-placeholder absolute inset-0 flex items-center justify-center bg-muted text-muted-foreground text-xs p-2 text-center';
-                                    placeholder.textContent = '이미지를 불러올 수 없습니다.';
-                                    parent.appendChild(placeholder);
-                                  }
-                                }}
-                              />
-                            </a>
-                            <CardContent className="p-3">
-                              <p className="text-sm font-semibold truncate" title={student?.name || '알 수 없는 학생'}>
-                                {student?.name || '알 수 없는 학생'}
-                              </p>
-                              <p className="text-xs text-muted-foreground truncate" title={exerciseInfo?.koreanName || log.exerciseId}>
-                                {exerciseInfo?.koreanName || log.exerciseId}
-                              </p>
-                              <p className="text-xs text-muted-foreground">
-                                {format(parseISO(log.date), "yyyy년 MM월 dd일", { locale: ko })}
-                              </p>
-                            </CardContent>
-                          </Card>
-                        );
-                      })}
-                    </div>
-                  );
-                })()
-              )}
+              <div className="flex flex-col items-center justify-center min-h-[200px] text-center">
+                <Construction className="h-16 w-16 text-muted-foreground mb-4" />
+                <p className="text-lg font-semibold text-muted-foreground">개발 예정입니다.</p>
+                <p className="text-sm text-muted-foreground">
+                  학생들의 멋진 인증샷을 모아볼 수 있는 공간이 준비될 예정입니다!
+                </p>
+              </div>
             </section>
           </TabsContent>
 
