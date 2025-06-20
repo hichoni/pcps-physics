@@ -4,6 +4,7 @@ import type { PWAConfig } from '@ducanh2912/next-pwa'; // PWAConfig 타입을 �
 import withPWAInit from '@ducanh2912/next-pwa';
 
 // PWA 설정을 PWAConfig 타입으로 명시
+// Cache-busting comment: 2024-07-30 10:00 KST
 const pwaConfig: PWAConfig = {
   dest: 'public', // PWA 관련 파일들이 생성될 디렉토리
   register: true, // 서비스 워커 등록 활성화
