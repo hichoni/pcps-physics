@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dumbbell, Target, History, PlusCircle, LogOut, UserCheck, Loader2, AlertTriangle, KeyRound, Edit3, Camera, Info, Activity as ActivityIconLucide } from 'lucide-react'; 
+import { Dumbbell, Target, History, PlusCircle, LogOut, UserCheck, Loader2, AlertTriangle, KeyRound, Edit3, Camera, Info, Activity as ActivityIconLucide, CheckSquare } from 'lucide-react';
 import type { Student, ClassName, RecordedExercise, Gender, StudentGoal, CustomExercise as CustomExerciseType, Exercise as ExerciseType, LevelInfo } from '@/lib/types';
 import { EXERCISES_SEED_DATA } from '@/data/mockData';
 import SetStudentGoalsDialog from '@/components/SetStudentGoalsDialog';
@@ -20,14 +20,14 @@ import StudentActivityChart from '@/components/StudentActivityChart';
 import LevelGuideDialog from '@/components/LevelGuideDialog';
 import { useToast } from "@/hooks/use-toast";
 import { recommendStudentExercise, RecommendStudentExerciseOutput, RecommendStudentExerciseInput } from '@/ai/flows/recommend-student-exercise';
+import { generatePersonalizedWelcomeMessage, GeneratePersonalizedWelcomeMessageInput, GeneratePersonalizedWelcomeMessageOutput } from '@/ai/flows/generatePersonalizedWelcomeMessage';
 import { db } from '@/lib/firebase';
 import { collection, getDocs, doc, getDoc, setDoc, query, where, addDoc, updateDoc, onSnapshot } from 'firebase/firestore';
 import { format, parseISO, isToday } from 'date-fns';
 import { ko } from 'date-fns/locale';
-// import NextImage from 'next/image'; // No longer used for proof shots here
 import { cn } from '@/lib/utils';
 import { getIconByName } from '@/lib/iconMap';
-import { Leaf, Droplets, Sprout, Star, Footprints, Trophy, Zap, Medal, ShieldCheck, Crown, Gem } from 'lucide-react'; // Level Icons
+import { Leaf, Droplets, Sprout, Star, Footprints, Trophy, Zap, Medal, ShieldCheck, Crown, Gem } from 'lucide-react';
 
 const DEFAULT_POSITIVE_ADJECTIVES_KR = [
   "별처럼 빛나는", "항상 긍정적인", "꿈을 향해 달리는", "세상을 밝히는",
@@ -70,7 +70,7 @@ const convertCustomToInternalExercise = (customEx: CustomExerciseType): Exercise
 };
 
 const getGradeFromClassName = (className?: ClassName): string => {
-    if (!className) return "초등학생"; // Default if class name is not available
+    if (!className) return "초등학생";
     const match = className.match(/(\d+)학년/);
     if (match && match[1]) {
       return `${match[1]}학년`;
@@ -80,7 +80,7 @@ const getGradeFromClassName = (className?: ClassName): string => {
         const gradeNum = parseInt(numMatch[0], 10);
         if (gradeNum >=1 && gradeNum <=6) return `${gradeNum}학년`;
     }
-    return "초등학생"; // Fallback for classes like "햇님반" or "기타"
+    return "초등학생"; 
   };
 
 export default function StudentPage() {
@@ -98,7 +98,6 @@ export default function StudentPage() {
   const [isLoadingLoginOptions, setIsLoadingLoginOptions] = useState(true);
   const [isLoadingStudentData, setIsLoadingStudentData] = useState(false);
   const [isActivityLogsLoading, setIsActivityLogsLoading] = useState(true);
-
   const [isLoadingExercises, setIsLoadingExercises] = useState(true);
 
   const [isGoalsDialogOpen, setIsGoalsDialogOpen] = useState(false);
@@ -112,7 +111,10 @@ export default function StudentPage() {
   const [recommendedExercise, setRecommendedExercise] = useState<RecommendStudentExerciseOutput | null>(null);
   const [isRecommendationLoading, setIsRecommendationLoading] = useState(false);
   const [dailyCompliment, setDailyCompliment] = useState<string>('');
-  const [studentWelcomeMessage, setStudentWelcomeMessage] = useState<string>(DEFAULT_STUDENT_WELCOME_MESSAGE);
+  
+  const [teacherBaseWelcomeMessage, setTeacherBaseWelcomeMessage] = useState<string>(DEFAULT_STUDENT_WELCOME_MESSAGE);
+  const [aiPersonalizedWelcome, setAiPersonalizedWelcome] = useState<string>('');
+  const [isAiWelcomeLoading, setIsAiWelcomeLoading] = useState(true);
 
   const [availableExercises, setAvailableExercises] = useState<ExerciseType[]>([]);
   const [goalsMetTodayForXp, setGoalsMetTodayForXp] = useState<Set<string>>(new Set());
@@ -182,6 +184,34 @@ export default function StudentPage() {
     return () => unsubscribe();
   }, [toast]);
 
+  const currentLevelInfo = useMemo(() => {
+    return calculateLevelInfo(currentStudent?.totalXp);
+  }, [currentStudent?.totalXp]);
+
+  const fetchAiPersonalizedWelcome = useCallback(async (
+    student: Student, 
+    levelInfo: LevelInfo, 
+    baseMessage: string
+  ) => {
+    setIsAiWelcomeLoading(true);
+    try {
+      const input: GeneratePersonalizedWelcomeMessageInput = {
+        studentName: student.name,
+        currentLevelName: levelInfo.name,
+        totalXp: student.totalXp || 0,
+        currentLevelMaxXp: levelInfo.maxXp, 
+        baseTeacherMessagePart: baseMessage
+      };
+      const result: GeneratePersonalizedWelcomeMessageOutput = await generatePersonalizedWelcomeMessage(input);
+      setAiPersonalizedWelcome(result.welcomeMessage);
+    } catch (error) {
+      console.error("AI 개인 맞춤 환영 메시지 생성 오류:", error);
+      setAiPersonalizedWelcome(`${student.name}님, 안녕하세요! ${baseMessage}`); // Fallback
+    } finally {
+      setIsAiWelcomeLoading(false);
+    }
+  }, []);
+
   const fetchRecommendation = useCallback(async (student: Student | null, currentGoals: StudentGoal, currentLevelName: string) => {
     if (!student) return;
     setIsRecommendationLoading(true);
@@ -193,24 +223,24 @@ export default function StudentPage() {
         studentGender: student.gender,
         studentLevelName: currentLevelName,
         studentXp: student.totalXp || 0,
-        // TODO: Potentially add recentActivitySummary based on logs
         exerciseGoals: currentGoals,
       };
       const recommendation = await recommendStudentExercise(input);
       setRecommendedExercise(recommendation);
     } catch (error) {
       console.error("AI 추천 가져오기 오류:", error);
-      setRecommendedExercise(null); // Fallback or clear previous
+      setRecommendedExercise(null);
     } finally {
       setIsRecommendationLoading(false);
     }
   }, []);
 
-  const fetchStudentSpecificData = useCallback(async (studentId: string, studentName: string, studentRef: Student, currentExercises: ExerciseType[]) => {
+  const fetchStudentSpecificData = useCallback(async (studentId: string, studentName: string, studentRef: Student, currentExercises: ExerciseType[], currentLvlInfo: LevelInfo) => {
     if (!studentId) return Promise.resolve(undefined);
 
     setIsLoadingStudentData(true);
     setIsActivityLogsLoading(true);
+    setIsAiWelcomeLoading(true);
 
     let unsubscribeLogs: (() => void) | undefined;
 
@@ -220,8 +250,15 @@ export default function StudentPage() {
       const fetchedGoals = goalsDocSnap.exists() ? (goalsDocSnap.data().goals || {}) : {};
       setStudentGoals(fetchedGoals);
       
-      const currentLevel = calculateLevelInfo(studentRef.totalXp);
-      fetchRecommendation(studentRef, fetchedGoals, currentLevel.name);
+      fetchRecommendation(studentRef, fetchedGoals, currentLvlInfo.name);
+
+      const welcomeMsgDocRef = doc(db, STUDENT_WELCOME_MESSAGE_DOC_PATH);
+      const welcomeMsgDocSnap = await getDoc(welcomeMsgDocRef);
+      const baseWelcome = (welcomeMsgDocSnap.exists() && welcomeMsgDocSnap.data()?.text) 
+                          ? welcomeMsgDocSnap.data()!.text 
+                          : DEFAULT_STUDENT_WELCOME_MESSAGE;
+      setTeacherBaseWelcomeMessage(baseWelcome);
+      fetchAiPersonalizedWelcome(studentRef, currentLvlInfo, baseWelcome);
 
 
       const logsQuery = query(collection(db, "exerciseLogs"), where("studentId", "==", studentId));
@@ -289,30 +326,24 @@ export default function StudentPage() {
       const adjectiveIndex = (dayOfMonth - 1 + studentName.length) % adjectiveList.length;
       setDailyCompliment(adjectiveList[adjectiveIndex] || adjectiveList[0] || "");
 
-      const welcomeMsgDocRef = doc(db, STUDENT_WELCOME_MESSAGE_DOC_PATH);
-      const welcomeMsgDocSnap = await getDoc(welcomeMsgDocRef);
-      if (welcomeMsgDocSnap.exists() && welcomeMsgDocSnap.data()?.text) {
-        setStudentWelcomeMessage(welcomeMsgDocSnap.data()!.text);
-      } else {
-        setStudentWelcomeMessage(DEFAULT_STUDENT_WELCOME_MESSAGE);
-      }
       setIsLoadingStudentData(false);
     } catch (error) {
       console.error("Error fetching student specific data:", error);
       toast({ title: "오류", description: "학생 데이터를 불러오는 데 실패했습니다.", variant: "destructive" });
       setIsLoadingStudentData(false);
       setIsActivityLogsLoading(false);
+      setIsAiWelcomeLoading(false);
     }
     return unsubscribeLogs;
-  }, [toast, fetchRecommendation]);
+  }, [toast, fetchRecommendation, fetchAiPersonalizedWelcome]);
 
   useEffect(() => {
     let unsubscribeLogsFunction: (() => void) | undefined;
-    if (currentStudent) {
+    if (currentStudent && currentLevelInfo) {
         setIsActivityLogsLoading(true);
 
         if (availableExercises.length > 0 || !isLoadingExercises) {
-            fetchStudentSpecificData(currentStudent.id, currentStudent.name, currentStudent, availableExercises)
+            fetchStudentSpecificData(currentStudent.id, currentStudent.name, currentStudent, availableExercises, currentLevelInfo)
               .then(unsub => {
                 if (unsub) unsubscribeLogsFunction = unsub;
               });
@@ -325,18 +356,19 @@ export default function StudentPage() {
       setStudentGoals({});
       setStudentActivityLogs([]);
       setRecommendedExercise(null);
+      setAiPersonalizedWelcome('');
       setDailyCompliment('');
-      setStudentWelcomeMessage(DEFAULT_STUDENT_WELCOME_MESSAGE);
       setGoalsMetTodayForXp(new Set());
       setIsLoadingStudentData(false);
       setIsActivityLogsLoading(false);
+      setIsAiWelcomeLoading(true);
     }
     return () => {
       if (unsubscribeLogsFunction) {
         unsubscribeLogsFunction();
       }
     };
-  }, [currentStudent, fetchStudentSpecificData, availableExercises, isLoadingExercises]);
+  }, [currentStudent, fetchStudentSpecificData, availableExercises, isLoadingExercises, currentLevelInfo]);
 
 
   useEffect(() => {
@@ -388,7 +420,7 @@ export default function StudentPage() {
   };
 
   const handleSaveGoals = async (newGoals: StudentGoal) => {
-    if (currentStudent) {
+    if (currentStudent && currentLevelInfo) {
       try {
         const goalsDocRef = doc(db, "studentGoals", currentStudent.id);
         await setDoc(goalsDocRef, { goals: newGoals });
@@ -412,9 +444,9 @@ export default function StudentPage() {
           if (currentGoalValue !== undefined && currentGoalValue > 0 && achievedValue >= currentGoalValue) { metToday.add(exercise.id); }
         });
         setGoalsMetTodayForXp(metToday);
-         // Re-fetch recommendation with new goals
-        const currentLevel = calculateLevelInfo(currentStudent.totalXp);
-        fetchRecommendation(currentStudent, newGoals, currentLevel.name);
+        fetchRecommendation(currentStudent, newGoals, currentLevelInfo.name);
+        fetchAiPersonalizedWelcome(currentStudent, currentLevelInfo, teacherBaseWelcomeMessage);
+
 
       } catch (error) {
         console.error("Error saving goals: ", error);
@@ -450,7 +482,7 @@ export default function StudentPage() {
   };
 
   const handleSaveExerciseLog = async (logData: Omit<RecordedExercise, 'id' | 'imageUrl'>) => {
-    if (!currentStudent || !availableExercises) return;
+    if (!currentStudent || !availableExercises || !currentLevelInfo) return;
     try {
       const docRef = await addDoc(collection(db, "exerciseLogs"), logData);
 
@@ -472,7 +504,7 @@ export default function StudentPage() {
         );
         const logsSnapshot = await getDocs(logsQuery);
         const logsForExerciseToday = logsSnapshot.docs.map(d => d.data() as RecordedExercise);
-        const combinedLogs = [...logsForExerciseToday, { ...logData, id: docRef.id }]; // imageUrl removed
+        const combinedLogs = [...logsForExerciseToday, { ...logData, id: docRef.id }];
 
         let achievedValue = 0;
         if (exercise.id === 'squat' || exercise.id === 'jump_rope') {
@@ -496,22 +528,24 @@ export default function StudentPage() {
           const newTotalXp = oldXp + 10;
           const studentDocRef = doc(db, "students", currentStudent.id);
           await updateDoc(studentDocRef, { totalXp: newTotalXp });
-
-          setCurrentStudent(prev => prev ? { ...prev, totalXp: newTotalXp } : null);
+          
+          const updatedStudent = { ...currentStudent, totalXp: newTotalXp };
+          setCurrentStudent(updatedStudent); // This will trigger re-calculation of currentLevelInfo via useMemo
           setGoalsMetTodayForXp(prev => new Set(prev).add(exerciseId));
 
           toast({ title: "✨ XP 획득! ✨", description: `${exercise.koreanName} 목표 달성! +10 XP` });
-
-          const oldLevelInfo = calculateLevelInfo(oldXp);
-          const newLevelInfo = calculateLevelInfo(newTotalXp);
-          if (newLevelInfo.level > oldLevelInfo.level) {
-            toast({ title: "🎉 레벨 업! 🎉", description: `축하합니다! ${newLevelInfo.name}(으)로 레벨 업!`, duration: 7000 });
+          
+          const newLevelInfoAfterUpdate = calculateLevelInfo(newTotalXp);
+          if (newLevelInfoAfterUpdate.level > currentLevelInfo.level) {
+            toast({ title: "🎉 레벨 업! 🎉", description: `축하합니다! ${newLevelInfoAfterUpdate.name}(으)로 레벨 업!`, duration: 7000 });
+            fetchAiPersonalizedWelcome(updatedStudent, newLevelInfoAfterUpdate, teacherBaseWelcomeMessage); // Re-fetch welcome on level up
+          } else {
+            fetchAiPersonalizedWelcome(updatedStudent, newLevelInfoAfterUpdate, teacherBaseWelcomeMessage); // Re-fetch welcome on XP change
           }
         }
       }
-      // Re-fetch recommendation after saving a log as activity summary might change
-      const currentLevel = calculateLevelInfo(currentStudent.totalXp);
-      fetchRecommendation(currentStudent, studentGoals, currentLevel.name);
+      fetchRecommendation(currentStudent, studentGoals, currentLevelInfo.name);
+
 
     } catch (error) {
       console.error("Error saving exercise log for student: ", error);
@@ -615,12 +649,8 @@ export default function StudentPage() {
     return "";
   }, [studentGoals, studentActivityLogs, currentStudent, availableExercises]);
 
-  const currentLevelInfo = useMemo(() => {
-    return calculateLevelInfo(currentStudent?.totalXp);
-  }, [currentStudent?.totalXp]);
-
   const xpProgress = useMemo(() => {
-    if (!currentStudent || currentLevelInfo.level === 10) return 100;
+    if (!currentStudent || !currentLevelInfo || currentLevelInfo.level === 10) return 100;
     const xpInCurrentLevel = (currentStudent.totalXp || 0) - currentLevelInfo.minXp;
     const xpForNextLevel = currentLevelInfo.maxXp - currentLevelInfo.minXp;
     return xpForNextLevel > 0 ? (xpInCurrentLevel / xpForNextLevel) * 100 : 0;
@@ -638,6 +668,8 @@ export default function StudentPage() {
       return false;
     }).length > 0;
   }, [studentGoals, availableExercises]);
+
+  const mainContentKey = `${currentStudent?.id || 'no-student'}-${isActivityLogsLoading}-${isAiWelcomeLoading}`;
 
   if (isLoadingLoginOptions || isLoadingExercises) {
     return <div className="flex justify-center items-center min-h-screen"><Loader2 className="h-8 w-8 animate-spin text-primary" /> {isLoadingLoginOptions ? '학생 정보' : '운동 목록'} 로딩 중...</div>;
@@ -729,7 +761,7 @@ export default function StudentPage() {
     );
   }
 
-  if (isLoadingStudentData || (currentStudent && availableExercises.length === 0 && !isLoadingExercises) ) {
+  if (isLoadingStudentData || (currentStudent && availableExercises.length === 0 && !isLoadingExercises) || isAiWelcomeLoading ) {
      return (
       <div className="flex flex-col min-h-screen">
         <StudentHeader
@@ -742,7 +774,9 @@ export default function StudentPage() {
         <main className="flex-grow container mx-auto p-4 sm:p-6 lg:p-8 flex justify-center items-center">
           <Loader2 className="h-12 w-12 animate-spin text-primary" />
           <span className="ml-4 text-xl">
-            {isLoadingStudentData ? `${currentStudent.name} 학생의 데이터를 불러오는 중...` : '운동 목록 설정 대기 중...'}
+            {isLoadingStudentData ? `${currentStudent.name} 학생의 데이터를 불러오는 중...` : 
+             isAiWelcomeLoading ? '환영 메시지 생성 중...' :
+             '운동 목록 설정 대기 중...'}
           </span>
         </main>
          <footer className="text-center p-4 text-sm text-muted-foreground border-t">
@@ -762,10 +796,8 @@ export default function StudentPage() {
     );
   }
 
-  const LevelIcon = currentLevelInfo.icon || Gem;
+  const LevelIcon = currentLevelInfo?.icon || Gem;
   
-  const mainContentKey = `${currentStudent?.id || 'no-student'}-${isActivityLogsLoading}`;
-
   return (
     <div className="flex flex-col min-h-screen">
       <StudentHeader
@@ -777,59 +809,71 @@ export default function StudentPage() {
       />
       <main className="flex-grow container mx-auto p-4 sm:p-6 lg:p-8 space-y-8">
         <div
-          key={mainContentKey} // Key to force re-render on student change or log loading completion
+          key={mainContentKey}
           className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-stretch"
         >
             <Card className="shadow-lg rounded-xl flex flex-col lg:col-span-3">
                 <CardHeader className="pb-4">
                     <CardTitle className="text-2xl sm:text-3xl font-bold font-headline text-primary text-center lg:text-left">
-                    {currentStudent.name}님, 안녕하세요!
+                      나의 활동 공간
                     </CardTitle>
                 </CardHeader>
                 <CardContent className="flex-grow flex flex-col justify-between">
                     <div>
-                        <p className="text-base sm:text-lg text-muted-foreground mb-6 text-center lg:text-left">
-                            {studentWelcomeMessage}
+                        <p className="text-base sm:text-lg text-muted-foreground mb-6 text-center lg:text-left whitespace-pre-wrap">
+                            {isAiWelcomeLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : aiPersonalizedWelcome}
                         </p>
                     </div>
 
-                    <div
-                        className="mb-6 p-4 border rounded-lg shadow-inner bg-secondary/20 dark:bg-slate-800/30 cursor-pointer hover:shadow-md transition-shadow"
-                        onClick={() => setIsLevelGuideDialogOpen(true)}
-                        role="button"
-                        tabIndex={0}
-                        onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && setIsLevelGuideDialogOpen(true)}
-                        aria-label="등급 안내 보기"
-                    >
-                      <div className="flex items-center justify-between mb-3">
-                          <div className="flex items-center">
-                              <LevelIcon className={cn("h-10 w-10 mr-3", currentLevelInfo.colorClass)} />
-                              <div>
-                                  <p className={cn("text-xl font-bold", currentLevelInfo.colorClass)}>{currentLevelInfo.name}</p>
-                                  <p className="text-xs text-muted-foreground">레벨 {currentLevelInfo.level}</p>
-                              </div>
-                          </div>
-                          <div className="text-right">
-                              <p className="text-lg font-semibold text-amber-500 dark:text-amber-400">{(currentStudent.totalXp || 0).toLocaleString()} XP</p>
-                              {currentLevelInfo.level < 10 && (
-                                 <p className="text-xs text-muted-foreground">다음 레벨까지 {Math.max(0, currentLevelInfo.maxXp - (currentStudent.totalXp || 0))} XP</p>
-                              )}
-                          </div>
+                    {currentLevelInfo && (
+                      <div
+                          className="mb-6 p-4 border rounded-lg shadow-inner bg-secondary/20 dark:bg-slate-800/30 cursor-pointer hover:shadow-md transition-shadow"
+                          onClick={() => setIsLevelGuideDialogOpen(true)}
+                          role="button"
+                          tabIndex={0}
+                          onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && setIsLevelGuideDialogOpen(true)}
+                          aria-label="등급 안내 보기"
+                      >
+                        <div className="flex items-center justify-between mb-3">
+                            <div className="flex items-center">
+                                <LevelIcon className={cn("h-10 w-10 mr-3", currentLevelInfo.colorClass)} />
+                                <div>
+                                    <p className={cn("text-xl font-bold", currentLevelInfo.colorClass)}>{currentLevelInfo.name}</p>
+                                    <p className="text-xs text-muted-foreground">레벨 {currentLevelInfo.level}</p>
+                                </div>
+                            </div>
+                            <div className="text-right">
+                                <p className="text-lg font-semibold text-amber-500 dark:text-amber-400">{(currentStudent.totalXp || 0).toLocaleString()} XP</p>
+                                {currentLevelInfo.level < 10 && currentLevelInfo.maxXp !== Infinity && (
+                                  <p className="text-xs text-muted-foreground">다음 레벨까지 {Math.max(0, currentLevelInfo.maxXp - (currentStudent.totalXp || 0))} XP</p>
+                                )}
+                            </div>
+                        </div>
+                        {currentLevelInfo.level < 10 && currentLevelInfo.maxXp !== Infinity && (
+                          <Progress value={xpProgress} className="h-3 rounded-full" indicatorClassName={currentLevelInfo.colorClass.replace('text-', 'bg-')}/>
+                        )}
+                        {currentLevelInfo.level === 10 && (
+                          <p className="text-center text-sm font-medium text-fuchsia-500 dark:text-fuchsia-400 mt-2">최고 레벨 달성! 🎉</p>
+                        )}
+                        <div className="text-center mt-2">
+                          <Button variant="link" size="sm" className="text-xs h-auto p-0 text-primary/80 hover:text-primary">
+                            <Info className="h-3 w-3 mr-1" /> 등급 안내 보기
+                          </Button>
+                        </div>
                       </div>
-                      {currentLevelInfo.level < 10 && (
-                        <Progress value={xpProgress} className="h-3 rounded-full" indicatorClassName={currentLevelInfo.colorClass.replace('text-', 'bg-')}/>
-                      )}
-                       {currentLevelInfo.level === 10 && (
-                        <p className="text-center text-sm font-medium text-fuchsia-500 dark:text-fuchsia-400 mt-2">최고 레벨 달성! 🎉</p>
-                      )}
-                       <div className="text-center mt-2">
-                        <Button variant="link" size="sm" className="text-xs h-auto p-0 text-primary/80 hover:text-primary">
-                           <Info className="h-3 w-3 mr-1" /> 등급 안내 보기
-                        </Button>
-                      </div>
-                    </div>
+                    )}
 
                     <div className="flex flex-col sm:flex-row gap-3 justify-center lg:justify-start items-center mt-auto">
+                        <Button 
+                          variant="outline" 
+                          size="lg" 
+                          className="rounded-lg py-3 px-6 text-lg flex-grow sm:flex-grow-0" 
+                          onClick={() => setIsGoalsDialogOpen(true)}
+                          disabled={availableExercises.length === 0}
+                        >
+                            <CheckSquare className="mr-2 h-6 w-6" />
+                            운동 목표 설정하기
+                        </Button>
                         <Button size="lg" className="rounded-lg py-3 px-6 text-lg flex-grow sm:flex-grow-0" onClick={handleOpenLogForm}>
                             <PlusCircle className="mr-2 h-6 w-6" />
                             오늘의 운동 기록하기
@@ -933,7 +977,7 @@ export default function StudentPage() {
                   <div className="flex flex-col items-center text-muted-foreground">
                      <AlertTriangle className="h-8 w-8 mb-2" />
                     <p>추천을 불러오지 못했어요.</p>
-                    <Button variant="link" size="sm" onClick={() => currentStudent && fetchRecommendation(currentStudent, studentGoals, currentLevelInfo.name)} className="mt-1">다시 시도</Button>
+                    <Button variant="link" size="sm" onClick={() => currentStudent && currentLevelInfo && fetchRecommendation(currentStudent, studentGoals, currentLevelInfo.name)} className="mt-1">다시 시도</Button>
                   </div>
                 )}
               </div>
@@ -1063,11 +1107,11 @@ export default function StudentPage() {
           />
         )}
 
-        <LevelGuideDialog
+        {currentLevelInfo && <LevelGuideDialog
             isOpen={isLevelGuideDialogOpen}
             onClose={() => setIsLevelGuideDialogOpen(false)}
             levelTiers={LEVEL_TIERS}
-        />
+        />}
 
       </main>
       <footer className="text-center p-4 text-sm text-muted-foreground border-t">
@@ -1076,6 +1120,3 @@ export default function StudentPage() {
     </div>
   );
 }
-
-
-    
