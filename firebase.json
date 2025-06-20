@@ -1,12 +1,12 @@
 {
   "hosting": {
-    "site": "pcps",
-    "public": "public",
+    "site": "pcps", // This configuration is for the pcps.web.app domain
+    "public": "public", // Serves static content for pcps.web.app from this directory
     "ignore": [
       "firebase.json",
       "**/.*",
       "**/node_modules/**"
     ]
-    // "rewrites" section has been removed to stop forwarding traffic to App Hosting backend.
+    // "rewrites" section has been removed; pcps.web.app serves its own static content.
   }
 }
