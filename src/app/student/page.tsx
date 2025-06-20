@@ -23,7 +23,7 @@ import { recommendStudentExercise, RecommendStudentExerciseOutput, RecommendStud
 import { generatePersonalizedWelcomeMessage, GeneratePersonalizedWelcomeMessageInput, GeneratePersonalizedWelcomeMessageOutput } from '@/ai/flows/generatePersonalizedWelcomeMessage';
 import { db } from '@/lib/firebase';
 import { collection, getDocs, doc, getDoc, setDoc, query, where, addDoc, updateDoc, onSnapshot } from 'firebase/firestore';
-import { format, parseISO, isToday } from 'date-fns';
+import { format, parseISO, isToday, startOfWeek, addDays } from 'date-fns';
 import { ko } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { getIconByName } from '@/lib/iconMap';
@@ -85,13 +85,13 @@ const getGradeFromClassName = (className?: ClassName): string => {
   };
   
 const weeklyPlanDays = [
-  { day: "일", dayEng: "Sun", imageHint: "family park exercise", defaultText: "가족과 함께 공원에서 신나게 뛰어놀아요!", color: "bg-red-100 dark:bg-red-900/50 border-red-300 dark:border-red-700" },
-  { day: "월", dayEng: "Mon", imageHint: "school playground friends", defaultText: "방과 후 친구들과 학교 운동장에서 즐거운 시간을 보내요!", color: "bg-orange-100 dark:bg-orange-900/50 border-orange-300 dark:border-orange-700" },
-  { day: "화", dayEng: "Tue", imageHint: "child resting sleep", defaultText: "오늘은 푹 쉬면서 내일을 준비해요. 휴식도 중요!", color: "bg-yellow-100 dark:bg-yellow-900/50 border-yellow-300 dark:border-yellow-700" },
-  { day: "수", dayEng: "Wed", imageHint: "playground evening family", defaultText: "저녁에는 가족과 함께 집 근처에서 가벼운 운동을!", color: "bg-green-100 dark:bg-green-900/50 border-green-300 dark:border-green-700" },
-  { day: "목", dayEng: "Thu", imageHint: "school gym teacher", defaultText: "체육 시간! 선생님과 함께 재미있는 활동을 해봐요.", color: "bg-blue-100 dark:bg-blue-900/50 border-blue-300 dark:border-blue-700" },
-  { day: "금", dayEng: "Fri", imageHint: "child relaxing book", defaultText: "오늘은 좋아하는 책을 읽거나 조용한 활동으로 쉬어요.", color: "bg-indigo-100 dark:bg-indigo-900/50 border-indigo-300 dark:border-indigo-700" },
-  { day: "토", dayEng: "Sat", imageHint: "park exercise equipment", defaultText: "주말 아침, 공원에서 운동 기구를 이용해볼까요?", color: "bg-purple-100 dark:bg-purple-900/50 border-purple-300 dark:border-purple-700" },
+  { day: "일", dayEng: "Sun", imageHint: "family park exercise", defaultText: "가족과 함께 공원에서 신나게 뛰어놀아요!" },
+  { day: "월", dayEng: "Mon", imageHint: "school playground friends", defaultText: "방과 후 친구들과 학교 운동장에서 즐거운 시간을 보내요!" },
+  { day: "화", dayEng: "Tue", imageHint: "child resting sleep", defaultText: "오늘은 푹 쉬면서 내일을 준비해요. 휴식도 중요!" },
+  { day: "수", dayEng: "Wed", imageHint: "playground evening family", defaultText: "저녁에는 가족과 함께 집 근처에서 가벼운 운동을!" }, // XP simulation here
+  { day: "목", dayEng: "Thu", imageHint: "school gym teacher", defaultText: "체육 시간! 선생님과 함께 재미있는 활동을 해봐요." },
+  { day: "금", dayEng: "Fri", imageHint: "child relaxing book", defaultText: "오늘은 좋아하는 책을 읽거나 조용한 활동으로 쉬어요." },
+  { day: "토", dayEng: "Sat", imageHint: "park exercise equipment", defaultText: "주말 아침, 공원에서 운동 기구를 이용해볼까요?" },
 ];
 
 
@@ -683,8 +683,9 @@ export default function StudentPage() {
 
   const mainContentKey = `${currentStudent?.id || 'no-student'}-${isActivityLogsLoading}-${isAiWelcomeLoading}`;
   
-  const todayDayIndex = useMemo(() => new Date().getDay(), []); // 0 for Sunday, ..., 6 for Saturday
-  const dayEngMapping = useMemo(() => ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"], []);
+  const todayDate = useMemo(() => new Date(), []);
+  const currentDayOfWeek = useMemo(() => todayDate.getDay(), [todayDate]); // 0 for Sunday, ..., 6 for Saturday
+  const startOfTheCurrentWeek = useMemo(() => startOfWeek(todayDate, { weekStartsOn: 0 }), [todayDate]);
 
 
   if (isLoadingLoginOptions || isLoadingExercises) {
@@ -1012,22 +1013,32 @@ export default function StudentPage() {
           <CardContent>
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-3">
               {weeklyPlanDays.map((item, index) => {
-                const isCurrentDay = item.dayEng === dayEngMapping[todayDayIndex];
-                const isWeekend = item.day === "일" || item.day === "토";
-                const showSimulatedXp = item.day === "수"; // Simulate XP for Wednesday
+                const currentDateForDay = addDays(startOfTheCurrentWeek, index);
+                const formattedDate = format(currentDateForDay, "M.d", { locale: ko });
+                const isCurrentDay = index === currentDayOfWeek;
+                const isWeekend = index === 0 || index === 6; // 0 for Sunday, 6 for Saturday
+                const showSimulatedXp = item.dayEng === "Wed"; 
 
                 return (
                   <Card 
                     key={index} 
                     className={cn(
-                      "flex flex-col text-center shadow-sm", 
-                      item.color, 
-                      isCurrentDay && "ring-2 ring-primary ring-offset-2 shadow-lg"
+                      "flex flex-col text-center shadow-sm rounded-lg border transition-all",
+                      isCurrentDay 
+                        ? "ring-4 ring-offset-1 ring-primary border-primary shadow-xl bg-primary/5 dark:bg-primary/10" 
+                        : "bg-card hover:shadow-md",
+                      isWeekend && !isCurrentDay ? "border-red-200 dark:border-red-800/70" : "border-border"
                     )}
                   >
                     <CardHeader className="p-2 pt-3">
-                      <CardTitle className={cn("text-lg font-semibold", isWeekend && "text-red-600 dark:text-red-400")}>{item.day}</CardTitle>
-                      <CardDescription className="text-xs">{item.dayEng}</CardDescription>
+                      <CardTitle className={cn(
+                        "text-lg font-semibold", 
+                        isWeekend && "text-red-600 dark:text-red-400"
+                      )}>
+                        {item.day}
+                        <span className={cn("block text-xs font-normal", isCurrentDay ? "text-primary dark:text-primary-foreground/90" : "text-muted-foreground")}>{formattedDate}</span>
+                      </CardTitle>
+                      <CardDescription className="text-xs sr-only">{item.dayEng}</CardDescription>
                     </CardHeader>
                     <CardContent className="p-2 flex-grow flex flex-col items-center justify-between">
                       <div className="w-full aspect-[4/3] relative mb-2 rounded overflow-hidden">
@@ -1040,7 +1051,7 @@ export default function StudentPage() {
                          />
                       </div>
                       <div className="text-xs mb-1 flex-grow flex flex-col justify-start min-h-[calc(3em+1.5em)]">
-                        <p className="min-h-[3em]">{item.defaultText}</p>
+                        <p className="min-h-[3em] leading-tight">{item.defaultText}</p>
                         {showSimulatedXp && (
                           <p className="font-semibold text-green-600 dark:text-green-400 mt-0.5">
                             +40XP 😊
