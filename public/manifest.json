@@ -1,37 +1,42 @@
+
 {
-  "name": "풍풍이 운동기록장",
-  "short_name": "운동기록장",
+  "name": "풍풍이 체력탐험대",
+  "short_name": "체력탐험대",
   "description": "학생들의 신체 활동 기록 및 관리 플랫폼",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#F0F8FF",
+  "theme_color": "#3B82F6",
   "icons": [
     {
       "src": "https://placehold.co/72x72.png",
       "sizes": "72x72",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
     },
     {
       "src": "https://placehold.co/96x96.png",
       "sizes": "96x96",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
     },
     {
       "src": "https://placehold.co/128x128.png",
       "sizes": "128x128",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
     },
     {
       "src": "https://placehold.co/144x144.png",
       "sizes": "144x144",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
     },
     {
       "src": "https://placehold.co/152x152.png",
       "sizes": "152x152",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
     },
     {
       "src": "https://placehold.co/192x192.png",
@@ -43,7 +48,7 @@
       "src": "https://placehold.co/384x384.png",
       "sizes": "384x384",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
     },
     {
       "src": "https://placehold.co/512x512.png",
@@ -51,10 +56,5 @@
       "type": "image/png",
       "purpose": "any maskable"
     }
-  ],
-  "theme_color": "#3B82F6",
-  "background_color": "#F7FAFC",
-  "start_url": "/",
-  "display": "standalone",
-  "orientation": "portrait"
+  ]
 }
