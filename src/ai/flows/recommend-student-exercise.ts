@@ -1,3 +1,4 @@
+
 'use server';
 /**
  * @fileOverview AI agent to recommend personalized exercises or tips for elementary school students.
@@ -31,9 +32,19 @@ export async function recommendStudentExercise(input: RecommendStudentExerciseIn
   return recommendStudentExerciseFlow(input); 
 }
 
+// Define a specific input schema for the prompt
+const PromptInputSchema = z.object({
+    studentGrade: z.string().describe('학생의 학년 (예: "1학년", "3학년", "6학년", "초등학생 전반").'),
+    studentGender: z.enum(['male', 'female']).describe('학생의 성별.'),
+    studentLevelName: z.string().describe('학생의 현재 운동 레벨 이름 (예: "움직새싹", "체력 꿈나무").'),
+    studentXp: z.number().optional().describe('학생의 현재 총 XP (경험치).'),
+    recentActivitySummary: z.string().optional().describe('최근 운동 수행 요약 또는 특정 필요 영역 (예: "스쿼트 자세 교정 필요", "줄넘기 목표 꾸준히 달성 중").'),
+    exerciseGoalsString: z.string().optional().describe('학생의 현재 운동 목표 객체의 JSON 문자열 표현.'),
+});
+
 const prompt = ai.definePrompt({
   name: 'recommendStudentExercisePrompt',
-  input: {schema: RecommendStudentExerciseInputSchema},
+  input: {schema: PromptInputSchema}, // Use the new prompt-specific input schema
   output: {schema: RecommendStudentExerciseOutputSchema},
   prompt: `You are a friendly, encouraging, and expert physical education coach for elementary school students in Korea.
 Your task is to provide ONE personalized exercise recommendation or a helpful tip based on the student's information.
@@ -51,8 +62,8 @@ Student Information:
 {{#if recentActivitySummary}}
 - Recent Activity/Needs: {{{recentActivitySummary}}}
 {{/if}}
-{{#if exerciseGoals}}
-- Current Goals: {{jsonStringify exerciseGoals}}
+{{#if exerciseGoalsString}}
+- Current Goals: {{{exerciseGoalsString}}}
 {{/if}}
 
 Consider the following when generating the recommendation:
@@ -87,12 +98,23 @@ Output must be in Korean.
 const recommendStudentExerciseFlow = ai.defineFlow(
   {
     name: 'recommendStudentExerciseFlow',
-    inputSchema: RecommendStudentExerciseInputSchema,
+    inputSchema: RecommendStudentExerciseInputSchema, // External input schema for the flow
     outputSchema: RecommendStudentExerciseOutputSchema,
   },
   async (input) => { 
-    // Firestore logic removed, directly use LLM
-    const {output} = await prompt(input); 
+    const { studentGrade, studentGender, studentLevelName, studentXp, recentActivitySummary, exerciseGoals } = input;
+    
+    const promptInputData = {
+        studentGrade,
+        studentGender,
+        studentLevelName,
+        studentXp,
+        recentActivitySummary,
+        exerciseGoalsString: exerciseGoals ? JSON.stringify(exerciseGoals, null, 2) : undefined,
+    };
+
+    const {output} = await prompt(promptInputData); 
     return output!;
   }
 );
+
