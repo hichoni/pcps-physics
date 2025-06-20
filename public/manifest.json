@@ -1,10 +1,10 @@
 {
-  "name": "풍풍이 체력탐험대",
-  "short_name": "체력탐험대",
+  "name": "풍풍이 운동기록장",
+  "short_name": "풍풍이",
   "description": "학생들의 신체 활동 기록 및 관리 플랫폼",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#ffffff",
+  "background_color": "#FFFFFF",
   "theme_color": "#3B82F6",
   "icons": [
     {
