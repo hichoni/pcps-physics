@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
@@ -187,6 +188,7 @@ export default function StudentPage() {
     try {
       const studentGrade = getGradeFromClassName(student.class);
       const input: RecommendStudentExerciseInput = {
+        studentName: student.name,
         studentGrade: studentGrade,
         studentGender: student.gender,
         studentLevelName: currentLevelName,
@@ -1074,3 +1076,6 @@ export default function StudentPage() {
     </div>
   );
 }
+
+
+    

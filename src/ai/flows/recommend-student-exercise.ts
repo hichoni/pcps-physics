@@ -12,6 +12,7 @@ import {z} from 'genkit';
 import type { StudentGoal } from '@/lib/types'; // Assuming StudentGoal is defined in types
 
 const RecommendStudentExerciseInputSchema = z.object({
+  studentName: z.string().describe('학생의 이름.'),
   studentGrade: z.string().describe('학생의 학년 (예: "1학년", "3학년", "6학년", "초등학생 전반").'),
   studentGender: z.enum(['male', 'female']).describe('학생의 성별.'),
   studentLevelName: z.string().describe('학생의 현재 운동 레벨 이름 (예: "움직새싹", "체력 꿈나무").'),
@@ -23,7 +24,7 @@ export type RecommendStudentExerciseInput = z.infer<typeof RecommendStudentExerc
 
 const RecommendStudentExerciseOutputSchema = z.object({
   recommendationTitle: z.string().describe('제안된 운동의 이름 또는 팁의 제목 (예: "신나는 제자리 뛰기", "스쿼트 자세 바로잡기").'),
-  recommendationDetail: z.string().describe('운동 방법 또는 팁에 대한 자세한 설명 (한국어, 초등학생 대상).'),
+  recommendationDetail: z.string().describe('운동 방법 또는 팁에 대한 자세한 설명 (한국어, 초등학생 대상). 학생의 이름을 포함하여 친근하게 작성.'),
   reasoning: z.string().optional().describe('이 추천을 하는 간략한 이유 (왜 이 학생에게 이 추천이 적절한지).'),
 });
 export type RecommendStudentExerciseOutput = z.infer<typeof RecommendStudentExerciseOutputSchema>;
@@ -34,6 +35,7 @@ export async function recommendStudentExercise(input: RecommendStudentExerciseIn
 
 // Define a specific input schema for the prompt
 const PromptInputSchema = z.object({
+    studentName: z.string().describe('학생의 이름.'),
     studentGrade: z.string().describe('학생의 학년 (예: "1학년", "3학년", "6학년", "초등학생 전반").'),
     studentGender: z.enum(['male', 'female']).describe('학생의 성별.'),
     studentLevelName: z.string().describe('학생의 현재 운동 레벨 이름 (예: "움직새싹", "체력 꿈나무").'),
@@ -50,9 +52,11 @@ const prompt = ai.definePrompt({
 Your task is to provide ONE personalized exercise recommendation or a helpful tip based on the student's information.
 The recommendation should be related to common exercises like squats, planks, walking/running, or jump rope, or general physical activity and healthy habits.
 Make it sound fun, engaging, and easy to understand for the student's grade level.
+Address the student by name (e.g., "{{{studentName}}} 학생, 오늘은...") in the "recommendationDetail".
 The output must be in Korean.
 
 Student Information:
+- Name: {{{studentName}}}
 - Grade: {{{studentGrade}}}
 - Gender: {{{studentGender}}}
 - Current Level: {{{studentLevelName}}}
@@ -67,6 +71,7 @@ Student Information:
 {{/if}}
 
 Consider the following when generating the recommendation:
+- **Student Name:** Use the student's name to make the recommendation more personal and engaging.
 - **Grade Level:**
   - Lower grades (1-2학년): Focus on play-based activities, fun movements, simple instructions.
   - Middle grades (3-4학년): Introduce more structured exercises, basic form correction, simple challenges.
@@ -77,14 +82,14 @@ Consider the following when generating the recommendation:
 - **Goals:** If goals are provided, offer tips that help achieve them or suggest complementary activities.
 
 Generate a "recommendationTitle" (e.g., "깡총깡총 줄넘기 꿀팁!", "튼튼 다리 만들기 스쿼트 도전!", "올바른 달리기 자세로 운동왕 되기!").
-Generate a "recommendationDetail" explaining the exercise or tip clearly for the student's grade.
+Generate a "recommendationDetail" explaining the exercise or tip clearly for the student's grade, and *include the student's name* to make it personal.
 If possible, provide a brief "reasoning" (1-2 sentences) explaining why this tip is good for this student, considering their information.
 
 Example Output Structure:
 {
-  "recommendationTitle": "점프! 점프! 제자리 높이뛰기 (1학년 맞춤)",
-  "recommendationDetail": "키가 쑥쑥 크고 싶다면 제자리에서 최대한 높이 점프해보세요! 무릎을 살짝 구부렸다가 힘껏 뛰어오르는 거예요. 바닥에 착지할 때는 사뿐히! 하루 10번씩 도전해볼까요?",
-  "reasoning": "1학년 친구들이 재미있게 점프 연습을 하며 성장판을 자극하고 다리 힘을 기를 수 있어요."
+  "recommendationTitle": "점프! 점프! {{{studentName}}} 학생을 위한 제자리 높이뛰기 (1학년 맞춤)",
+  "recommendationDetail": "{{{studentName}}} 학생! 키가 쑥쑥 크고 싶다면 제자리에서 최대한 높이 점프해보세요! 무릎을 살짝 구부렸다가 힘껏 뛰어오르는 거예요. 바닥에 착지할 때는 사뿐히! 하루 10번씩 도전해볼까요?",
+  "reasoning": "1학년인 {{{studentName}}} 친구가 재미있게 점프 연습을 하며 성장판을 자극하고 다리 힘을 기를 수 있어요."
 }
 
 Aim for a wide variety of recommendations. If you were to be called many times for different students of the same grade, you should be able to provide at least 10 distinct types of advice or exercises for that grade over time.
@@ -102,9 +107,10 @@ const recommendStudentExerciseFlow = ai.defineFlow(
     outputSchema: RecommendStudentExerciseOutputSchema,
   },
   async (input) => { 
-    const { studentGrade, studentGender, studentLevelName, studentXp, recentActivitySummary, exerciseGoals } = input;
+    const { studentName, studentGrade, studentGender, studentLevelName, studentXp, recentActivitySummary, exerciseGoals } = input;
     
     const promptInputData = {
+        studentName,
         studentGrade,
         studentGender,
         studentLevelName,
@@ -118,3 +124,5 @@ const recommendStudentExerciseFlow = ai.defineFlow(
   }
 );
 
+
+    
