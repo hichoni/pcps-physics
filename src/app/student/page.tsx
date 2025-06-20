@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
@@ -8,24 +7,23 @@ import { Button } from '@/components/ui/button';
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dumbbell, Target, History, PlusCircle, LogOut, UserCheck, Loader2, AlertTriangle, KeyRound, Edit3, Camera, Info, Activity as ActivityIconLucide } from 'lucide-react'; // Removed ImageIcon, CheckSquare, PlusSquare, Trash2
+import { Dumbbell, Target, History, PlusCircle, LogOut, UserCheck, Loader2, AlertTriangle, KeyRound, Edit3, Camera, Info, Activity as ActivityIconLucide } from 'lucide-react'; 
 import type { Student, ClassName, RecordedExercise, Gender, StudentGoal, CustomExercise as CustomExerciseType, Exercise as ExerciseType, LevelInfo } from '@/lib/types';
 import { EXERCISES_SEED_DATA } from '@/data/mockData';
 import SetStudentGoalsDialog from '@/components/SetStudentGoalsDialog';
 import ExerciseLogForm from '@/components/ExerciseLogForm';
 import ChangeOwnPinDialog from '@/components/ChangeOwnPinDialog';
 import ChangeAvatarDialog from '@/components/ChangeAvatarDialog';
-// import UploadProofShotDialog from '@/components/UploadProofShotDialog'; // Removed
 import JumpRopeCameraMode from '@/components/JumpRopeCameraMode';
 import StudentActivityChart from '@/components/StudentActivityChart';
 import LevelGuideDialog from '@/components/LevelGuideDialog';
 import { useToast } from "@/hooks/use-toast";
-import { recommendStudentExercise, RecommendStudentExerciseOutput } from '@/ai/flows/recommend-student-exercise';
+import { recommendStudentExercise, RecommendStudentExerciseOutput, RecommendStudentExerciseInput } from '@/ai/flows/recommend-student-exercise';
 import { db } from '@/lib/firebase';
 import { collection, getDocs, doc, getDoc, setDoc, query, where, addDoc, updateDoc, onSnapshot } from 'firebase/firestore';
 import { format, parseISO, isToday } from 'date-fns';
 import { ko } from 'date-fns/locale';
-import NextImage from 'next/image';
+// import NextImage from 'next/image'; // No longer used for proof shots here
 import { cn } from '@/lib/utils';
 import { getIconByName } from '@/lib/iconMap';
 import { Leaf, Droplets, Sprout, Star, Footprints, Trophy, Zap, Medal, ShieldCheck, Crown, Gem } from 'lucide-react'; // Level Icons
@@ -70,6 +68,20 @@ const convertCustomToInternalExercise = (customEx: CustomExerciseType): Exercise
   };
 };
 
+const getGradeFromClassName = (className?: ClassName): string => {
+    if (!className) return "초등학생"; // Default if class name is not available
+    const match = className.match(/(\d+)학년/);
+    if (match && match[1]) {
+      return `${match[1]}학년`;
+    }
+    const numMatch = className.match(/\d+/);
+    if (numMatch && numMatch[0]) {
+        const gradeNum = parseInt(numMatch[0], 10);
+        if (gradeNum >=1 && gradeNum <=6) return `${gradeNum}학년`;
+    }
+    return "초등학생"; // Fallback for classes like "햇님반" or "기타"
+  };
+
 export default function StudentPage() {
   const [allStudents, setAllStudents] = useState<Student[]>([]);
   const [availableClasses, setAvailableClasses] = useState<ClassName[]>([]);
@@ -92,7 +104,6 @@ export default function StudentPage() {
   const [isLogFormOpen, setIsLogFormOpen] = useState(false);
   const [isChangeOwnPinDialogOpen, setIsChangeOwnPinDialogOpen] = useState(false);
   const [isChangeAvatarDialogOpen, setIsChangeAvatarDialogOpen] = useState(false);
-  // const [isUploadProofShotDialogOpen, setIsUploadProofShotDialogOpen] = useState(false); // Removed
   const [isLevelGuideDialogOpen, setIsLevelGuideDialogOpen] = useState(false);
 
   const [studentGoals, setStudentGoals] = useState<StudentGoal>({});
@@ -170,20 +181,30 @@ export default function StudentPage() {
     return () => unsubscribe();
   }, [toast]);
 
-  const fetchRecommendation = useCallback(async () => {
+  const fetchRecommendation = useCallback(async (student: Student | null, currentGoals: StudentGoal, currentLevelName: string) => {
+    if (!student) return;
     setIsRecommendationLoading(true);
     try {
-      const recommendation = await recommendStudentExercise();
+      const studentGrade = getGradeFromClassName(student.class);
+      const input: RecommendStudentExerciseInput = {
+        studentGrade: studentGrade,
+        studentGender: student.gender,
+        studentLevelName: currentLevelName,
+        studentXp: student.totalXp || 0,
+        // TODO: Potentially add recentActivitySummary based on logs
+        exerciseGoals: currentGoals,
+      };
+      const recommendation = await recommendStudentExercise(input);
       setRecommendedExercise(recommendation);
     } catch (error) {
       console.error("AI 추천 가져오기 오류:", error);
-      setRecommendedExercise(null);
+      setRecommendedExercise(null); // Fallback or clear previous
     } finally {
       setIsRecommendationLoading(false);
     }
   }, []);
 
-  const fetchStudentSpecificData = useCallback(async (studentId: string, studentName: string, currentExercises: ExerciseType[]) => {
+  const fetchStudentSpecificData = useCallback(async (studentId: string, studentName: string, studentRef: Student, currentExercises: ExerciseType[]) => {
     if (!studentId) return Promise.resolve(undefined);
 
     setIsLoadingStudentData(true);
@@ -196,6 +217,10 @@ export default function StudentPage() {
       const goalsDocSnap = await getDoc(goalsDocRef);
       const fetchedGoals = goalsDocSnap.exists() ? (goalsDocSnap.data().goals || {}) : {};
       setStudentGoals(fetchedGoals);
+      
+      const currentLevel = calculateLevelInfo(studentRef.totalXp);
+      fetchRecommendation(studentRef, fetchedGoals, currentLevel.name);
+
 
       const logsQuery = query(collection(db, "exerciseLogs"), where("studentId", "==", studentId));
       unsubscribeLogs = onSnapshot(logsQuery, (logsSnapshot) => {
@@ -211,7 +236,6 @@ export default function StudentPage() {
             id: lDoc.id,
             ...data,
             date: dateStr,
-            imageUrl: data.imageUrl === undefined || data.imageUrl === '' ? null : data.imageUrl
           } as RecordedExercise;
         });
         const sortedLogs = logsList.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime() || (b.id && a.id ? b.id.localeCompare(a.id) : 0));
@@ -270,7 +294,6 @@ export default function StudentPage() {
       } else {
         setStudentWelcomeMessage(DEFAULT_STUDENT_WELCOME_MESSAGE);
       }
-      fetchRecommendation();
       setIsLoadingStudentData(false);
     } catch (error) {
       console.error("Error fetching student specific data:", error);
@@ -287,7 +310,7 @@ export default function StudentPage() {
         setIsActivityLogsLoading(true);
 
         if (availableExercises.length > 0 || !isLoadingExercises) {
-            fetchStudentSpecificData(currentStudent.id, currentStudent.name, availableExercises)
+            fetchStudentSpecificData(currentStudent.id, currentStudent.name, currentStudent, availableExercises)
               .then(unsub => {
                 if (unsub) unsubscribeLogsFunction = unsub;
               });
@@ -387,6 +410,9 @@ export default function StudentPage() {
           if (currentGoalValue !== undefined && currentGoalValue > 0 && achievedValue >= currentGoalValue) { metToday.add(exercise.id); }
         });
         setGoalsMetTodayForXp(metToday);
+         // Re-fetch recommendation with new goals
+        const currentLevel = calculateLevelInfo(currentStudent.totalXp);
+        fetchRecommendation(currentStudent, newGoals, currentLevel.name);
 
       } catch (error) {
         console.error("Error saving goals: ", error);
@@ -444,7 +470,7 @@ export default function StudentPage() {
         );
         const logsSnapshot = await getDocs(logsQuery);
         const logsForExerciseToday = logsSnapshot.docs.map(d => d.data() as RecordedExercise);
-        const combinedLogs = [...logsForExerciseToday, { ...logData, id: docRef.id, imageUrl: null }];
+        const combinedLogs = [...logsForExerciseToday, { ...logData, id: docRef.id }]; // imageUrl removed
 
         let achievedValue = 0;
         if (exercise.id === 'squat' || exercise.id === 'jump_rope') {
@@ -481,6 +507,10 @@ export default function StudentPage() {
           }
         }
       }
+      // Re-fetch recommendation after saving a log as activity summary might change
+      const currentLevel = calculateLevelInfo(currentStudent.totalXp);
+      fetchRecommendation(currentStudent, studentGoals, currentLevel.name);
+
     } catch (error) {
       console.error("Error saving exercise log for student: ", error);
       toast({ title: "기록 실패", description: "운동 기록 중 오류가 발생했어요. 다시 시도해주세요.", variant: "destructive" });
@@ -731,6 +761,8 @@ export default function StudentPage() {
   }
 
   const LevelIcon = currentLevelInfo.icon || Gem;
+  
+  const mainContentKey = `${currentStudent?.id || 'no-student'}-${isActivityLogsLoading}`;
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -743,10 +775,9 @@ export default function StudentPage() {
       />
       <main className="flex-grow container mx-auto p-4 sm:p-6 lg:p-8 space-y-8">
         <div
-          key={`main-content-grid-${currentStudent?.id}-${isActivityLogsLoading}`}
+          key={mainContentKey} // Key to force re-render on student change or log loading completion
           className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-stretch"
         >
-            {/* "풍풍이님 안녕하세요!" 카드 - 인증샷 영역 제거로 항상 전체 너비 차지 */}
             <Card className="shadow-lg rounded-xl flex flex-col lg:col-span-3">
                 <CardHeader className="pb-4">
                     <CardTitle className="text-2xl sm:text-3xl font-bold font-headline text-primary text-center lg:text-left">
@@ -816,7 +847,6 @@ export default function StudentPage() {
                     )}
                 </CardContent>
             </Card>
-            {/* 인증샷 관련 영역 제거 */}
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-stretch">
@@ -895,12 +925,13 @@ export default function StudentPage() {
                   <>
                     <h4 className="font-semibold text-primary mb-1 text-lg">{recommendedExercise.recommendationTitle}</h4>
                     <p className="text-sm text-foreground/80">{recommendedExercise.recommendationDetail}</p>
+                    {recommendedExercise.reasoning && <p className="text-xs text-muted-foreground mt-1 italic">({recommendedExercise.reasoning})</p>}
                   </>
                 ) : (
                   <div className="flex flex-col items-center text-muted-foreground">
                      <AlertTriangle className="h-8 w-8 mb-2" />
                     <p>추천을 불러오지 못했어요.</p>
-                    <Button variant="link" size="sm" onClick={fetchRecommendation} className="mt-1">다시 시도</Button>
+                    <Button variant="link" size="sm" onClick={() => currentStudent && fetchRecommendation(currentStudent, studentGoals, currentLevelInfo.name)} className="mt-1">다시 시도</Button>
                   </div>
                 )}
               </div>
@@ -977,7 +1008,6 @@ export default function StudentPage() {
                           return (
                               <div key={log.id} className="p-2 bg-background/50 rounded text-xs flex items-center justify-between">
                                   <span>{format(parseISO(log.date), "MM/dd (EEE)", { locale: ko })}: {exerciseInfo.koreanName} - {valueDisplay}</span>
-                                  {/* 인증샷 썸네일 표시 제거 (학생 페이지에서는 더 이상 업로드/표시 안함) */}
                               </div>
                           );
                   })}
@@ -1013,8 +1043,6 @@ export default function StudentPage() {
           currentStudent={currentStudent}
           initialGoals={studentGoals}
         />
-
-        {/* UploadProofShotDialog 제거 */}
 
         {currentStudent && (
           <ChangeOwnPinDialog
