@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dumbbell, Target, History, PlusCircle, LogOut, UserCheck, Loader2, AlertTriangle, KeyRound, Edit3, Camera, Info, Activity as ActivityIconLucide, CheckSquare } from 'lucide-react';
+import { Dumbbell, Target, History, PlusCircle, LogOut, UserCheck, Loader2, AlertTriangle, KeyRound, Edit3, Camera, Info, Activity as ActivityIconLucide, CheckSquare, CalendarDays, Edit } from 'lucide-react';
 import type { Student, ClassName, RecordedExercise, Gender, StudentGoal, CustomExercise as CustomExerciseType, Exercise as ExerciseType, LevelInfo } from '@/lib/types';
 import { EXERCISES_SEED_DATA } from '@/data/mockData';
 import SetStudentGoalsDialog from '@/components/SetStudentGoalsDialog';
@@ -28,6 +28,7 @@ import { ko } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { getIconByName } from '@/lib/iconMap';
 import { Leaf, Droplets, Sprout, Star, Footprints, Trophy, Zap, Medal, ShieldCheck, Crown, Gem } from 'lucide-react';
+import Image from 'next/image';
 
 const DEFAULT_POSITIVE_ADJECTIVES_KR = [
   "별처럼 빛나는", "항상 긍정적인", "꿈을 향해 달리는", "세상을 밝히는",
@@ -82,6 +83,17 @@ const getGradeFromClassName = (className?: ClassName): string => {
     }
     return "초등학생"; 
   };
+  
+const weeklyPlanDays = [
+  { day: "일", dayEng: "Sun", imageHint: "family park exercise", defaultText: "가족과 함께 공원에서 신나게 뛰어놀아요!", color: "bg-red-100 dark:bg-red-900/50 border-red-300 dark:border-red-700" },
+  { day: "월", dayEng: "Mon", imageHint: "school playground friends", defaultText: "방과 후 친구들과 학교 운동장에서 즐거운 시간을 보내요!", color: "bg-orange-100 dark:bg-orange-900/50 border-orange-300 dark:border-orange-700" },
+  { day: "화", dayEng: "Tue", imageHint: "child resting sleep", defaultText: "오늘은 푹 쉬면서 내일을 준비해요. 휴식도 중요!", color: "bg-yellow-100 dark:bg-yellow-900/50 border-yellow-300 dark:border-yellow-700" },
+  { day: "수", dayEng: "Wed", imageHint: "playground evening family", defaultText: "저녁에는 가족과 함께 집 근처에서 가벼운 운동을!", color: "bg-green-100 dark:bg-green-900/50 border-green-300 dark:border-green-700" },
+  { day: "목", dayEng: "Thu", imageHint: "school gym teacher", defaultText: "체육 시간! 선생님과 함께 재미있는 활동을 해봐요.", color: "bg-blue-100 dark:bg-blue-900/50 border-blue-300 dark:border-blue-700" },
+  { day: "금", dayEng: "Fri", imageHint: "child relaxing book", defaultText: "오늘은 좋아하는 책을 읽거나 조용한 활동으로 쉬어요.", color: "bg-indigo-100 dark:bg-indigo-900/50 border-indigo-300 dark:border-indigo-700" },
+  { day: "토", dayEng: "Sat", imageHint: "park exercise equipment", defaultText: "주말 아침, 공원에서 운동 기구를 이용해볼까요?", color: "bg-purple-100 dark:bg-purple-900/50 border-purple-300 dark:border-purple-700" },
+];
+
 
 export default function StudentPage() {
   const [allStudents, setAllStudents] = useState<Student[]>([]);
@@ -984,6 +996,43 @@ export default function StudentPage() {
             </CardContent>
           </Card>
         </div>
+        
+        <Card className="shadow-md hover:shadow-lg transition-shadow rounded-xl">
+          <CardHeader>
+            <CardTitle className="flex items-center font-headline text-xl">
+              <CalendarDays className="mr-3 h-7 w-7 text-green-600 dark:text-green-400" />
+              나의 주간 운동 계획 (예시)
+            </CardTitle>
+            <CardDescription>이번 주 운동 계획을 세우고 실천해봐요! (디자인 미리보기)</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-3">
+              {weeklyPlanDays.map((item, index) => (
+                <Card key={index} className={cn("flex flex-col text-center shadow-sm", item.color)}>
+                  <CardHeader className="p-2 pt-3">
+                    <CardTitle className="text-lg font-semibold">{item.day}</CardTitle>
+                    <CardDescription className="text-xs">{item.dayEng}</CardDescription>
+                  </CardHeader>
+                  <CardContent className="p-2 flex-grow flex flex-col items-center justify-between">
+                    <div className="w-full aspect-[4/3] relative mb-2 rounded overflow-hidden">
+                       <Image 
+                         src={`https://placehold.co/200x150.png`} 
+                         alt={`${item.day} 운동 계획 예시`} 
+                         layout="fill" 
+                         objectFit="cover"
+                         data-ai-hint={item.imageHint}
+                       />
+                    </div>
+                    <p className="text-xs mb-2 flex-grow min-h-[3em]">{item.defaultText}</p>
+                    <Button variant="outline" size="sm" className="w-full text-xs mt-auto bg-background/70 hover:bg-background">
+                      <Edit className="mr-1 h-3 w-3" /> 계획 수정
+                    </Button>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
 
         <Card className="shadow-md hover:shadow-lg transition-shadow rounded-xl">
           <CardHeader>

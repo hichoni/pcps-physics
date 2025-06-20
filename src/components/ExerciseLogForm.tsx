@@ -10,7 +10,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { CalendarIcon, PlusCircle, MinusCircle, Save, Camera, Activity as ActivityIconLucide } from "lucide-react";
-import { format } from "date-fns";
+import { format, isToday } from "date-fns"; // isToday import
 import { ko } from 'date-fns/locale';
 import { useToast } from "@/hooks/use-toast";
 
@@ -61,12 +61,14 @@ const ExerciseLogForm: React.FC<ExerciseLogFormProps> = ({ student, isOpen, onCl
         setSelectedExerciseId('');
       }
       setLogValue(getInitialLogValue(currentEx));
-      setLogDate(new Date());
+      setLogDate(new Date()); // Always set to today when opening
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [student, isOpen, availableExercises]);
+  }, [student, isOpen, availableExercises]); // Removed selectedExerciseId dependency to prevent reset on exercise change
 
   useEffect(() => {
+    // This effect now only resets logValue when selectedExerciseId changes,
+    // not when the dialog opens.
     const currentExerciseDetails = availableExercises.find(ex => ex.id === selectedExerciseId);
     setLogValue(getInitialLogValue(currentExerciseDetails || null));
   }, [selectedExerciseId, availableExercises]);
@@ -84,7 +86,7 @@ const ExerciseLogForm: React.FC<ExerciseLogFormProps> = ({ student, isOpen, onCl
     let logEntry: Omit<RecordedExercise, 'id' | 'imageUrl'> = {
       studentId: student.id,
       exerciseId: selectedExercise.id,
-      date: format(logDate, "yyyy-MM-dd"),
+      date: format(logDate, "yyyy-MM-dd"), // Use the state logDate, which is set to today
       className: student.class as ClassName,
     };
 
@@ -133,7 +135,7 @@ const ExerciseLogForm: React.FC<ExerciseLogFormProps> = ({ student, isOpen, onCl
         <DialogHeader className="p-6 pb-4">
           <DialogTitle className="text-2xl font-headline">{student.name} 학생 운동 기록</DialogTitle>
           <DialogDescription>
-            운동을 선택하고, 값을 조절한 후 날짜를 확인하세요.
+            운동을 선택하고, 값을 조절한 후 날짜를 확인하세요. (오늘 날짜만 기록 가능)
           </DialogDescription>
         </DialogHeader>
         <CardContent className="p-6 space-y-6 max-h-[70vh] overflow-y-auto">
@@ -186,7 +188,7 @@ const ExerciseLogForm: React.FC<ExerciseLogFormProps> = ({ student, isOpen, onCl
           )}
 
           <div>
-            <Label htmlFor="logDate" className="text-sm font-medium block mb-2">날짜</Label>
+            <Label htmlFor="logDate" className="text-sm font-medium block mb-2">날짜 (오늘)</Label>
             <Popover>
               <PopoverTrigger asChild>
                 <Button
@@ -196,6 +198,7 @@ const ExerciseLogForm: React.FC<ExerciseLogFormProps> = ({ student, isOpen, onCl
                     "w-full justify-start text-left font-normal h-12 text-base rounded-lg",
                     !logDate && "text-muted-foreground"
                   )}
+                  disabled // 날짜 선택 비활성화, 오늘 날짜로 고정
                 >
                   <CalendarIcon className="mr-2 h-5 w-5" />
                   {logDate ? format(logDate, "PPP", { locale: ko }) : <span>날짜 선택</span>}
@@ -205,10 +208,17 @@ const ExerciseLogForm: React.FC<ExerciseLogFormProps> = ({ student, isOpen, onCl
                 <Calendar
                   mode="single"
                   selected={logDate}
-                  onSelect={(date) => date && setLogDate(date)}
+                  onSelect={(date) => {
+                    if (date && isToday(date)) { // 오늘 날짜만 선택 가능하도록 강제
+                      setLogDate(date);
+                    } else if (date && !isToday(date)) {
+                      toast({ title: "알림", description: "오늘 날짜만 기록할 수 있습니다.", variant: "default"});
+                      setLogDate(new Date()); // 다른 날짜 선택 시 오늘로 강제
+                    }
+                  }}
                   initialFocus
                   locale={ko}
-                  disabled={{ after: new Date() }}
+                  disabled={(date) => !isToday(date)} // 오늘 이외의 모든 날짜 비활성화
                 />
               </PopoverContent>
             </Popover>
