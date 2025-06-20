@@ -4,25 +4,21 @@ import { useState, useEffect } from 'react';
 import type { Student, Exercise, RecordedExercise, ClassName } from '@/lib/types';
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
-// import { Input } from "@/components/ui/input"; // No longer needed for file input
 import { Label } from "@/components/ui/label";
 import { CardContent } from "@/components/ui/card";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
-import { CalendarIcon, PlusCircle, MinusCircle, Save, Camera } from "lucide-react"; // Removed UploadCloud, Loader2
+import { CalendarIcon, PlusCircle, MinusCircle, Save, Camera, Activity as ActivityIconLucide } from "lucide-react";
 import { format } from "date-fns";
 import { ko } from 'date-fns/locale';
-// import { storage } from '@/lib/firebase'; // No longer needed here
-// import { ref as storageRef, uploadBytesResumable, getDownloadURL } from "firebase/storage"; // No longer needed here
 import { useToast } from "@/hooks/use-toast";
-// import Image from 'next/image'; // No longer needed for preview
 
 interface ExerciseLogFormProps {
   student: Student | null;
   isOpen: boolean;
   onClose: () => void;
-  onSave: (log: Omit<RecordedExercise, 'id' | 'imageUrl'>) => void; // imageUrl is removed
+  onSave: (log: Omit<RecordedExercise, 'id' | 'imageUrl'>) => void;
   recordedExercises: RecordedExercise[];
   onSwitchToCameraMode?: (exerciseId: string) => void;
   availableExercises: Exercise[]; 
@@ -33,14 +29,7 @@ const ExerciseLogForm: React.FC<ExerciseLogFormProps> = ({ student, isOpen, onCl
   const [selectedExerciseId, setSelectedExerciseId] = useState<string>(initialExercise?.id || '');
 
   const [logValue, setLogValue] = useState<number>(0); 
-
   const [logDate, setLogDate] = useState<Date>(new Date());
-  // Removed image upload related states
-  // const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  // const [filePreview, setFilePreview] = useState<string | null>(null);
-  // const [isUploading, setIsUploading] = useState<boolean>(false);
-  // const [uploadProgress, setUploadProgress] = useState<number>(0);
-
   const { toast } = useToast();
   const selectedExercise = availableExercises.find(ex => ex.id === selectedExerciseId) || initialExercise;
 
@@ -73,7 +62,6 @@ const ExerciseLogForm: React.FC<ExerciseLogFormProps> = ({ student, isOpen, onCl
       }
       setLogValue(getInitialLogValue(currentEx));
       setLogDate(new Date());
-      // Reset removed states if they were here
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [student, isOpen, availableExercises]);
@@ -89,19 +77,15 @@ const ExerciseLogForm: React.FC<ExerciseLogFormProps> = ({ student, isOpen, onCl
       toast({ title: "오류", description: "학생 정보 또는 운동이 선택되지 않았습니다.", variant: "destructive" });
       return;
     }
-    if (logValue === 0) { // Now only checks logValue
+    if (logValue === 0) {
         toast({ title: "알림", description: "운동 기록 값이 0입니다. 값을 입력해주세요.", variant: "default"});
     }
 
-    // Image upload logic removed
-    // let imageUrl: string | undefined = undefined;
-
-    let logEntry: Omit<RecordedExercise, 'id' | 'imageUrl'> = { // imageUrl removed from type
+    let logEntry: Omit<RecordedExercise, 'id' | 'imageUrl'> = {
       studentId: student.id,
       exerciseId: selectedExercise.id,
       date: format(logDate, "yyyy-MM-dd"),
       className: student.class as ClassName,
-      // imageUrl is no longer part of this entry by default
     };
 
     if (selectedExercise.id === 'squat' || selectedExercise.id === 'jump_rope') {
@@ -149,7 +133,7 @@ const ExerciseLogForm: React.FC<ExerciseLogFormProps> = ({ student, isOpen, onCl
         <DialogHeader className="p-6 pb-4">
           <DialogTitle className="text-2xl font-headline">{student.name} 학생 운동 기록</DialogTitle>
           <DialogDescription>
-            운동을 선택하고, 값을 조절한 후 날짜를 확인하세요. 인증샷은 메인 화면에서 별도로 추가할 수 있습니다.
+            운동을 선택하고, 값을 조절한 후 날짜를 확인하세요.
           </DialogDescription>
         </DialogHeader>
         <CardContent className="p-6 space-y-6 max-h-[70vh] overflow-y-auto">
@@ -158,7 +142,7 @@ const ExerciseLogForm: React.FC<ExerciseLogFormProps> = ({ student, isOpen, onCl
             {availableExercises.length > 0 ? (
               <div className="grid grid-cols-2 gap-3">
                 {availableExercises.map((exercise) => {
-                  const CurrentExIcon = exercise.icon;
+                  const CurrentExIcon = exercise.icon || ActivityIconLucide;
                   return (
                     <Button
                       key={exercise.id}
@@ -230,8 +214,6 @@ const ExerciseLogForm: React.FC<ExerciseLogFormProps> = ({ student, isOpen, onCl
             </Popover>
           </div>
 
-          {/* Image upload section removed */}
-
           {selectedExercise && canUseCameraForExercise && (
             <Button
               variant="secondary"
@@ -258,5 +240,3 @@ const ExerciseLogForm: React.FC<ExerciseLogFormProps> = ({ student, isOpen, onCl
 };
 
 export default ExerciseLogForm;
-
-    

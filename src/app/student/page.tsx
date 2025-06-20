@@ -8,17 +8,17 @@ import { Button } from '@/components/ui/button';
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dumbbell, Target, History, PlusCircle, LogOut, UserCheck, Loader2, AlertTriangle, KeyRound, Edit3, Camera, ImageIcon, CheckSquare, PlusSquare, Trash2, Leaf, Droplets, Sprout, Star, Footprints, Trophy, Zap, Medal, ShieldCheck, Crown, Gem, Info } from 'lucide-react';
+import { Dumbbell, Target, History, PlusCircle, LogOut, UserCheck, Loader2, AlertTriangle, KeyRound, Edit3, Camera, Info, Activity as ActivityIconLucide } from 'lucide-react'; // Removed ImageIcon, CheckSquare, PlusSquare, Trash2
 import type { Student, ClassName, RecordedExercise, Gender, StudentGoal, CustomExercise as CustomExerciseType, Exercise as ExerciseType, LevelInfo } from '@/lib/types';
 import { EXERCISES_SEED_DATA } from '@/data/mockData';
 import SetStudentGoalsDialog from '@/components/SetStudentGoalsDialog';
 import ExerciseLogForm from '@/components/ExerciseLogForm';
 import ChangeOwnPinDialog from '@/components/ChangeOwnPinDialog';
 import ChangeAvatarDialog from '@/components/ChangeAvatarDialog';
-import UploadProofShotDialog from '@/components/UploadProofShotDialog';
+// import UploadProofShotDialog from '@/components/UploadProofShotDialog'; // Removed
 import JumpRopeCameraMode from '@/components/JumpRopeCameraMode';
 import StudentActivityChart from '@/components/StudentActivityChart';
-import LevelGuideDialog from '@/components/LevelGuideDialog'; // 새로운 컴포넌트 임포트
+import LevelGuideDialog from '@/components/LevelGuideDialog';
 import { useToast } from "@/hooks/use-toast";
 import { recommendStudentExercise, RecommendStudentExerciseOutput } from '@/ai/flows/recommend-student-exercise';
 import { db } from '@/lib/firebase';
@@ -28,6 +28,7 @@ import { ko } from 'date-fns/locale';
 import NextImage from 'next/image';
 import { cn } from '@/lib/utils';
 import { getIconByName } from '@/lib/iconMap';
+import { Leaf, Droplets, Sprout, Star, Footprints, Trophy, Zap, Medal, ShieldCheck, Crown, Gem } from 'lucide-react'; // Level Icons
 
 const DEFAULT_POSITIVE_ADJECTIVES_KR = [
   "별처럼 빛나는", "항상 긍정적인", "꿈을 향해 달리는", "세상을 밝히는",
@@ -65,7 +66,7 @@ const calculateLevelInfo = (xp: number = 0): LevelInfo => {
 const convertCustomToInternalExercise = (customEx: CustomExerciseType): ExerciseType => {
   return {
     ...customEx,
-    icon: getIconByName(customEx.iconName),
+    icon: getIconByName(customEx.iconName) || ActivityIconLucide,
   };
 };
 
@@ -91,8 +92,8 @@ export default function StudentPage() {
   const [isLogFormOpen, setIsLogFormOpen] = useState(false);
   const [isChangeOwnPinDialogOpen, setIsChangeOwnPinDialogOpen] = useState(false);
   const [isChangeAvatarDialogOpen, setIsChangeAvatarDialogOpen] = useState(false);
-  const [isUploadProofShotDialogOpen, setIsUploadProofShotDialogOpen] = useState(false);
-  const [isLevelGuideDialogOpen, setIsLevelGuideDialogOpen] = useState(false); // 등급 안내 다이얼로그 상태
+  // const [isUploadProofShotDialogOpen, setIsUploadProofShotDialogOpen] = useState(false); // Removed
+  const [isLevelGuideDialogOpen, setIsLevelGuideDialogOpen] = useState(false);
 
   const [studentGoals, setStudentGoals] = useState<StudentGoal>({});
   const [studentActivityLogs, setStudentActivityLogs] = useState<RecordedExercise[]>([]);
@@ -103,7 +104,6 @@ export default function StudentPage() {
 
   const [availableExercises, setAvailableExercises] = useState<ExerciseType[]>([]);
   const [goalsMetTodayForXp, setGoalsMetTodayForXp] = useState<Set<string>>(new Set());
-  const [deleteTrigger, setDeleteTrigger] = useState(0);
 
   const [isCameraModeOpen, setIsCameraModeOpen] = useState(false);
   const [cameraExerciseId, setCameraExerciseId] = useState<string | null>(null);
@@ -211,7 +211,7 @@ export default function StudentPage() {
             id: lDoc.id,
             ...data,
             date: dateStr,
-            imageUrl: data.imageUrl === undefined || data.imageUrl === '' ? null : data.imageUrl // Ensure undefined or empty string becomes null
+            imageUrl: data.imageUrl === undefined || data.imageUrl === '' ? null : data.imageUrl
           } as RecordedExercise;
         });
         const sortedLogs = logsList.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime() || (b.id && a.id ? b.id.localeCompare(a.id) : 0));
@@ -284,20 +284,19 @@ export default function StudentPage() {
   useEffect(() => {
     let unsubscribeLogsFunction: (() => void) | undefined;
     if (currentStudent) {
-        setIsActivityLogsLoading(true); // Reset loading state for logs specifically
+        setIsActivityLogsLoading(true);
 
-        if (availableExercises.length > 0 || !isLoadingExercises) { // Fetch if exercises are ready or no longer loading
+        if (availableExercises.length > 0 || !isLoadingExercises) {
             fetchStudentSpecificData(currentStudent.id, currentStudent.name, availableExercises)
               .then(unsub => {
                 if (unsub) unsubscribeLogsFunction = unsub;
               });
-        } else { // Exercises still loading and not yet available
-            setIsLoadingStudentData(false); // No student data to load yet if exercises are prerequisites
-            setIsActivityLogsLoading(false); // No logs to load yet
+        } else {
+            setIsLoadingStudentData(false);
+            setIsActivityLogsLoading(false);
             setStudentActivityLogs([]);
         }
     } else {
-      // Reset all student-specific states when no student is current
       setStudentGoals({});
       setStudentActivityLogs([]);
       setRecommendedExercise(null);
@@ -305,15 +304,14 @@ export default function StudentPage() {
       setStudentWelcomeMessage(DEFAULT_STUDENT_WELCOME_MESSAGE);
       setGoalsMetTodayForXp(new Set());
       setIsLoadingStudentData(false);
-      setIsActivityLogsLoading(false); // Ensure this is false if no student
-      setDeleteTrigger(0);
+      setIsActivityLogsLoading(false);
     }
     return () => {
       if (unsubscribeLogsFunction) {
         unsubscribeLogsFunction();
       }
     };
-  }, [currentStudent, deleteTrigger, fetchStudentSpecificData, availableExercises, isLoadingExercises]);
+  }, [currentStudent, fetchStudentSpecificData, availableExercises, isLoadingExercises]);
 
 
   useEffect(() => {
@@ -358,7 +356,6 @@ export default function StudentPage() {
       setLoginError(null);
       setStudentForPinCheck(null);
       setEnteredPin('');
-      setDeleteTrigger(0);
     } else {
       setLoginError("PIN 번호가 올바르지 않습니다. 다시 시도해주세요.");
       setEnteredPin('');
@@ -407,8 +404,7 @@ export default function StudentPage() {
     setLoginError(null);
     setIsCameraModeOpen(false);
     setCameraExerciseId(null);
-    // Crucially, reset isActivityLogsLoading if it's part of the student-specific flow
-    setIsActivityLogsLoading(true); // Or a sensible default for the login screen
+    setIsActivityLogsLoading(true);
   };
 
   const handleOpenLogForm = () => {
@@ -488,32 +484,6 @@ export default function StudentPage() {
     } catch (error) {
       console.error("Error saving exercise log for student: ", error);
       toast({ title: "기록 실패", description: "운동 기록 중 오류가 발생했어요. 다시 시도해주세요.", variant: "destructive" });
-    }
-  };
-
-  const handleProofShotUploadComplete = (logId: string, imageUrl: string) => {
-    setDeleteTrigger(prev => prev + 1);
-  };
-
-  const handleDeleteProofShot = async (logId: string) => {
-    if (!currentStudent) return;
-    const confirmDelete = window.confirm("정말로 이 인증샷을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.");
-    if (!confirmDelete) return;
-
-    try {
-        const logDocRef = doc(db, "exerciseLogs", logId);
-        await updateDoc(logDocRef, { imageUrl: null });
-
-        setStudentActivityLogs(prevLogs =>
-            prevLogs.map(log =>
-                log.id === logId ? { ...log, imageUrl: null } : log
-            )
-        );
-        setDeleteTrigger(prev => prev + 1);
-        toast({ title: "성공", description: "인증샷이 삭제되었습니다." });
-    } catch (error) {
-        console.error("Error deleting proof shot:", error);
-        toast({ title: "오류", description: "인증샷 삭제에 실패했습니다.", variant: "destructive" });
     }
   };
 
@@ -636,35 +606,6 @@ export default function StudentPage() {
       return false;
     }).length > 0;
   }, [studentGoals, availableExercises]);
-
-
-  // Direct calculation of proof shot related variables in render scope
-  let latestTodayImageRender: RecordedExercise | null = null;
-  let hasAnyLogForTodayRender = false;
-  let todaysLogsWithoutImageRender: RecordedExercise[] = [];
-
-  if (currentStudent && !isActivityLogsLoading) { // Only calculate if logs are not loading and student exists
-    const currentLogs = studentActivityLogs.filter(log => log.studentId === currentStudent.id);
-    const todayLogs = currentLogs.filter(log => {
-        try {
-            return isToday(parseISO(log.date));
-        } catch (e) {
-            console.warn("Invalid date encountered in studentActivityLogs for isToday check:", log.date);
-            return false;
-        }
-    });
-
-    latestTodayImageRender = todayLogs
-      .filter(log => log.imageUrl) // Ensure imageUrl is not null/undefined
-      .sort((a, b) => (b.id && a.id ? b.id.localeCompare(a.id) : 0))[0] || null;
-
-    hasAnyLogForTodayRender = todayLogs.length > 0;
-    todaysLogsWithoutImageRender = todayLogs.filter(log => !log.imageUrl); // Correctly filters logs without an image URL
-  }
-
-  const showProofShotArea = !isActivityLogsLoading && currentStudent && hasAnyLogForTodayRender;
-  const shouldShowUploadButton = showProofShotArea && latestTodayImageRender === null;
-
 
   if (isLoadingLoginOptions || isLoadingExercises) {
     return <div className="flex justify-center items-center min-h-screen"><Loader2 className="h-8 w-8 animate-spin text-primary" /> {isLoadingLoginOptions ? '학생 정보' : '운동 목록'} 로딩 중...</div>;
@@ -802,13 +743,11 @@ export default function StudentPage() {
       />
       <main className="flex-grow container mx-auto p-4 sm:p-6 lg:p-8 space-y-8">
         <div
-          key={`main-content-grid-${currentStudent?.id}-${isActivityLogsLoading}`} // This key forces remount when student changes or logs finish loading
+          key={`main-content-grid-${currentStudent?.id}-${isActivityLogsLoading}`}
           className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-stretch"
         >
-            <Card className={cn(
-                "shadow-lg rounded-xl flex flex-col",
-                isActivityLogsLoading || !showProofShotArea ? "lg:col-span-3" : "lg:col-span-2"
-            )}>
+            {/* "풍풍이님 안녕하세요!" 카드 - 인증샷 영역 제거로 항상 전체 너비 차지 */}
+            <Card className="shadow-lg rounded-xl flex flex-col lg:col-span-3">
                 <CardHeader className="pb-4">
                     <CardTitle className="text-2xl sm:text-3xl font-bold font-headline text-primary text-center lg:text-left">
                     {currentStudent.name}님, 안녕하세요!
@@ -877,71 +816,7 @@ export default function StudentPage() {
                     )}
                 </CardContent>
             </Card>
-
-            { !isActivityLogsLoading && showProofShotArea && (
-              <div className="lg:col-span-1">
-                  {latestTodayImageRender ? (
-                      <Card key={latestTodayImageRender.id} className="shadow-lg rounded-xl flex flex-col h-full">
-                      <CardHeader className="pb-2 pt-4">
-                          <CardTitle className="flex items-center font-headline text-xl justify-center">
-                            <CheckSquare className="mr-3 h-7 w-7 text-green-500" />
-                            오.운.완!
-                          </CardTitle>
-                      </CardHeader>
-                      <CardContent className="flex-grow flex flex-col items-center justify-center p-3 space-y-2">
-                          <a href={latestTodayImageRender.imageUrl!} target="_blank" rel="noopener noreferrer" className="block w-full aspect-square relative rounded-lg overflow-hidden shadow-inner bg-muted">
-                          <NextImage
-                              key={latestTodayImageRender.imageUrl}
-                              src={latestTodayImageRender.imageUrl!}
-                              alt="오늘의 운동 인증샷"
-                              layout="fill"
-                              objectFit="cover"
-                              className="transition-transform duration-300 hover:scale-105"
-                              data-ai-hint="fitness activity"
-                              onError={(e) => {
-                              const target = e.target as HTMLImageElement;
-                              target.style.display = 'none';
-                              const parent = target.parentElement;
-                              if (parent && !parent.querySelector('.image-error-placeholder-student')) {
-                                  const placeholder = document.createElement('div');
-                                  placeholder.className = 'image-error-placeholder-student absolute inset-0 flex items-center justify-center bg-muted text-muted-foreground text-xs p-2 text-center';
-                                  placeholder.textContent = '이미지를 불러올 수 없습니다.';
-                                  parent.appendChild(placeholder);
-                              }
-                              }}
-                          />
-                          </a>
-                          <Button
-                              variant="destructive"
-                              size="sm"
-                              className="w-full rounded-md text-xs py-1.5 h-auto"
-                              onClick={() => handleDeleteProofShot(latestTodayImageRender.id!)}
-                          >
-                              <Trash2 className="mr-1.5 h-3.5 w-3.5" />
-                              인증샷 삭제
-                          </Button>
-                      </CardContent>
-                      </Card>
-                  ) : shouldShowUploadButton ? ( // Only show button if conditions are met
-                      <Card
-                          className="shadow-lg rounded-xl flex flex-col items-center justify-center cursor-pointer hover:bg-muted/30 transition-colors h-full"
-                          onClick={() => setIsUploadProofShotDialogOpen(true)}
-                          role="button"
-                          tabIndex={0}
-                          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setIsUploadProofShotDialogOpen(true);}}
-                          aria-label="오늘 운동 인증샷 추가하기"
-                      >
-                          <CardContent className="flex flex-col items-center justify-center p-6 text-center">
-                              <PlusSquare className="h-12 w-12 text-primary mb-3" />
-                              <p className="font-semibold text-primary">오.운.완 인증샷 추가</p>
-                              <p className="text-xs text-muted-foreground mt-1">
-                                오늘 기록된 운동에 사진을 올려보세요!
-                              </p>
-                          </CardContent>
-                      </Card>
-                  ) : null } {/* Explicitly render null if no image and no button */}
-              </div>
-            )}
+            {/* 인증샷 관련 영역 제거 */}
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-stretch">
@@ -978,7 +853,7 @@ export default function StudentPage() {
                        else if (exercise.id === 'walk_run') goalText = `${goal.distance}${exercise.distanceUnit}`;
 
                       const progressText = getExerciseProgressText(exercise.id);
-                      const IconComp = getIconByName(exercise.iconName);
+                      const IconComp = getIconByName(exercise.iconName) || ActivityIconLucide;
 
                       return (
                         <li key={exercise.id} className="truncate py-1 border-b border-border/50 last:border-b-0" title={`${exercise.koreanName}: ${goalText}`}>
@@ -1102,30 +977,7 @@ export default function StudentPage() {
                           return (
                               <div key={log.id} className="p-2 bg-background/50 rounded text-xs flex items-center justify-between">
                                   <span>{format(parseISO(log.date), "MM/dd (EEE)", { locale: ko })}: {exerciseInfo.koreanName} - {valueDisplay}</span>
-                                  {log.imageUrl && (
-                                    <a href={log.imageUrl} target="_blank" rel="noopener noreferrer" className="ml-2 shrink-0">
-                                      <NextImage
-                                        key={log.imageUrl}
-                                        src={log.imageUrl}
-                                        alt="인증샷"
-                                        width={32}
-                                        height={32}
-                                        className="rounded object-cover border"
-                                        data-ai-hint="exercise activity"
-                                        onError={(e) => {
-                                          const target = e.target as HTMLImageElement;
-                                          target.style.display = 'none';
-                                          const parent = target.parentElement;
-                                          if (parent && !parent.querySelector('.image-error-placeholder-thumb')) {
-                                            const placeholder = document.createElement('div');
-                                            placeholder.className = 'image-error-placeholder-thumb w-8 h-8 flex items-center justify-center bg-muted text-muted-foreground text-[10px]';
-                                            placeholder.textContent = 'X';
-                                            parent.appendChild(placeholder);
-                                          }
-                                        }}
-                                      />
-                                    </a>
-                                  )}
+                                  {/* 인증샷 썸네일 표시 제거 (학생 페이지에서는 더 이상 업로드/표시 안함) */}
                               </div>
                           );
                   })}
@@ -1162,16 +1014,7 @@ export default function StudentPage() {
           initialGoals={studentGoals}
         />
 
-        {currentStudent && (
-          <UploadProofShotDialog
-            isOpen={isUploadProofShotDialogOpen}
-            onClose={() => setIsUploadProofShotDialogOpen(false)}
-            student={currentStudent}
-            logsWithoutImageToday={todaysLogsWithoutImageRender}
-            availableExercises={availableExercises}
-            onUploadComplete={handleProofShotUploadComplete}
-          />
-        )}
+        {/* UploadProofShotDialog 제거 */}
 
         {currentStudent && (
           <ChangeOwnPinDialog
@@ -1203,5 +1046,3 @@ export default function StudentPage() {
     </div>
   );
 }
-
-    
