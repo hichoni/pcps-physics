@@ -133,6 +133,14 @@ export default function StudentPage() {
 
   const [isCameraModeOpen, setIsCameraModeOpen] = useState(false);
   const [cameraExerciseId, setCameraExerciseId] = useState<string | null>(null);
+  
+  const [skippedExercises, setSkippedExercises] = useState<Set<string>>(new Set());
+  const todayDate = useMemo(() => new Date(), []);
+  
+  useEffect(() => {
+    setSkippedExercises(new Set());
+  }, [todayDate]);
+
 
   const [activityChartTimeFrame, setActivityChartTimeFrame] = useState<'today' | 'week' | 'month'>('today');
 
@@ -466,6 +474,19 @@ export default function StudentPage() {
       }
     }
   };
+  
+  const handleSkipExercise = (exerciseId: string) => {
+    setSkippedExercises(prev => {
+        const newSet = new Set(prev);
+        newSet.add(exerciseId);
+        return newSet;
+    });
+    const exercise = availableExercises.find(ex => ex.id === exerciseId);
+    if (exercise) {
+        toast({ title: "오늘 하루 쉬기", description: `${exercise.koreanName} 운동은 오늘 쉬기로 설정했습니다.` });
+    }
+    setIsGoalsDialogOpen(false); // Close the goal dialog
+  };
 
   const handleLogout = () => {
     setCurrentStudent(null);
@@ -481,8 +502,8 @@ export default function StudentPage() {
 
   const handleOpenLogForm = () => {
     if (currentStudent) {
-      if (availableExercises.length === 0) {
-        toast({ title: "알림", description: "선생님께서 아직 운동을 설정하지 않으셨어요.", variant: "default"});
+      if (availableExercises.filter(ex => !skippedExercises.has(ex.id)).length === 0) {
+        toast({ title: "알림", description: "오늘 기록할 수 있는 운동이 없습니다.", variant: "default"});
         return;
       }
       setIsLogFormOpen(true);
@@ -683,7 +704,6 @@ export default function StudentPage() {
 
   const mainContentKey = `${currentStudent?.id || 'no-student'}-${isActivityLogsLoading}-${isAiWelcomeLoading}`;
   
-  const todayDate = useMemo(() => new Date(), []);
   const currentDayOfWeek = useMemo(() => todayDate.getDay(), [todayDate]); // 0 for Sunday, ..., 6 for Saturday
   const startOfTheCurrentWeek = useMemo(() => startOfWeek(todayDate, { weekStartsOn: 0 }), [todayDate]);
 
@@ -934,9 +954,9 @@ export default function StudentPage() {
                     {availableExercises.filter(ex => {
                       const goal = studentGoals[ex.id];
                       if (!goal) return false;
-                      if ((ex.id === 'squat' || ex.id === 'jump_rope') && goal.count && goal.count > 0) return true;
-                      if (ex.id === 'plank' && goal.time && goal.time > 0) return true;
-                      if (ex.id === 'walk_run' && goal.steps && goal.steps > 0) return true;
+                      if ((exercise.id === 'squat' || exercise.id === 'jump_rope') && goal.count && goal.count > 0) return true;
+                      if (exercise.id === 'plank' && goal.time && goal.time > 0) return true;
+                      if (exercise.id === 'walk_run' && goal.steps && goal.steps > 0) return true;
                       return false;
                     }).map(exercise => {
                       const goal = studentGoals[exercise.id];
@@ -1162,6 +1182,7 @@ export default function StudentPage() {
             recordedExercises={studentActivityLogs}
             onSwitchToCameraMode={handleSwitchToCameraMode}
             availableExercises={availableExercises}
+            skippedExercises={skippedExercises}
           />
         )}
 
@@ -1172,6 +1193,7 @@ export default function StudentPage() {
           exercises={availableExercises}
           currentStudent={currentStudent}
           initialGoals={studentGoals}
+          onSkipExercise={handleSkipExercise}
         />
 
         {currentStudent && (

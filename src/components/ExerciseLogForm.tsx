@@ -21,18 +21,29 @@ interface ExerciseLogFormProps {
   onSave: (log: Omit<RecordedExercise, 'id' | 'imageUrl'>) => void;
   recordedExercises: RecordedExercise[];
   onSwitchToCameraMode?: (exerciseId: string) => void;
-  availableExercises: Exercise[]; 
+  availableExercises: Exercise[];
+  skippedExercises: Set<string>;
 }
 
-const ExerciseLogForm: React.FC<ExerciseLogFormProps> = ({ student, isOpen, onClose, onSave, recordedExercises, onSwitchToCameraMode, availableExercises }) => {
-  const initialExercise = availableExercises.length > 0 ? availableExercises[0] : null;
-  const [selectedExerciseId, setSelectedExerciseId] = useState<string>(initialExercise?.id || '');
-
+const ExerciseLogForm: React.FC<ExerciseLogFormProps> = ({ 
+  student, 
+  isOpen, 
+  onClose, 
+  onSave, 
+  recordedExercises, 
+  onSwitchToCameraMode, 
+  availableExercises,
+  skippedExercises
+}) => {
+  
+  const [selectedExerciseId, setSelectedExerciseId] = useState<string>('');
   const [logValue, setLogValue] = useState<number>(0); 
   const [logDate, setLogDate] = useState<Date>(new Date());
   const { toast } = useToast();
-  const selectedExercise = availableExercises.find(ex => ex.id === selectedExerciseId) || initialExercise;
-
+  
+  const unSkippedExercises = availableExercises.filter(ex => !skippedExercises.has(ex.id));
+  const selectedExercise = unSkippedExercises.find(ex => ex.id === selectedExerciseId) || unSkippedExercises[0];
+  
   const getInitialLogValue = (exercise: Exercise | null): number => {
     if (!exercise) return 0;
     if (exercise.id === 'squat' || exercise.id === 'jump_rope') return exercise.defaultCount ?? 0;
@@ -50,25 +61,23 @@ const ExerciseLogForm: React.FC<ExerciseLogFormProps> = ({ student, isOpen, onCl
   };
 
   useEffect(() => {
-    if (student && isOpen) {
-      const currentEx = availableExercises.find(ex => ex.id === selectedExerciseId) || 
-                        (availableExercises.length > 0 ? availableExercises[0] : null);
-      if (currentEx && currentEx.id !== selectedExerciseId) {
-        setSelectedExerciseId(currentEx.id);
-      } else if (!currentEx && availableExercises.length > 0) {
-        setSelectedExerciseId(availableExercises[0].id);
-      } else if (availableExercises.length === 0) {
-        setSelectedExerciseId('');
+    if (isOpen) {
+      // Find the first non-skipped exercise to be the default
+      const firstAvailableExercise = availableExercises.find(ex => !skippedExercises.has(ex.id));
+      const currentSelectionIsValid = selectedExerciseId && !skippedExercises.has(selectedExerciseId);
+
+      // If no valid selection, or current selection is now skipped, reset to first available
+      if (!currentSelectionIsValid) {
+        setSelectedExerciseId(firstAvailableExercise?.id || '');
       }
-      setLogValue(getInitialLogValue(currentEx));
-      setLogDate(new Date()); // Always set to today when opening
+      
+      // Always reset date to today when dialog opens
+      setLogDate(new Date());
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [student, isOpen, availableExercises]); // Removed selectedExerciseId dependency to prevent reset on exercise change
+  }, [isOpen, student, availableExercises, skippedExercises, selectedExerciseId]);
 
   useEffect(() => {
-    // This effect now only resets logValue when selectedExerciseId changes,
-    // not when the dialog opens.
+    // This effect now only resets logValue when selectedExerciseId changes
     const currentExerciseDetails = availableExercises.find(ex => ex.id === selectedExerciseId);
     setLogValue(getInitialLogValue(currentExerciseDetails || null));
   }, [selectedExerciseId, availableExercises]);
@@ -102,8 +111,8 @@ const ExerciseLogForm: React.FC<ExerciseLogFormProps> = ({ student, isOpen, onCl
     onClose(); 
   };
 
-  if (!student || !selectedExercise) return null;
-  if (availableExercises.length === 0) return null; 
+  if (!student) return null;
+  if (unSkippedExercises.length === 0) return null;
 
   const todayStr = format(logDate, "yyyy-MM-dd");
   const exercisesLoggedTodayForStudent = recordedExercises.filter(
@@ -112,22 +121,24 @@ const ExerciseLogForm: React.FC<ExerciseLogFormProps> = ({ student, isOpen, onCl
 
   let totalLoggedTodayDisplay = "";
   let currentUnit = "";
-  if (selectedExercise.id === 'squat' || selectedExercise.id === 'jump_rope') {
-    const totalCount = exercisesLoggedTodayForStudent.reduce((sum, rec) => sum + (rec.countValue || 0), 0);
-    currentUnit = selectedExercise.countUnit || "";
-    if (totalCount > 0) totalLoggedTodayDisplay = `오늘 총 ${selectedExercise.koreanName} 기록: ${totalCount}${currentUnit}`;
-  } else if (selectedExercise.id === 'plank') {
-    const totalTime = exercisesLoggedTodayForStudent.reduce((sum, rec) => sum + (rec.timeValue || 0), 0);
-    currentUnit = selectedExercise.timeUnit || "";
-    if (totalTime > 0) totalLoggedTodayDisplay = `오늘 총 ${selectedExercise.koreanName} 기록: ${totalTime}${currentUnit}`;
-  } else if (selectedExercise.id === 'walk_run') {
-    const totalSteps = exercisesLoggedTodayForStudent.reduce((sum, rec) => sum + (rec.stepsValue || 0), 0);
-    currentUnit = selectedExercise.stepsUnit || "";
-    if (totalSteps > 0) totalLoggedTodayDisplay = `오늘 총 ${selectedExercise.koreanName} 기록: ${totalSteps}${currentUnit}`;
+  if (selectedExercise) {
+    if (selectedExercise.id === 'squat' || selectedExercise.id === 'jump_rope') {
+        const totalCount = exercisesLoggedTodayForStudent.reduce((sum, rec) => sum + (rec.countValue || 0), 0);
+        currentUnit = selectedExercise.countUnit || "";
+        if (totalCount > 0) totalLoggedTodayDisplay = `오늘 총 ${selectedExercise.koreanName} 기록: ${totalCount}${currentUnit}`;
+    } else if (selectedExercise.id === 'plank') {
+        const totalTime = exercisesLoggedTodayForStudent.reduce((sum, rec) => sum + (rec.timeValue || 0), 0);
+        currentUnit = selectedExercise.timeUnit || "";
+        if (totalTime > 0) totalLoggedTodayDisplay = `오늘 총 ${selectedExercise.koreanName} 기록: ${totalTime}${currentUnit}`;
+    } else if (selectedExercise.id === 'walk_run') {
+        const totalSteps = exercisesLoggedTodayForStudent.reduce((sum, rec) => sum + (rec.stepsValue || 0), 0);
+        currentUnit = selectedExercise.stepsUnit || "";
+        if (totalSteps > 0) totalLoggedTodayDisplay = `오늘 총 ${selectedExercise.koreanName} 기록: ${totalSteps}${currentUnit}`;
+    }
   }
   
   const jumpRopeExercise = availableExercises.find(ex => ex.id === "jump_rope");
-  const canUseCameraForExercise = selectedExercise.id === jumpRopeExercise?.id && onSwitchToCameraMode;
+  const canUseCameraForExercise = selectedExercise && selectedExercise.id === jumpRopeExercise?.id && onSwitchToCameraMode;
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => { if (!open) { onClose(); } }}>
@@ -141,9 +152,9 @@ const ExerciseLogForm: React.FC<ExerciseLogFormProps> = ({ student, isOpen, onCl
         <CardContent className="p-6 space-y-6 max-h-[70vh] overflow-y-auto">
           <div>
             <label className="text-sm font-medium block mb-2">운동 종류</label>
-            {availableExercises.length > 0 ? (
+            {unSkippedExercises.length > 0 ? (
               <div className="grid grid-cols-2 gap-3">
-                {availableExercises.map((exercise) => {
+                {unSkippedExercises.map((exercise) => {
                   const CurrentExIcon = exercise.icon || ActivityIconLucide;
                   return (
                     <Button
@@ -160,7 +171,7 @@ const ExerciseLogForm: React.FC<ExerciseLogFormProps> = ({ student, isOpen, onCl
                 })}
               </div>
             ) : (
-              <p className="text-sm text-muted-foreground">선생님께서 아직 운동을 설정하지 않으셨어요.</p>
+              <p className="text-sm text-muted-foreground text-center">오늘 기록할 수 있는 운동이 없습니다.</p>
             )}
           </div>
 

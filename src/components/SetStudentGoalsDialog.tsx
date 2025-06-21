@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import type { Exercise, Student, StudentGoal, ExerciseGoal } from '@/lib/types';
-import { Target, Save, X, PlusCircle, MinusCircle } from 'lucide-react';
+import { Target, Save, X, PlusCircle, MinusCircle, SkipForward } from 'lucide-react';
 
 interface SetStudentGoalsDialogProps {
   isOpen: boolean;
@@ -13,6 +13,7 @@ interface SetStudentGoalsDialogProps {
   exercises: Exercise[]; 
   currentStudent: Student | null;
   initialGoals: StudentGoal;
+  onSkipExercise: (exerciseId: string) => void;
 }
 
 const SetStudentGoalsDialog: React.FC<SetStudentGoalsDialogProps> = ({ 
@@ -21,7 +22,8 @@ const SetStudentGoalsDialog: React.FC<SetStudentGoalsDialogProps> = ({
   onSave, 
   exercises, 
   currentStudent, 
-  initialGoals 
+  initialGoals,
+  onSkipExercise,
 }) => {
   const [goals, setGoals] = useState<StudentGoal>({});
 
@@ -98,7 +100,7 @@ const SetStudentGoalsDialog: React.FC<SetStudentGoalsDialogProps> = ({
             {currentStudent.name} 학생 운동 목표 설정
           </DialogTitle>
           <DialogDescription>
-            각 운동별 목표를 설정해주세요. 0으로 설정하면 목표에서 제외됩니다.
+            각 운동별 목표를 설정하거나, 오늘 하루 건너뛸 수 있습니다.
           </DialogDescription>
         </DialogHeader>
         <div className="p-6 space-y-6 max-h-[60vh] overflow-y-auto">
@@ -127,9 +129,14 @@ const SetStudentGoalsDialog: React.FC<SetStudentGoalsDialogProps> = ({
 
               return (
                 <div key={exercise.id} className="p-4 border rounded-lg shadow-sm bg-secondary/20">
-                  <h3 className="text-lg font-semibold mb-3 text-primary flex items-center">
-                    <IconComponent className="mr-2 h-5 w-5" /> {exercise.koreanName}
-                  </h3>
+                  <div className="flex justify-between items-center mb-3">
+                    <h3 className="text-lg font-semibold text-primary flex items-center">
+                      <IconComponent className="mr-2 h-5 w-5" /> {exercise.koreanName}
+                    </h3>
+                    <Button variant="link" size="sm" onClick={() => onSkipExercise(exercise.id)} className="h-auto px-2 py-1 text-xs text-muted-foreground hover:text-primary">
+                       <SkipForward className="mr-1 h-3 w-3"/> 오늘은 패스!
+                    </Button>
+                  </div>
                   <div className="space-y-1">
                     <Label htmlFor={`${exercise.id}-${field}`} className="text-sm">목표 ({unit})</Label>
                     <div className="flex items-center justify-center space-x-4 pt-2">

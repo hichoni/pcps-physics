@@ -57,7 +57,7 @@ export const EXERCISES_SEED_DATA: CustomExercise[] = [
     timeStep: undefined,
     stepsUnit: '걸음',
     defaultSteps: 500,
-    stepsStep: 1,
+    stepsStep: 50,
     distanceUnit: undefined,
     defaultDistance: undefined,
     distanceStep: undefined,
@@ -70,7 +70,7 @@ export const EXERCISES_SEED_DATA: CustomExercise[] = [
     category: 'count_time', // 내부적으로는 count만 사용
     countUnit: '회',
     defaultCount: 50,
-    countStep: 1,
+    countStep: 20,
     timeUnit: undefined,
     defaultTime: undefined,
     timeStep: undefined,
