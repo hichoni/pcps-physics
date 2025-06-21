@@ -850,10 +850,10 @@ export default function TeacherPage() {
                                   hasGoal = true;
                                 }
                               } else if (exercise.id === 'walk_run') {
-                                achievedValue = studentLogsForExerciseSelectedDate.reduce((sum, log) => sum + (log.distanceValue || 0), 0);
-                                unit = exercise.distanceUnit || 'm';
-                                if (studentGoalForExercise?.distance !== undefined) {
-                                  goalValue = studentGoalForExercise.distance;
+                                achievedValue = studentLogsForExerciseSelectedDate.reduce((sum, log) => sum + (log.stepsValue || 0), 0);
+                                unit = exercise.stepsUnit || '걸음';
+                                if (studentGoalForExercise?.steps !== undefined) {
+                                  goalValue = studentGoalForExercise.steps;
                                   hasGoal = true;
                                 }
                               }
@@ -1001,7 +1001,7 @@ export default function TeacherPage() {
                             <UICardDescription className="text-xs">
                                 {ex.id === 'squat' && `주요 지표: ${ex.countUnit || '회'}`}
                                 {ex.id === 'plank' && `주요 지표: ${ex.timeUnit || '초'}`}
-                                {ex.id === 'walk_run' && `주요 지표: ${ex.distanceUnit || 'm'}`}
+                                {ex.id === 'walk_run' && `주요 지표: ${ex.stepsUnit || '걸음'}`}
                                 {ex.id === 'jump_rope' && `주요 지표: ${ex.countUnit || '회'}`}
                             </UICardDescription>
                           </div>
@@ -1015,7 +1015,7 @@ export default function TeacherPage() {
                           <p>아이콘: {ex.iconName}</p>
                           {ex.id === 'squat' && <p>{ex.countUnit}: 기본 {ex.defaultCount ?? 0}, 증가폭 {ex.countStep ?? 0}</p>}
                           {ex.id === 'plank' && <p>{ex.timeUnit}: 기본 {ex.defaultTime ?? 0}, 증가폭 {ex.timeStep ?? 0}</p>}
-                          {ex.id === 'walk_run' && <p>{ex.distanceUnit}: 기본 {ex.defaultDistance ?? 0}, 증가폭 {ex.distanceStep ?? 0}</p>}
+                          {ex.id === 'walk_run' && <p>{ex.stepsUnit}: 기본 {ex.defaultSteps ?? 0}, 증가폭 {ex.stepsStep ?? 0}</p>}
                           {ex.id === 'jump_rope' && <p>{ex.countUnit}: 기본 {ex.defaultCount ?? 0}, 증가폭 {ex.countStep ?? 0}</p>}
                           <p>AI 이미지 힌트: {ex.dataAiHint}</p>
                         </CardContent>

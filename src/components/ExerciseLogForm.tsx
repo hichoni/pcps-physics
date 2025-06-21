@@ -1,7 +1,7 @@
 
 import type React from 'react';
 import { useState, useEffect } from 'react';
-import type { Student, Exercise, RecordedExercise, ClassName } from '@/lib/types';
+import type { Student, Exercise, RecordedExercise, ClassName, StudentGoal } from '@/lib/types';
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
@@ -23,6 +23,7 @@ interface ExerciseLogFormProps {
   onSwitchToCameraMode?: (exerciseId: string) => void;
   availableExercises: Exercise[];
   skippedExercises: Set<string>;
+  studentGoals: StudentGoal;
 }
 
 const ExerciseLogForm: React.FC<ExerciseLogFormProps> = ({ 
@@ -33,7 +34,8 @@ const ExerciseLogForm: React.FC<ExerciseLogFormProps> = ({
   recordedExercises, 
   onSwitchToCameraMode, 
   availableExercises,
-  skippedExercises
+  skippedExercises,
+  studentGoals
 }) => {
   
   const [selectedExerciseId, setSelectedExerciseId] = useState<string>('');
@@ -41,8 +43,13 @@ const ExerciseLogForm: React.FC<ExerciseLogFormProps> = ({
   const [logDate, setLogDate] = useState<Date>(new Date());
   const { toast } = useToast();
   
-  const unSkippedExercises = availableExercises.filter(ex => !skippedExercises.has(ex.id));
-  const selectedExercise = unSkippedExercises.find(ex => ex.id === selectedExerciseId) || unSkippedExercises[0];
+  const loggableExercises = availableExercises.filter(ex => {
+    const goal = studentGoals[ex.id];
+    if (!goal || skippedExercises.has(ex.id)) return false;
+    return (goal.count ?? 0) > 0 || (goal.time ?? 0) > 0 || (goal.steps ?? 0) > 0;
+  });
+
+  const selectedExercise = loggableExercises.find(ex => ex.id === selectedExerciseId) || loggableExercises[0];
   
   const getInitialLogValue = (exercise: Exercise | null): number => {
     if (!exercise) return 0;
@@ -62,22 +69,18 @@ const ExerciseLogForm: React.FC<ExerciseLogFormProps> = ({
 
   useEffect(() => {
     if (isOpen) {
-      // Find the first non-skipped exercise to be the default
-      const firstAvailableExercise = availableExercises.find(ex => !skippedExercises.has(ex.id));
-      const currentSelectionIsValid = selectedExerciseId && !skippedExercises.has(selectedExerciseId);
+      const firstLoggableExercise = loggableExercises.length > 0 ? loggableExercises[0] : null;
+      const currentSelectionIsValid = selectedExerciseId && loggableExercises.some(ex => ex.id === selectedExerciseId);
 
-      // If no valid selection, or current selection is now skipped, reset to first available
       if (!currentSelectionIsValid) {
-        setSelectedExerciseId(firstAvailableExercise?.id || '');
+        setSelectedExerciseId(firstLoggableExercise?.id || '');
       }
       
-      // Always reset date to today when dialog opens
       setLogDate(new Date());
     }
-  }, [isOpen, student, availableExercises, skippedExercises, selectedExerciseId]);
+  }, [isOpen, student, loggableExercises, selectedExerciseId]);
 
   useEffect(() => {
-    // This effect now only resets logValue when selectedExerciseId changes
     const currentExerciseDetails = availableExercises.find(ex => ex.id === selectedExerciseId);
     setLogValue(getInitialLogValue(currentExerciseDetails || null));
   }, [selectedExerciseId, availableExercises]);
@@ -112,7 +115,7 @@ const ExerciseLogForm: React.FC<ExerciseLogFormProps> = ({
   };
 
   if (!student) return null;
-  if (unSkippedExercises.length === 0) return null;
+  if (loggableExercises.length === 0) return null;
 
   const todayStr = format(logDate, "yyyy-MM-dd");
   const exercisesLoggedTodayForStudent = recordedExercises.filter(
@@ -152,9 +155,9 @@ const ExerciseLogForm: React.FC<ExerciseLogFormProps> = ({
         <CardContent className="p-6 space-y-6 max-h-[70vh] overflow-y-auto">
           <div>
             <label className="text-sm font-medium block mb-2">운동 종류</label>
-            {unSkippedExercises.length > 0 ? (
+            {loggableExercises.length > 0 ? (
               <div className="grid grid-cols-2 gap-3">
-                {unSkippedExercises.map((exercise) => {
+                {loggableExercises.map((exercise) => {
                   const CurrentExIcon = exercise.icon || ActivityIconLucide;
                   return (
                     <Button

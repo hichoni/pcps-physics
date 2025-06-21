@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { RecordedExercise, Student, Exercise as ExerciseType, StudentGoal } from '@/lib/types';
 import { getIconByName } from '@/lib/iconMap';
 import { AlertCircle, TrendingUp } from 'lucide-react';
-import { parseISO, isWithinInterval, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from 'date-fns';
+import { parseISO, isWithinInterval, startOfWeek, endOfWeek, startOfMonth, endOfMonth, isToday } from 'date-fns';
 // import { cn } from '@/lib/utils'; // Not strictly needed for this version
 
 interface StudentActivityChartProps {
@@ -66,9 +66,9 @@ const StudentActivityChart: React.FC<StudentActivityChartProps> = ({
   const now = new Date();
   let interval: { start: Date, end: Date };
   if (timeFrame === 'today') {
-    interval = { start: new Date(now.setHours(0,0,0,0)), end: new Date(new Date().setHours(23,59,59,999)) };
+    interval = { start: new Date(new Date().setHours(0,0,0,0)), end: new Date(new Date().setHours(23,59,59,999)) };
   } else if (timeFrame === 'week') {
-    interval = { start: startOfWeek(now, { weekStartsOn: 1 }), end: endOfWeek(now, { weekStartsOn: 1 }) };
+    interval = { start: startOfWeek(now, { weekStartsOn: 0 }), end: endOfWeek(now, { weekStartsOn: 0 }) };
   } else { // month
     interval = { start: startOfMonth(now), end: endOfMonth(now) };
   }
@@ -82,10 +82,13 @@ const StudentActivityChart: React.FC<StudentActivityChartProps> = ({
         return false;
     }
   });
+  
+  const dailyLogsToday = logs.filter(log => relevantStudentIds.includes(log.studentId) && isToday(parseISO(log.date)));
 
   const exerciseSummaries = availableExercises.map(exercise => {
-    const exerciseLogs = logsForPeriod.filter(log => log.exerciseId === exercise.id);
     const currentGoal = studentGoals[exercise.id];
+    const logsToProcess = timeFrame === 'today' ? dailyLogsToday : logsForPeriod;
+    const exerciseLogs = logsToProcess.filter(log => log.exerciseId === exercise.id);
 
     let achievedValue = 0;
     let goalValue: number | undefined = undefined;
@@ -107,10 +110,10 @@ const StudentActivityChart: React.FC<StudentActivityChartProps> = ({
         hasGoal = true;
       }
     } else if (exercise.id === 'walk_run') {
-      achievedValue = exerciseLogs.reduce((sum, log) => sum + (log.distanceValue || 0), 0);
-      unit = exercise.distanceUnit || 'm';
-      if (currentGoal?.distance !== undefined) {
-        goalValue = currentGoal.distance;
+      achievedValue = exerciseLogs.reduce((sum, log) => sum + (log.stepsValue || 0), 0);
+      unit = exercise.stepsUnit || '걸음';
+      if (currentGoal?.steps !== undefined) {
+        goalValue = currentGoal.steps;
         hasGoal = true;
       }
     }

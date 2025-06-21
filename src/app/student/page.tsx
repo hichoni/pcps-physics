@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
@@ -447,6 +446,14 @@ export default function StudentPage() {
         setStudentGoals(newGoals);
         toast({ title: "성공", description: "운동 목표가 저장되었습니다." });
         setIsGoalsDialogOpen(false);
+        
+        setSkippedExercises(prevSkipped => {
+            const newSkipped = new Set(prevSkipped);
+            Object.keys(newGoals).forEach(exerciseId => {
+                newSkipped.delete(exerciseId);
+            });
+            return newSkipped;
+        });
 
         const today = format(new Date(), "yyyy-MM-dd");
         const metToday = new Set<string>();
@@ -502,11 +509,26 @@ export default function StudentPage() {
 
   const handleOpenLogForm = () => {
     if (currentStudent) {
-      if (availableExercises.filter(ex => !skippedExercises.has(ex.id)).length === 0) {
-        toast({ title: "알림", description: "오늘 기록할 수 있는 운동이 없습니다.", variant: "default"});
-        return;
-      }
-      setIsLogFormOpen(true);
+        const exercisesWithGoals = Object.keys(studentGoals).filter(exId => {
+            const goal = studentGoals[exId];
+            if (!goal) return false;
+            return (goal.count ?? 0) > 0 || (goal.time ?? 0) > 0 || (goal.steps ?? 0) > 0;
+        });
+
+        if (exercisesWithGoals.length === 0) {
+            toast({ title: "알림", description: "먼저 오늘의 운동 목표를 설정해주세요.", variant: "default"});
+            return;
+        }
+
+        const loggableExercises = availableExercises.filter(ex => 
+            exercisesWithGoals.includes(ex.id) && !skippedExercises.has(ex.id)
+        );
+
+        if (loggableExercises.length === 0) {
+            toast({ title: "알림", description: "오늘 기록할 수 있는 운동이 없습니다. (모든 목표 운동을 건너뛰었을 수 있습니다)", variant: "default"});
+            return;
+        }
+        setIsLogFormOpen(true);
     }
   };
 
@@ -1183,6 +1205,7 @@ export default function StudentPage() {
             onSwitchToCameraMode={handleSwitchToCameraMode}
             availableExercises={availableExercises}
             skippedExercises={skippedExercises}
+            studentGoals={studentGoals}
           />
         )}
 

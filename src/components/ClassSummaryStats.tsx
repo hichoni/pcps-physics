@@ -108,10 +108,10 @@ const ClassSummaryStats: React.FC<ClassSummaryStatsProps> = ({
           .filter(log => log.studentId === student.id && log.exerciseId === exercise.id)
           .reduce((sum, log) => sum + (log.timeValue || 0), 0);
       } else if (exercise.id === 'walk_run') {
-        currentGoalValue = goalData?.distance;
+        currentGoalValue = goalData?.steps;
         achievedValue = logsForDateAndClass
           .filter(log => log.studentId === student.id && log.exerciseId === exercise.id)
-          .reduce((sum, log) => sum + (log.distanceValue || 0), 0);
+          .reduce((sum, log) => sum + (log.stepsValue || 0), 0);
       }
 
       if (currentGoalValue !== undefined && currentGoalValue > 0) {
