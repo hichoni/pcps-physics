@@ -1,6 +1,6 @@
 
 import type React from 'react';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import type { Student, Exercise, RecordedExercise, ClassName, StudentGoal } from '@/lib/types';
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
@@ -43,11 +43,13 @@ const ExerciseLogForm: React.FC<ExerciseLogFormProps> = ({
   const [logDate, setLogDate] = useState<Date>(new Date());
   const { toast } = useToast();
   
-  const loggableExercises = availableExercises.filter(ex => {
-    const goal = studentGoals[ex.id];
-    if (!goal || skippedExercises.has(ex.id)) return false;
-    return (goal.count ?? 0) > 0 || (goal.time ?? 0) > 0 || (goal.steps ?? 0) > 0;
-  });
+  const loggableExercises = useMemo(() => {
+    return availableExercises.filter(ex => {
+      const goal = studentGoals[ex.id];
+      if (!goal || skippedExercises.has(ex.id)) return false;
+      return (goal.count ?? 0) > 0 || (goal.time ?? 0) > 0 || (goal.steps ?? 0) > 0;
+    });
+  }, [availableExercises, studentGoals, skippedExercises]);
 
   const selectedExercise = loggableExercises.find(ex => ex.id === selectedExerciseId) || loggableExercises[0];
   
