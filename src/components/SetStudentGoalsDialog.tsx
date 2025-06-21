@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
@@ -93,7 +92,7 @@ const SetStudentGoalsDialog: React.FC<SetStudentGoalsDialogProps> = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-lg p-0 rounded-xl">
+      <DialogContent className="sm:max-w-md md:max-w-2xl p-0 rounded-xl">
         <DialogHeader className="p-6 pb-4">
           <DialogTitle className="text-2xl font-headline flex items-center">
             <Target className="mr-2 h-6 w-6 text-primary" />
@@ -103,7 +102,7 @@ const SetStudentGoalsDialog: React.FC<SetStudentGoalsDialogProps> = ({
             각 운동별 목표를 설정하거나, 오늘 하루 건너뛸 수 있습니다.
           </DialogDescription>
         </DialogHeader>
-        <div className="p-6 space-y-6 max-h-[60vh] overflow-y-auto">
+        <div className="p-4 md:p-6 grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[70vh] overflow-y-auto">
           {exercises && exercises.length > 0 ? (
             exercises.map(exercise => {
               const IconComponent = exercise.icon; 
@@ -128,24 +127,24 @@ const SetStudentGoalsDialog: React.FC<SetStudentGoalsDialogProps> = ({
               if (!field || !unit) return null;
 
               return (
-                <div key={exercise.id} className="p-4 border rounded-lg shadow-sm bg-secondary/20">
-                  <div className="flex justify-between items-center mb-3">
-                    <h3 className="text-lg font-semibold text-primary flex items-center">
+                <div key={exercise.id} className="p-3 border rounded-lg shadow-sm bg-background">
+                  <div className="flex justify-between items-center mb-2">
+                    <h3 className="text-base font-semibold text-primary flex items-center">
                       <IconComponent className="mr-2 h-5 w-5" /> {exercise.koreanName}
                     </h3>
-                    <Button variant="link" size="sm" onClick={() => onSkipExercise(exercise.id)} className="h-auto px-2 py-1 text-xs text-muted-foreground hover:text-primary">
-                       <SkipForward className="mr-1 h-3 w-3"/> 오늘은 패스!
+                    <Button variant="ghost" size="sm" onClick={() => onSkipExercise(exercise.id)} className="h-auto px-1.5 py-0.5 text-xs text-muted-foreground hover:text-primary">
+                       <SkipForward className="mr-1 h-3 w-3"/> 패스
                     </Button>
                   </div>
                   <div className="space-y-1">
-                    <Label htmlFor={`${exercise.id}-${field}`} className="text-sm">목표 ({unit})</Label>
-                    <div className="flex items-center justify-center space-x-4 pt-2">
-                      <Button variant="ghost" size="icon" onClick={() => handleValueChange(exercise.id, field!, -1)}>
-                        <MinusCircle className="h-8 w-8 text-primary" />
+                    <Label htmlFor={`${exercise.id}-${field}`} className="text-xs">목표 ({unit})</Label>
+                    <div className="flex items-center justify-center space-x-2 pt-1">
+                      <Button variant="outline" size="icon" className="h-9 w-9 rounded-full" onClick={() => handleValueChange(exercise.id, field!, -1)}>
+                        <MinusCircle className="h-5 w-5 text-muted-foreground" />
                       </Button>
-                      <span className="text-3xl font-bold w-24 text-center tabular-nums">{value ?? 0}</span>
-                      <Button variant="ghost" size="icon" onClick={() => handleValueChange(exercise.id, field!, 1)}>
-                        <PlusCircle className="h-8 w-8 text-primary" />
+                      <span className="text-2xl font-bold w-20 text-center tabular-nums">{value ?? 0}</span>
+                      <Button variant="outline" size="icon" className="h-9 w-9 rounded-full" onClick={() => handleValueChange(exercise.id, field!, 1)}>
+                        <PlusCircle className="h-5 w-5 text-muted-foreground" />
                       </Button>
                     </div>
                   </div>

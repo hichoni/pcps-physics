@@ -715,11 +715,11 @@ export default function StudentPage() {
     return Object.keys(studentGoals).filter(exId => {
       const goal = studentGoals[exId];
       if (!goal) return false;
-      const exercise = availableExercises.find(e => e.id === exId);
-      if (!exercise) return false;
-      if ((exercise.id === 'squat' || exercise.id === 'jump_rope') && goal.count && goal.count > 0) return true;
-      if (exercise.id === 'plank' && goal.time && goal.time > 0) return true;
-      if (exercise.id === 'walk_run' && goal.steps && goal.steps > 0) return true;
+      const ex = availableExercises.find(e => e.id === exId);
+      if (!ex) return false;
+      if ((ex.id === 'squat' || ex.id === 'jump_rope') && goal.count && goal.count > 0) return true;
+      if (ex.id === 'plank' && goal.time && goal.time > 0) return true;
+      if (ex.id === 'walk_run' && goal.steps && goal.steps > 0) return true;
       return false;
     }).length > 0;
   }, [studentGoals, availableExercises]);
@@ -1063,11 +1063,14 @@ export default function StudentPage() {
 
                 return (
                   <Card 
-                    key={index} 
+                    key={index}
+                    onClick={isCurrentDay ? () => setIsGoalsDialogOpen(true) : undefined}
+                    onKeyDown={isCurrentDay ? (e) => (e.key === 'Enter' || e.key === ' ') && setIsGoalsDialogOpen(true) : undefined}
+                    tabIndex={isCurrentDay ? 0 : -1}
                     className={cn(
                       "flex flex-col text-center shadow-sm rounded-lg border transition-all",
                       isCurrentDay 
-                        ? "ring-4 ring-offset-1 ring-primary border-primary shadow-xl bg-primary/5 dark:bg-primary/10" 
+                        ? "ring-4 ring-offset-1 ring-primary border-primary shadow-xl bg-primary/5 dark:bg-primary/10 cursor-pointer" 
                         : "bg-card hover:shadow-md",
                       isWeekend && !isCurrentDay ? "border-red-200 dark:border-red-800/70" : "border-border"
                     )}
@@ -1092,17 +1095,23 @@ export default function StudentPage() {
                            data-ai-hint={item.imageHint}
                          />
                       </div>
-                      <div className="text-xs mb-1 flex-grow flex flex-col justify-start min-h-[calc(3em+1.5em)]">
-                        <p className="min-h-[3em] leading-tight">{item.defaultText}</p>
-                        {showSimulatedXp && (
-                          <p className="font-semibold text-green-600 dark:text-green-400 mt-0.5">
-                            +40XP 😊
-                          </p>
+                      <div className="text-xs mb-1 flex-grow flex flex-col justify-center min-h-[calc(3em+1.5em)] text-center">
+                        {isCurrentDay ? (
+                            <div className="h-full flex flex-col items-center justify-center">
+                                <p className="font-semibold text-primary">오늘의 목표 설정하기</p>
+                                <p className="text-xs text-muted-foreground">클릭하여 시작</p>
+                            </div>
+                        ) : (
+                          <>
+                            <p className="min-h-[3em] leading-tight">{item.defaultText}</p>
+                            {showSimulatedXp && (
+                              <p className="font-semibold text-green-600 dark:text-green-400 mt-0.5">
+                                +40XP 😊
+                              </p>
+                            )}
+                          </>
                         )}
                       </div>
-                      <Button variant="outline" size="sm" className="w-full text-xs mt-auto bg-background/70 hover:bg-background">
-                        <Edit className="mr-1 h-3 w-3" /> 계획 수정
-                      </Button>
                     </CardContent>
                   </Card>
                 );
