@@ -2,12 +2,9 @@
 import React, { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import type { Exercise, Student, StudentGoal, ExerciseGoal } from '@/lib/types';
-import { Target, Save, X } from 'lucide-react';
-import type { LucideIcon } from 'lucide-react';
-// import { getIconByName } from '@/lib/iconMap'; // Icon already in Exercise type
+import { Target, Save, X, PlusCircle, MinusCircle } from 'lucide-react';
 
 interface SetStudentGoalsDialogProps {
   isOpen: boolean;
@@ -31,36 +28,47 @@ const SetStudentGoalsDialog: React.FC<SetStudentGoalsDialogProps> = ({
   useEffect(() => {
     if (isOpen) {
       const newGoalsState: StudentGoal = {};
-      if (exercises && exercises.length > 0) {
-        exercises.forEach(ex => {
-          let specificGoal: ExerciseGoal = {};
-          if (ex.id === 'squat' || ex.id === 'jump_rope') {
-            specificGoal.count = initialGoals[ex.id]?.count ?? undefined;
-          } else if (ex.id === 'plank') {
-            specificGoal.time = initialGoals[ex.id]?.time ?? undefined;
-          } else if (ex.id === 'walk_run') {
-            specificGoal.distance = initialGoals[ex.id]?.distance ?? undefined;
-          }
-          newGoalsState[ex.id] = specificGoal;
-        });
-      }
+      exercises.forEach(ex => {
+        const initialGoal = initialGoals[ex.id];
+        let specificGoal: ExerciseGoal = {};
+
+        if (ex.id === 'squat' || ex.id === 'jump_rope') {
+            specificGoal.count = initialGoal?.count ?? ex.defaultCount ?? 0;
+        } else if (ex.id === 'plank') {
+            specificGoal.time = initialGoal?.time ?? ex.defaultTime ?? 0;
+        } else if (ex.id === 'walk_run') {
+            specificGoal.steps = initialGoal?.steps ?? ex.defaultSteps ?? 0;
+        }
+        newGoalsState[ex.id] = specificGoal;
+      });
       setGoals(newGoalsState);
     }
   }, [isOpen, exercises, initialGoals]);
 
-  const handleInputChange = (exerciseId: string, field: keyof ExerciseGoal, value: string) => {
-    const numValue = value === '' ? undefined : parseFloat(value);
-    if (value !== '' && (isNaN(numValue) || numValue < 0)) return; 
+  const handleValueChange = (exerciseId: string, field: keyof ExerciseGoal, delta: number) => {
+    const exercise = exercises.find(e => e.id === exerciseId);
+    if (!exercise) return;
 
-    setGoals(prevGoals => ({
-      ...prevGoals,
-      [exerciseId]: {
-        // Reset other fields to ensure only one metric per exercise
-        count: field === 'count' ? numValue : undefined,
-        time: field === 'time' ? numValue : undefined,
-        distance: field === 'distance' ? numValue : undefined,
-      },
-    }));
+    let step = 1;
+    if (field === 'count') step = exercise.countStep || 1;
+    else if (field === 'time') step = exercise.timeStep || 1;
+    else if (field === 'steps') step = exercise.stepsStep || 1;
+    
+    setGoals(prevGoals => {
+      const currentVal = prevGoals[exerciseId]?.[field] ?? 0;
+      const newVal = Math.max(0, currentVal + (delta * step));
+
+      // Create a new goal object ensuring only one metric is active
+      const newGoalState: ExerciseGoal = {};
+      if (field === 'count') newGoalState.count = newVal;
+      else if (field === 'time') newGoalState.time = newVal;
+      else if (field === 'steps') newGoalState.steps = newVal;
+
+      return {
+        ...prevGoals,
+        [exerciseId]: newGoalState,
+      };
+    });
   };
 
   const handleDialogSave = () => {
@@ -70,8 +78,7 @@ const SetStudentGoalsDialog: React.FC<SetStudentGoalsDialogProps> = ({
       const cleanedExGoal: ExerciseGoal = {};
       if (exGoal.count !== undefined && exGoal.count > 0) cleanedExGoal.count = exGoal.count;
       else if (exGoal.time !== undefined && exGoal.time > 0) cleanedExGoal.time = exGoal.time;
-      // else if (exGoal.steps !== undefined && exGoal.steps > 0) cleanedExGoal.steps = exGoal.steps; // Not used
-      else if (exGoal.distance !== undefined && exGoal.distance > 0) cleanedExGoal.distance = exGoal.distance;
+      else if (exGoal.steps !== undefined && exGoal.steps > 0) cleanedExGoal.steps = exGoal.steps;
       
       if (Object.keys(cleanedExGoal).length > 0) {
         cleanedGoals[exId] = cleanedExGoal;
@@ -91,61 +98,49 @@ const SetStudentGoalsDialog: React.FC<SetStudentGoalsDialogProps> = ({
             {currentStudent.name} 학생 운동 목표 설정
           </DialogTitle>
           <DialogDescription>
-            각 운동별 목표를 설정해주세요. 비워두면 해당 항목은 목표에서 제외됩니다.
+            각 운동별 목표를 설정해주세요. 0으로 설정하면 목표에서 제외됩니다.
           </DialogDescription>
         </DialogHeader>
         <div className="p-6 space-y-6 max-h-[60vh] overflow-y-auto">
           {exercises && exercises.length > 0 ? (
             exercises.map(exercise => {
               const IconComponent = exercise.icon; 
+              let unit: string | undefined;
+              let field: keyof ExerciseGoal | undefined;
+              let value: number | undefined;
+
+              if (exercise.id === 'squat' || exercise.id === 'jump_rope') {
+                unit = exercise.countUnit;
+                field = 'count';
+                value = goals[exercise.id]?.count;
+              } else if (exercise.id === 'plank') {
+                unit = exercise.timeUnit;
+                field = 'time';
+                value = goals[exercise.id]?.time;
+              } else if (exercise.id === 'walk_run') {
+                unit = exercise.stepsUnit;
+                field = 'steps';
+                value = goals[exercise.id]?.steps;
+              }
+
+              if (!field || !unit) return null;
+
               return (
                 <div key={exercise.id} className="p-4 border rounded-lg shadow-sm bg-secondary/20">
                   <h3 className="text-lg font-semibold mb-3 text-primary flex items-center">
                     <IconComponent className="mr-2 h-5 w-5" /> {exercise.koreanName}
                   </h3>
-                  <div className="grid grid-cols-1 sm:grid-cols-1 gap-4"> {/* Single column for single metric */}
-                    {(exercise.id === 'squat' || exercise.id === 'jump_rope') && exercise.countUnit && (
-                      <div className="space-y-1">
-                        <Label htmlFor={`${exercise.id}-count`} className="text-sm">목표 {exercise.countUnit}</Label>
-                        <Input
-                          id={`${exercise.id}-count`}
-                          type="number"
-                          min="0"
-                          value={goals[exercise.id]?.count ?? ''}
-                          onChange={(e) => handleInputChange(exercise.id, 'count', e.target.value)}
-                          placeholder={`예: ${exercise.defaultCount ?? 10}`}
-                          className="text-base py-2 rounded-md"
-                        />
-                      </div>
-                    )}
-                    {exercise.id === 'plank' && exercise.timeUnit && (
-                      <div className="space-y-1">
-                        <Label htmlFor={`${exercise.id}-time`} className="text-sm">목표 {exercise.timeUnit}</Label>
-                        <Input
-                          id={`${exercise.id}-time`}
-                          type="number"
-                          min="0"
-                          value={goals[exercise.id]?.time ?? ''}
-                          onChange={(e) => handleInputChange(exercise.id, 'time', e.target.value)}
-                          placeholder={`예: ${exercise.defaultTime ?? 30}`}
-                          className="text-base py-2 rounded-md"
-                        />
-                      </div>
-                    )}
-                    {exercise.id === 'walk_run' && exercise.distanceUnit && (
-                      <div className="space-y-1">
-                        <Label htmlFor={`${exercise.id}-distance`} className="text-sm">목표 {exercise.distanceUnit}</Label>
-                        <Input
-                          id={`${exercise.id}-distance`}
-                          type="number"
-                          min="0"
-                          value={goals[exercise.id]?.distance ?? ''}
-                          onChange={(e) => handleInputChange(exercise.id, 'distance', e.target.value)}
-                          placeholder={`예: ${exercise.defaultDistance ?? 500}`}
-                          className="text-base py-2 rounded-md"
-                        />
-                      </div>
-                    )}
+                  <div className="space-y-1">
+                    <Label htmlFor={`${exercise.id}-${field}`} className="text-sm">목표 ({unit})</Label>
+                    <div className="flex items-center justify-center space-x-4 pt-2">
+                      <Button variant="ghost" size="icon" onClick={() => handleValueChange(exercise.id, field!, -1)}>
+                        <MinusCircle className="h-8 w-8 text-primary" />
+                      </Button>
+                      <span className="text-3xl font-bold w-24 text-center tabular-nums">{value ?? 0}</span>
+                      <Button variant="ghost" size="icon" onClick={() => handleValueChange(exercise.id, field!, 1)}>
+                        <PlusCircle className="h-8 w-8 text-primary" />
+                      </Button>
+                    </div>
                   </div>
                 </div>
               );

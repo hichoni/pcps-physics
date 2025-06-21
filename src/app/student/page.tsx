@@ -312,8 +312,8 @@ export default function StudentPage() {
             achievedValue = logsForExerciseToday.reduce((sum, log) => sum + (log.timeValue || 0), 0);
             currentGoalValue = goalData.time;
           } else if (exercise.id === 'walk_run') {
-            achievedValue = logsForExerciseToday.reduce((sum, log) => sum + (log.distanceValue || 0), 0);
-            currentGoalValue = goalData.distance;
+            achievedValue = logsForExerciseToday.reduce((sum, log) => sum + (log.stepsValue || 0), 0);
+            currentGoalValue = goalData.steps;
           }
 
           if (currentGoalValue !== undefined && currentGoalValue > 0 && achievedValue >= currentGoalValue) {
@@ -452,7 +452,7 @@ export default function StudentPage() {
           let currentGoalValue: number | undefined;
           if (exercise.id === 'squat' || exercise.id === 'jump_rope') { achievedValue = logsForExerciseToday.reduce((sum, log) => sum + (log.countValue || 0), 0); currentGoalValue = goalData.count; }
           else if (exercise.id === 'plank') { achievedValue = logsForExerciseToday.reduce((sum, log) => sum + (log.timeValue || 0), 0); currentGoalValue = goalData.time; }
-          else if (exercise.id === 'walk_run') { achievedValue = logsForExerciseToday.reduce((sum, log) => sum + (log.distanceValue || 0), 0); currentGoalValue = goalData.distance; }
+          else if (exercise.id === 'walk_run') { achievedValue = logsForExerciseToday.reduce((sum, log) => sum + (log.stepsValue || 0), 0); currentGoalValue = goalData.steps; }
           if (currentGoalValue !== undefined && currentGoalValue > 0 && achievedValue >= currentGoalValue) { metToday.add(exercise.id); }
         });
         setGoalsMetTodayForXp(metToday);
@@ -524,7 +524,7 @@ export default function StudentPage() {
         } else if (exercise.id === 'plank') {
           achievedValue = combinedLogs.reduce((sum, log) => sum + (log.timeValue || 0), 0);
         } else if (exercise.id === 'walk_run') {
-          achievedValue = combinedLogs.reduce((sum, log) => sum + (log.distanceValue || 0), 0);
+          achievedValue = combinedLogs.reduce((sum, log) => sum + (log.stepsValue || 0), 0);
         }
 
         const goalData = studentGoals[exerciseId];
@@ -532,7 +532,7 @@ export default function StudentPage() {
         if (goalData) {
           if (exercise.id === 'squat' || exercise.id === 'jump_rope') currentGoalValue = goalData.count;
           else if (exercise.id === 'plank') currentGoalValue = goalData.time;
-          else if (exercise.id === 'walk_run') currentGoalValue = goalData.distance;
+          else if (exercise.id === 'walk_run') currentGoalValue = goalData.steps;
         }
 
         if (currentGoalValue !== undefined && currentGoalValue > 0 && achievedValue >= currentGoalValue) {
@@ -649,9 +649,9 @@ export default function StudentPage() {
       goalValue = goal.time || 0;
       unit = exercise.timeUnit || "";
     } else if (exercise.id === 'walk_run') {
-      achievedValue = logsForToday.reduce((sum, log) => sum + (log.distanceValue || 0), 0);
-      goalValue = goal.distance || 0;
-      unit = exercise.distanceUnit || "";
+      achievedValue = logsForToday.reduce((sum, log) => sum + (log.stepsValue || 0), 0);
+      goalValue = goal.steps || 0;
+      unit = exercise.stepsUnit || "";
     }
 
     if (goalValue > 0) {
@@ -676,7 +676,7 @@ export default function StudentPage() {
       if (!exercise) return false;
       if ((exercise.id === 'squat' || exercise.id === 'jump_rope') && goal.count && goal.count > 0) return true;
       if (exercise.id === 'plank' && goal.time && goal.time > 0) return true;
-      if (exercise.id === 'walk_run' && goal.distance && goal.distance > 0) return true;
+      if (exercise.id === 'walk_run' && goal.steps && goal.steps > 0) return true;
       return false;
     }).length > 0;
   }, [studentGoals, availableExercises]);
@@ -936,14 +936,14 @@ export default function StudentPage() {
                       if (!goal) return false;
                       if ((ex.id === 'squat' || ex.id === 'jump_rope') && goal.count && goal.count > 0) return true;
                       if (ex.id === 'plank' && goal.time && goal.time > 0) return true;
-                      if (ex.id === 'walk_run' && goal.distance && goal.distance > 0) return true;
+                      if (ex.id === 'walk_run' && goal.steps && goal.steps > 0) return true;
                       return false;
                     }).map(exercise => {
                       const goal = studentGoals[exercise.id];
                       let goalText = "";
                        if (exercise.id === 'squat' || exercise.id === 'jump_rope') goalText = `${goal.count}${exercise.countUnit}`;
                        else if (exercise.id === 'plank') goalText = `${goal.time}${exercise.timeUnit}`;
-                       else if (exercise.id === 'walk_run') goalText = `${goal.distance}${exercise.distanceUnit}`;
+                       else if (exercise.id === 'walk_run') goalText = `${goal.steps}${exercise.stepsUnit}`;
 
                       const progressText = getExerciseProgressText(exercise.id);
                       const IconComp = getIconByName(exercise.iconName) || ActivityIconLucide;
@@ -1130,10 +1130,10 @@ export default function StudentPage() {
                           } else if (exerciseInfo.id === 'plank') {
                             valueDisplay = `${log.timeValue || 0}${exerciseInfo.timeUnit || ''}`;
                           } else if (exerciseInfo.id === 'walk_run') {
-                            valueDisplay = `${log.distanceValue || 0}${exerciseInfo.distanceUnit || ''}`;
+                            valueDisplay = `${log.stepsValue || 0}${exerciseInfo.stepsUnit || ''}`;
                           }
                           valueDisplay = valueDisplay.trim();
-                          if (!valueDisplay || valueDisplay === "0" + (exerciseInfo.countUnit || exerciseInfo.timeUnit || exerciseInfo.distanceUnit || "")) valueDisplay = "기록됨";
+                          if (!valueDisplay || valueDisplay === "0" + (exerciseInfo.countUnit || exerciseInfo.timeUnit || exerciseInfo.stepsUnit || "")) valueDisplay = "기록됨";
 
                           return (
                               <div key={log.id} className="p-2 bg-background/50 rounded text-xs flex items-center justify-between">
@@ -1204,4 +1204,3 @@ export default function StudentPage() {
     </div>
   );
 }
-

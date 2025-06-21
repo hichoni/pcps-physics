@@ -37,12 +37,12 @@ export interface Exercise {
   timeStep?: number;
 
   // 걷기/달리기용
-  stepsUnit?: string; // 사용 안 함 (단순화를 위해 거리만)
-  defaultSteps?: number; // 사용 안 함
-  stepsStep?: number; // 사용 안 함
-  distanceUnit?: string; 
-  defaultDistance?: number;
-  distanceStep?: number;
+  stepsUnit?: string; 
+  defaultSteps?: number;
+  stepsStep?: number;
+  distanceUnit?: string; // 사용 안 함
+  defaultDistance?: number; // 사용 안 함
+  distanceStep?: number; // 사용 안 함
 
   dataAiHint: string;
 }
@@ -82,9 +82,9 @@ export interface RecordedExercise {
   // exerciseId에 따라 아래 값 중 하나만 사용됨
   countValue?: number;    // 스쿼트, 줄넘기
   timeValue?: number;     // 플랭크
-  distanceValue?: number; // 걷기/달리기 (m 단위)
+  stepsValue?: number;    // 걷기/달리기 (걸음 단위)
   
-  stepsValue?: number;    // 사용 안 함 (걷기/달리기에서 거리로 통일)
+  distanceValue?: number; // 사용 안 함 (걷기/달리기에서 걸음으로 통일)
   
   className: ClassName;
   imageUrl?: string; 
@@ -105,12 +105,12 @@ export interface DailyLog {
 
 // 각 운동 ID에 대해 해당 운동의 주 목표 값만 저장
 // 예: studentGoals['squat'] = { count: 20 }
-// 예: studentGoals['plank'] = { time: 60 }
+// 예: studentGoals['walk_run'] = { steps: 500 }
 export interface ExerciseGoal {
   count?: number; 
   time?: number; 
-  // steps?: number; // 사용 안 함
-  distance?: number; 
+  steps?: number; 
+  distance?: number; // 레거시 필드지만 유지, steps를 우선 사용
 }
 
 export type StudentGoal = Record<string, ExerciseGoal>; // key는 CustomExercise의 id

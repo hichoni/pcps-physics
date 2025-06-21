@@ -12,7 +12,7 @@ export const EXERCISES_SEED_DATA: CustomExercise[] = [
     iconName: 'Dumbbell',
     category: 'count_time', // 내부적으로는 count만 사용
     countUnit: '회', 
-    defaultCount: 10, 
+    defaultCount: 20, 
     countStep: 1,
     timeUnit: undefined, 
     defaultTime: undefined, 
@@ -34,8 +34,8 @@ export const EXERCISES_SEED_DATA: CustomExercise[] = [
     defaultCount: undefined, 
     countStep: undefined,
     timeUnit: '초', 
-    defaultTime: 30, 
-    timeStep: 10,
+    defaultTime: 20, 
+    timeStep: 1,
     stepsUnit: undefined,
     defaultSteps: undefined,
     stepsStep: undefined,
@@ -48,19 +48,19 @@ export const EXERCISES_SEED_DATA: CustomExercise[] = [
     id: 'walk_run', 
     koreanName: '걷기/달리기', 
     iconName: 'Footprints',
-    category: 'steps_distance', // 내부적으로는 distance(m)만 사용
+    category: 'steps_distance', // 내부적으로는 steps(걸음)만 사용
     countUnit: undefined, 
     defaultCount: undefined, 
     countStep: undefined,
     timeUnit: undefined, 
     defaultTime: undefined, 
     timeStep: undefined,
-    stepsUnit: undefined, // '걸음' 사용 안함
-    defaultSteps: undefined,
-    stepsStep: undefined,
-    distanceUnit: 'm',
-    defaultDistance: 500,
-    distanceStep: 50,
+    stepsUnit: '걸음',
+    defaultSteps: 500,
+    stepsStep: 1,
+    distanceUnit: undefined,
+    defaultDistance: undefined,
+    distanceStep: undefined,
     dataAiHint: 'child running'
   },
   { 
@@ -70,7 +70,7 @@ export const EXERCISES_SEED_DATA: CustomExercise[] = [
     category: 'count_time', // 내부적으로는 count만 사용
     countUnit: '회',
     defaultCount: 50,
-    countStep: 10,
+    countStep: 1,
     timeUnit: undefined,
     defaultTime: undefined,
     timeStep: undefined,
