@@ -954,9 +954,9 @@ export default function StudentPage() {
                     {availableExercises.filter(ex => {
                       const goal = studentGoals[ex.id];
                       if (!goal) return false;
-                      if ((exercise.id === 'squat' || exercise.id === 'jump_rope') && goal.count && goal.count > 0) return true;
-                      if (exercise.id === 'plank' && goal.time && goal.time > 0) return true;
-                      if (exercise.id === 'walk_run' && goal.steps && goal.steps > 0) return true;
+                      if ((ex.id === 'squat' || ex.id === 'jump_rope') && goal.count && goal.count > 0) return true;
+                      if (ex.id === 'plank' && goal.time && goal.time > 0) return true;
+                      if (ex.id === 'walk_run' && goal.steps && goal.steps > 0) return true;
                       return false;
                     }).map(exercise => {
                       const goal = studentGoals[exercise.id];
