@@ -33,15 +33,20 @@ const SetStudentGoalsDialog: React.FC<SetStudentGoalsDialogProps> = ({
     if (isOpen) {
       const newGoalsState: StudentGoal = {};
       exercises.forEach(ex => {
-        const initialGoal = initialGoals[ex.id];
-        let specificGoal: ExerciseGoal = {};
+        const initialGoal = initialGoals[ex.id] || {};
+        const specificGoal: ExerciseGoal = {};
 
-        if (ex.id === 'squat' || ex.id === 'jump_rope') {
-            specificGoal.count = initialGoal?.count ?? ex.defaultCount ?? 0;
-        } else if (ex.id === 'plank') {
-            specificGoal.time = initialGoal?.time ?? ex.defaultTime ?? 0;
-        } else if (ex.id === 'walk_run') {
-            specificGoal.steps = initialGoal?.steps ?? ex.defaultSteps ?? 0;
+        if (ex.category === 'count_time') {
+          if (ex.countUnit) {
+            specificGoal.count = initialGoal.count ?? ex.defaultCount ?? 0;
+          }
+          if (ex.timeUnit) {
+            specificGoal.time = initialGoal.time ?? ex.defaultTime ?? 0;
+          }
+        } else if (ex.category === 'steps_distance') {
+          if (ex.stepsUnit) {
+            specificGoal.steps = initialGoal.steps ?? ex.defaultSteps ?? 0;
+          }
         }
         newGoalsState[ex.id] = specificGoal;
       });
@@ -60,13 +65,14 @@ const SetStudentGoalsDialog: React.FC<SetStudentGoalsDialogProps> = ({
     else if (field === 'steps') step = exercise.stepsStep || 1;
     
     setGoals(prevGoals => {
-      const currentVal = prevGoals[exerciseId]?.[field] ?? 0;
+      const currentGoalForExercise = prevGoals[exerciseId] || {};
+      const currentVal = currentGoalForExercise[field] ?? 0;
       const newVal = Math.max(0, currentVal + (delta * step));
 
-      const newGoalState: ExerciseGoal = {};
-      if (field === 'count') newGoalState.count = newVal;
-      else if (field === 'time') newGoalState.time = newVal;
-      else if (field === 'steps') newGoalState.steps = newVal;
+      const newGoalState: ExerciseGoal = {
+          ...currentGoalForExercise,
+          [field]: newVal,
+      };
 
       return {
         ...prevGoals,
@@ -89,17 +95,22 @@ const SetStudentGoalsDialog: React.FC<SetStudentGoalsDialogProps> = ({
     if (!isNowSkipped) {
         const exercise = exercises.find(e => e.id === exerciseId);
         if (exercise) {
-            const initialGoalForExercise = initialGoals[exercise.id];
-            let specificGoal: ExerciseGoal = {};
+            const initialGoalForExercise = initialGoals[exercise.id] || {};
+            const specificGoal: ExerciseGoal = {};
 
-            if (exercise.id === 'squat' || exercise.id === 'jump_rope') {
-                specificGoal.count = initialGoalForExercise?.count ?? exercise.defaultCount ?? 0;
-            } else if (exercise.id === 'plank') {
-                specificGoal.time = initialGoalForExercise?.time ?? exercise.defaultTime ?? 0;
-            } else if (exercise.id === 'walk_run') {
-                specificGoal.steps = initialGoalForExercise?.steps ?? exercise.defaultSteps ?? 0;
+            if (exercise.category === 'count_time') {
+              if (exercise.countUnit) {
+                specificGoal.count = initialGoalForExercise.count ?? exercise.defaultCount ?? 0;
+              }
+              if (exercise.timeUnit) {
+                specificGoal.time = initialGoalForExercise.time ?? exercise.defaultTime ?? 0;
+              }
+            } else if (exercise.category === 'steps_distance') {
+              if (exercise.stepsUnit) {
+                specificGoal.steps = initialGoalForExercise.steps ?? exercise.defaultSteps ?? 0;
+              }
             }
-
+            
             setGoals(prevGoals => ({
                 ...prevGoals,
                 [exerciseId]: specificGoal,
@@ -114,9 +125,15 @@ const SetStudentGoalsDialog: React.FC<SetStudentGoalsDialogProps> = ({
         if (!skipped.has(exId)) {
             const exGoal = goals[exId];
             const cleanedExGoal: ExerciseGoal = {};
-            if (exGoal.count !== undefined && exGoal.count > 0) cleanedExGoal.count = exGoal.count;
-            else if (exGoal.time !== undefined && exGoal.time > 0) cleanedExGoal.time = exGoal.time;
-            else if (exGoal.steps !== undefined && exGoal.steps > 0) cleanedExGoal.steps = exGoal.steps;
+            if (exGoal.count !== undefined && exGoal.count > 0) {
+              cleanedExGoal.count = exGoal.count;
+            }
+            if (exGoal.time !== undefined && exGoal.time > 0) {
+              cleanedExGoal.time = exGoal.time;
+            }
+            if (exGoal.steps !== undefined && exGoal.steps > 0) {
+              cleanedExGoal.steps = exGoal.steps;
+            }
             
             if (Object.keys(cleanedExGoal).length > 0) {
                 goalsToSave[exId] = cleanedExGoal;
@@ -135,11 +152,20 @@ const SetStudentGoalsDialog: React.FC<SetStudentGoalsDialogProps> = ({
         setSkipped(new Set());
         const restoredGoals: StudentGoal = {};
         exercises.forEach(ex => {
-            const initialGoal = initialGoals[ex.id];
+            const initialGoal = initialGoals[ex.id] || {};
             let specificGoal: ExerciseGoal = {};
-            if (ex.id === 'squat' || ex.id === 'jump_rope') specificGoal.count = initialGoal?.count ?? ex.defaultCount ?? 0;
-            else if (ex.id === 'plank') specificGoal.time = initialGoal?.time ?? ex.defaultTime ?? 0;
-            else if (ex.id === 'walk_run') specificGoal.steps = initialGoal?.steps ?? ex.defaultSteps ?? 0;
+            if (ex.category === 'count_time') {
+              if (ex.countUnit) {
+                specificGoal.count = initialGoal.count ?? ex.defaultCount ?? 0;
+              }
+              if (ex.timeUnit) {
+                specificGoal.time = initialGoal.time ?? ex.defaultTime ?? 0;
+              }
+            } else if (ex.category === 'steps_distance') {
+              if (ex.stepsUnit) {
+                specificGoal.steps = initialGoal.steps ?? ex.defaultSteps ?? 0;
+              }
+            }
             restoredGoals[ex.id] = specificGoal;
         });
         setGoals(restoredGoals);
@@ -168,27 +194,7 @@ const SetStudentGoalsDialog: React.FC<SetStudentGoalsDialogProps> = ({
         <div className="p-4 md:p-6 grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[60vh] overflow-y-auto">
           {exercises && exercises.length > 0 ? (
             exercises.map(exercise => {
-              const IconComponent = exercise.icon; 
-              let unit: string | undefined;
-              let field: keyof ExerciseGoal | undefined;
-              let value: number | undefined;
-
-              if (exercise.id === 'squat' || exercise.id === 'jump_rope') {
-                unit = exercise.countUnit;
-                field = 'count';
-                value = goals[exercise.id]?.count;
-              } else if (exercise.id === 'plank') {
-                unit = exercise.timeUnit;
-                field = 'time';
-                value = goals[exercise.id]?.time;
-              } else if (exercise.id === 'walk_run') {
-                unit = exercise.stepsUnit;
-                field = 'steps';
-                value = goals[exercise.id]?.steps;
-              }
-
-              if (!field || !unit) return null;
-
+              const IconComponent = exercise.icon;
               const isSkipped = skipped.has(exercise.id);
 
               return (
@@ -208,18 +214,61 @@ const SetStudentGoalsDialog: React.FC<SetStudentGoalsDialogProps> = ({
                       </Label>
                     </div>
                   </div>
-                  <div className="space-y-1">
-                    <Label htmlFor={`${exercise.id}-${field}`} className="text-xs">목표 ({unit})</Label>
-                    <div className="flex items-center justify-center space-x-2 pt-1">
-                      <Button variant="outline" size="icon" className="h-9 w-9 rounded-full" onClick={() => handleValueChange(exercise.id, field!, -1)} disabled={isSkipped}>
-                        <MinusCircle className="h-5 w-5 text-muted-foreground" />
-                      </Button>
-                      <span className={cn("text-2xl font-bold w-20 text-center tabular-nums", isSkipped && "text-muted-foreground/50")}>{isSkipped ? 0 : (value ?? 0)}</span>
-                      <Button variant="outline" size="icon" className="h-9 w-9 rounded-full" onClick={() => handleValueChange(exercise.id, field!, 1)} disabled={isSkipped}>
-                        <PlusCircle className="h-5 w-5 text-muted-foreground" />
-                      </Button>
+                  
+                  {exercise.category === 'count_time' && (
+                    <>
+                      {exercise.countUnit && (
+                        <div className="space-y-1 mt-2">
+                          <Label htmlFor={`${exercise.id}-count`} className="text-xs">목표 ({exercise.countUnit})</Label>
+                          <div className="flex items-center justify-center space-x-2 pt-1">
+                            <Button variant="outline" size="icon" className="h-9 w-9 rounded-full" onClick={() => handleValueChange(exercise.id, 'count', -1)} disabled={isSkipped}>
+                              <MinusCircle className="h-5 w-5 text-muted-foreground" />
+                            </Button>
+                            <span className={cn("text-2xl font-bold w-20 text-center tabular-nums", isSkipped && "text-muted-foreground/50")}>
+                              {isSkipped ? 0 : (goals[exercise.id]?.count ?? 0)}
+                            </span>
+                            <Button variant="outline" size="icon" className="h-9 w-9 rounded-full" onClick={() => handleValueChange(exercise.id, 'count', 1)} disabled={isSkipped}>
+                              <PlusCircle className="h-5 w-5 text-muted-foreground" />
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                      {exercise.timeUnit && (
+                        <div className="space-y-1 mt-2">
+                          <Label htmlFor={`${exercise.id}-time`} className="text-xs">목표 ({exercise.timeUnit})</Label>
+                          <div className="flex items-center justify-center space-x-2 pt-1">
+                            <Button variant="outline" size="icon" className="h-9 w-9 rounded-full" onClick={() => handleValueChange(exercise.id, 'time', -1)} disabled={isSkipped}>
+                              <MinusCircle className="h-5 w-5 text-muted-foreground" />
+                            </Button>
+                            <span className={cn("text-2xl font-bold w-20 text-center tabular-nums", isSkipped && "text-muted-foreground/50")}>
+                              {isSkipped ? 0 : (goals[exercise.id]?.time ?? 0)}
+                            </span>
+                            <Button variant="outline" size="icon" className="h-9 w-9 rounded-full" onClick={() => handleValueChange(exercise.id, 'time', 1)} disabled={isSkipped}>
+                              <PlusCircle className="h-5 w-5 text-muted-foreground" />
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  )}
+                  
+                  {exercise.category === 'steps_distance' && exercise.stepsUnit && (
+                    <div className="space-y-1 mt-2">
+                      <Label htmlFor={`${exercise.id}-steps`} className="text-xs">목표 ({exercise.stepsUnit})</Label>
+                      <div className="flex items-center justify-center space-x-2 pt-1">
+                        <Button variant="outline" size="icon" className="h-9 w-9 rounded-full" onClick={() => handleValueChange(exercise.id, 'steps', -1)} disabled={isSkipped}>
+                          <MinusCircle className="h-5 w-5 text-muted-foreground" />
+                        </Button>
+                        <span className={cn("text-2xl font-bold w-20 text-center tabular-nums", isSkipped && "text-muted-foreground/50")}>
+                          {isSkipped ? 0 : (goals[exercise.id]?.steps ?? 0)}
+                        </span>
+                        <Button variant="outline" size="icon" className="h-9 w-9 rounded-full" onClick={() => handleValueChange(exercise.id, 'steps', 1)} disabled={isSkipped}>
+                          <PlusCircle className="h-5 w-5 text-muted-foreground" />
+                        </Button>
+                      </div>
                     </div>
-                  </div>
+                  )}
+
                 </div>
               );
             })
