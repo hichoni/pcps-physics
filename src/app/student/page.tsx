@@ -309,10 +309,9 @@ export default function StudentPage() {
         const logsList = logsSnapshot.docs.map(lDoc => {
           const data = lDoc.data();
           let dateStr = data.date;
+          // Handle old Firestore Timestamps if they exist
           if (data.date && typeof data.date.toDate === 'function') {
-            dateStr = format(data.date.toDate(), "yyyy-MM-dd");
-          } else if (typeof data.date === 'string' && data.date.includes('T')) {
-             dateStr = data.date.split('T')[0];
+            dateStr = data.date.toDate().toISOString();
           }
           return {
             id: lDoc.id,
@@ -320,17 +319,18 @@ export default function StudentPage() {
             date: dateStr,
           } as RecordedExercise;
         });
-        const sortedLogs = logsList.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime() || (b.id && a.id ? b.id.localeCompare(a.id) : 0));
+        const sortedLogs = logsList.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
         setStudentActivityLogs(sortedLogs);
 
-        const today = format(new Date(), "yyyy-MM-dd");
+        const todayLogs = sortedLogs.filter(log => isToday(parseISO(log.date)))
+
         const metToday = new Set<string>();
         currentExercises.forEach(exercise => {
           const goalData = fetchedGoals[exercise.id];
           if (!goalData) return;
 
-          const logsForExerciseToday = sortedLogs.filter(
-            log => log.studentId === studentId && log.exerciseId === exercise.id && log.date === today
+          const logsForExerciseToday = todayLogs.filter(
+            log => log.exerciseId === exercise.id
           );
 
           let achievedValue = 0;
@@ -426,10 +426,9 @@ export default function StudentPage() {
         const logs = snapshot.docs.map(doc => {
             const data = doc.data();
             let dateStr = data.date;
+            // Handle old Firestore Timestamps if they exist
             if (data.date && typeof data.date.toDate === 'function') {
-                dateStr = format(data.date.toDate(), "yyyy-MM-dd");
-            } else if (typeof data.date === 'string' && data.date.includes('T')) {
-                dateStr = data.date.split('T')[0];
+                dateStr = data.date.toDate().toISOString();
             }
             return { id: doc.id, ...data, date: dateStr } as RecordedExercise
         });
@@ -498,7 +497,7 @@ export default function StudentPage() {
     if (currentStudent && currentLevelInfo) {
       try {
         const goalsDocRef = doc(db, "studentGoals", currentStudent.id);
-        await setDoc(goalsDocRef, { goals: newGoals });
+        await setDoc(goalsDocRef, { goals: newGoals, skipped: Array.from(newSkipped) }); // Store skipped as an array
         setStudentGoals(newGoals);
         setSkippedExercises(newSkipped);
         
@@ -508,13 +507,12 @@ export default function StudentPage() {
         toast({ title: "성공", description: allExercisesAreSkipped ? "휴식의 날로 설정되었습니다." : "운동 목표가 저장되었습니다." });
         setIsGoalsDialogOpen(false);
 
-        const today = format(new Date(), "yyyy-MM-dd");
         const metToday = new Set<string>();
         availableExercises.forEach(exercise => {
           const goalData = newGoals[exercise.id];
           if (!goalData) return;
           const logsForExerciseToday = studentActivityLogs.filter(
-            log => log.studentId === currentStudent.id && log.exerciseId === exercise.id && log.date === today
+            log => log.studentId === currentStudent.id && log.exerciseId === exercise.id && isToday(parseISO(log.date))
           );
           let achievedValue = 0;
           let currentGoalValue: number | undefined;
@@ -590,15 +588,16 @@ export default function StudentPage() {
       const exercise = availableExercises.find(ex => ex.id === exerciseId);
 
       if (exercise && !goalsMetTodayForXp.has(exerciseId)) {
-        const today = format(new Date(), "yyyy-MM-dd");
-
+        
         const logsQuery = query(collection(db, "exerciseLogs"),
           where("studentId", "==", currentStudent.id),
-          where("exerciseId", "==", exerciseId),
-          where("date", "==", today)
+          where("exerciseId", "==", exerciseId)
         );
         const logsSnapshot = await getDocs(logsQuery);
-        const logsForExerciseToday = logsSnapshot.docs.map(d => d.data() as RecordedExercise);
+        const logsForExerciseToday = logsSnapshot.docs
+            .map(d => d.data() as RecordedExercise)
+            .filter(l => isToday(parseISO(l.date)));
+            
         const combinedLogs = [...logsForExerciseToday, { ...logData, id: docRef.id }];
 
         let achievedValue = 0;
@@ -696,7 +695,7 @@ export default function StudentPage() {
         const logEntry: Omit<RecordedExercise, 'id' | 'imageUrl'> = {
           studentId: currentStudent.id,
           exerciseId: cameraExerciseId,
-          date: format(new Date(), "yyyy-MM-dd"),
+          date: new Date().toISOString(),
           className: currentStudent.class as ClassName,
           countValue: count,
         };
@@ -1023,7 +1022,10 @@ export default function StudentPage() {
                             </span>
                             <span className="text-sm font-medium text-muted-foreground">{`목표 ${goalValue}${unit}`}</span>
                           </div>
-                          
+                          <div className="text-right text-xs text-muted-foreground mb-1.5">
+                            <span>{`지금까지 ${achievedValue}${unit}`}</span>
+                            <span className="font-semibold text-accent ml-1">({percent}%)</span>
+                          </div>
                           {isCompleted ? (
                               <div className="text-center py-2 bg-green-100 dark:bg-green-900/50 rounded-md border border-green-200 dark:border-green-800">
                                   <p className="font-semibold text-green-700 dark:text-green-300 text-sm flex items-center justify-center gap-2">
@@ -1032,13 +1034,7 @@ export default function StudentPage() {
                                   </p>
                               </div>
                           ) : (
-                            <>
-                              <div className="text-right text-xs text-muted-foreground mb-1.5">
-                                <span>{`지금까지 ${achievedValue}${unit}`}</span>
-                                <span className="font-semibold text-accent ml-1">({percent}%)</span>
-                              </div>
                               <Progress value={percent} className="h-2" />
-                            </>
                           )}
                         </div>
                       );
@@ -1231,38 +1227,6 @@ export default function StudentPage() {
                 />
               )
             }
-
-            <h4 className="text-md font-semibold pt-6 border-t mt-8">최근 5개 활동:</h4>
-            {isActivityLogsLoading || isLoadingExercises ? <Loader2 className="h-6 w-6 animate-spin text-primary mx-auto my-2" /> :
-            studentActivityLogs.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-2">기록된 활동이 없습니다.</p>
-            ) : (
-                <div className="space-y-2 max-h-[200px] overflow-y-auto p-3 bg-secondary/20 rounded-lg text-sm">
-                  {studentActivityLogs
-                      .slice(0, 5)
-                      .map(log => {
-                          const exerciseInfo = availableExercises.find(ex => ex.id === log.exerciseId);
-                          if (!exerciseInfo) return null;
-
-                          let valueDisplay = "";
-                          if (exerciseInfo.id === 'squat' || exerciseInfo.id === 'jump_rope') {
-                            valueDisplay = `${log.countValue || 0}${exerciseInfo.countUnit || ''}`;
-                          } else if (exerciseInfo.id === 'plank') {
-                            valueDisplay = `${log.timeValue || 0}${exerciseInfo.timeUnit || ''}`;
-                          } else if (exerciseInfo.id === 'walk_run') {
-                            valueDisplay = `${log.stepsValue || 0}${exerciseInfo.stepsUnit || ''}`;
-                          }
-                          valueDisplay = valueDisplay.trim();
-                          if (!valueDisplay || valueDisplay === "0" + (exerciseInfo.countUnit || exerciseInfo.timeUnit || exerciseInfo.stepsUnit || "")) valueDisplay = "기록됨";
-
-                          return (
-                              <div key={log.id} className="p-2 bg-background/50 rounded text-xs flex items-center justify-between">
-                                  <span>{format(parseISO(log.date), "MM/dd (EEE)", { locale: ko })}: {exerciseInfo.koreanName} - {valueDisplay}</span>
-                              </div>
-                          );
-                  })}
-              </div>
-            )}
           </CardContent>
         </Card>
 

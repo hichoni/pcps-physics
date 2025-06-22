@@ -100,7 +100,7 @@ const ExerciseLogForm: React.FC<ExerciseLogFormProps> = ({
     let logEntry: Omit<RecordedExercise, 'id' | 'imageUrl'> = {
       studentId: student.id,
       exerciseId: selectedExercise.id,
-      date: format(logDate, "yyyy-MM-dd"), // Use the state logDate, which is set to today
+      date: logDate.toISOString(),
       className: student.class as ClassName,
     };
 
@@ -119,9 +119,8 @@ const ExerciseLogForm: React.FC<ExerciseLogFormProps> = ({
   if (!student) return null;
   if (loggableExercises.length === 0) return null;
 
-  const todayStr = format(logDate, "yyyy-MM-dd");
   const exercisesLoggedTodayForStudent = recordedExercises.filter(
-    rec => rec.studentId === student.id && rec.date === todayStr && rec.exerciseId === selectedExercise.id
+    rec => rec.studentId === student.id && isToday(new Date(rec.date)) && rec.exerciseId === selectedExercise.id
   );
 
   let totalLoggedTodayDisplay = "";

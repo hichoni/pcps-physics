@@ -32,7 +32,7 @@ const calculateStreak = (studentId: string, allLogs: RecordedExercise[]): number
     const studentLogs = allLogs.filter(log => log.studentId === studentId);
     if (studentLogs.length === 0) return 0;
 
-    const uniqueDates = [...new Set(studentLogs.map(log => log.date))];
+    const uniqueDates = [...new Set(studentLogs.map(log => log.date.split('T')[0]))];
     const sortedDates = uniqueDates.map(d => parseISO(d)).sort((a, b) => b.getTime() - a.getTime());
 
     const today = new Date();
@@ -95,8 +95,10 @@ const PodiumItem: React.FC<{ student: StudentWithStreak; rank: number; isCurrent
                     <AvatarFallback className="text-lg sm:text-xl bg-muted">{getInitials(student.name)}</AvatarFallback>
                 )}
             </Avatar>
-            <p className={cn("font-bold text-sm sm:text-base mt-2 truncate w-full text-center", isCurrentUser && "text-primary")}>{student.name}</p>
-            <p className="text-xs sm:text-sm text-muted-foreground">{(student.totalXp || 0).toLocaleString()} XP</p>
+            <div className="w-full text-center mt-2 min-w-0">
+                <p className={cn("font-bold text-sm sm:text-base truncate", isCurrentUser && "text-primary")} title={student.name}>{student.name}</p>
+                <p className="text-xs sm:text-sm text-muted-foreground">{(student.totalXp || 0).toLocaleString()} XP</p>
+            </div>
         </div>
     );
 };

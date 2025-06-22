@@ -2,12 +2,12 @@
 'use client';
 
 import React from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { RecordedExercise, Student, Exercise as ExerciseType, StudentGoal } from '@/lib/types';
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getIconByName } from '@/lib/iconMap';
 import { AlertCircle, TrendingUp } from 'lucide-react';
-import { parseISO, isWithinInterval, startOfWeek, endOfWeek, startOfMonth, endOfMonth, isToday } from 'date-fns';
-// import { cn } from '@/lib/utils'; // Not strictly needed for this version
+import { format, parseISO, isWithinInterval, startOfWeek, endOfWeek, startOfMonth, isToday } from 'date-fns';
+import { ko } from 'date-fns/locale';
 
 interface StudentActivityChartProps {
   logs: RecordedExercise[];
@@ -83,12 +83,9 @@ const StudentActivityChart: React.FC<StudentActivityChartProps> = ({
     }
   });
   
-  const dailyLogsToday = logs.filter(log => relevantStudentIds.includes(log.studentId) && isToday(parseISO(log.date)));
-
   const exerciseSummaries = availableExercises.map(exercise => {
     const currentGoal = studentGoals[exercise.id];
-    const logsToProcess = timeFrame === 'today' ? dailyLogsToday : logsForPeriod;
-    const exerciseLogs = logsToProcess.filter(log => log.exerciseId === exercise.id);
+    const exerciseLogs = logsForPeriod.filter(log => log.exerciseId === exercise.id);
 
     let achievedValue = 0;
     let goalValue: number | undefined = undefined;
@@ -122,6 +119,10 @@ const StudentActivityChart: React.FC<StudentActivityChartProps> = ({
                        ? Math.min(100, Math.round((achievedValue / goalValue) * 100))
                        : (achievedValue > 0 ? 100 : 0);
 
+    const recentLogs = logs
+        .filter(log => log.exerciseId === exercise.id && relevantStudentIds.includes(log.studentId))
+        .slice(0, 3);
+
     return {
       id: exercise.id,
       name: exercise.koreanName,
@@ -133,6 +134,7 @@ const StudentActivityChart: React.FC<StudentActivityChartProps> = ({
       hasGoal: hasGoal,
       color: chartColors[exercise.id]?.color || 'hsl(var(--primary))',
       hasActivity: achievedValue > 0,
+      recentLogs: recentLogs
     };
   });
 
@@ -150,7 +152,7 @@ const StudentActivityChart: React.FC<StudentActivityChartProps> = ({
     );
   }
   
-  const relevantSummaries = exerciseSummaries.filter(s => s.hasGoal || s.hasActivity);
+  const relevantSummaries = exerciseSummaries.filter(s => s.hasGoal || s.hasActivity || s.recentLogs.length > 0);
 
   if (relevantSummaries.length === 0 && !noLogsForAllExercisesInPeriod) {
      return (
@@ -163,22 +165,11 @@ const StudentActivityChart: React.FC<StudentActivityChartProps> = ({
   }
   
   return (
-    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 pt-4">
-      {exerciseSummaries.map(summary => {
-        if (!summary.hasGoal && !summary.hasActivity) {
-          return (
-            <Card key={summary.id} className="shadow-sm rounded-xl flex flex-col justify-between bg-card/50 opacity-70">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-base font-semibold flex items-center text-muted-foreground">
-                  <summary.IconComponent className="mr-2 h-5 w-5" />
-                  {summary.name}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="flex-grow flex flex-col items-center justify-center text-center py-4">
-                 <p className="text-xs text-muted-foreground">기록 또는 설정된 목표 없음</p>
-              </CardContent>
-            </Card>
-          );
+    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4 pt-4">
+      {availableExercises.map(exercise => {
+        const summary = exerciseSummaries.find(s => s.id === exercise.id);
+        if (!summary || (!summary.hasGoal && !summary.hasActivity && summary.recentLogs.length === 0 && timeFrame !== 'today')) {
+           return null;
         }
 
         return (
@@ -189,32 +180,58 @@ const StudentActivityChart: React.FC<StudentActivityChartProps> = ({
                 {summary.name}
               </CardTitle>
             </CardHeader>
-            <CardContent className="flex-grow flex flex-col items-center justify-center text-center space-y-3">
-              <div
-                className="relative w-32 h-32 sm:w-36 sm:h-36 rounded-full flex items-center justify-center"
-                style={{
-                  background: `conic-gradient(${summary.color} ${summary.percentage}%, hsl(var(--muted)) ${summary.percentage}%)`
-                }}
-              >
-                <div className="absolute w-[calc(100%-24px)] h-[calc(100%-24px)] bg-card rounded-full flex items-center justify-center shadow-inner">
-                  <span className="text-3xl sm:text-4xl font-bold" style={{ color: summary.color }}>
-                    {summary.percentage}%
-                  </span>
+            <CardContent className="flex-grow flex flex-col justify-between text-center space-y-3">
+              {(summary.hasActivity || summary.hasGoal) ? (
+                  <>
+                    <div
+                      className="relative w-32 h-32 sm:w-36 sm:h-36 rounded-full flex items-center justify-center self-center"
+                      style={{
+                        background: `conic-gradient(${summary.color} ${summary.percentage}%, hsl(var(--muted)) ${summary.percentage}%)`
+                      }}
+                    >
+                      <div className="absolute w-[calc(100%-24px)] h-[calc(100%-24px)] bg-card rounded-full flex items-center justify-center shadow-inner">
+                        <span className="text-3xl sm:text-4xl font-bold" style={{ color: summary.color }}>
+                          {summary.percentage}%
+                        </span>
+                      </div>
+                    </div>
+                    <div>
+                      {timeFrame === 'today' && summary.hasGoal && summary.goal !== undefined ? (
+                        <p className="text-sm text-foreground">
+                          달성: {summary.achieved}{summary.unit} / 목표: {summary.goal}{summary.unit}
+                        </p>
+                      ) : (
+                        <p className="text-sm text-foreground">
+                          활동량: {summary.achieved}{summary.unit}
+                        </p>
+                      )}
+                    </div>
+                  </>
+              ) : (
+                <div className="flex-grow flex items-center justify-center">
+                    <p className="text-sm text-muted-foreground">기록 또는 설정된 목표 없음</p>
                 </div>
-              </div>
-              <div>
-                {summary.hasGoal && summary.goal !== undefined ? (
-                  <p className="text-sm text-foreground">
-                    달성: {summary.achieved}{summary.unit} / 목표: {summary.goal}{summary.unit}
-                  </p>
-                ) : summary.hasActivity ? (
-                  <p className="text-sm text-foreground">
-                    활동: {summary.achieved}{summary.unit} (목표 미설정)
-                  </p>
-                ) : (
-                  <p className="text-sm text-muted-foreground">활동 기록 없음</p>
-                )}
-              </div>
+              )}
+               {summary.recentLogs.length > 0 && (
+                <div className="text-xs text-left pt-2 border-t">
+                  <h5 className="font-semibold mb-1 text-muted-foreground">최근 기록</h5>
+                  <ul className="space-y-1">
+                    {summary.recentLogs.map(log => {
+                        let valueDisplay = "";
+                        if (log.countValue) valueDisplay = `${log.countValue}${summary.unit}`;
+                        else if (log.timeValue) valueDisplay = `${log.timeValue}${summary.unit}`;
+                        else if (log.stepsValue) valueDisplay = `${log.stepsValue}${summary.unit}`;
+
+                        return (
+                            <li key={log.id} className="flex justify-between items-center text-muted-foreground">
+                                <span>{format(parseISO(log.date), "MM/dd HH:mm")}</span>
+                                <span className="font-medium text-foreground/80">{valueDisplay}</span>
+                            </li>
+                        )
+                    })}
+                  </ul>
+                </div>
+              )}
             </CardContent>
           </Card>
         );
