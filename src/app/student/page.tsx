@@ -6,6 +6,7 @@ import StudentHeader from '@/components/StudentHeader';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from '@/components/ui/button';
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dumbbell, Target, History, PlusCircle, LogOut, UserCheck, Loader2, AlertTriangle, KeyRound, Edit3, Camera, Info, Activity as ActivityIconLucide, CheckSquare, CalendarDays, Edit, CheckCircle, Trophy } from 'lucide-react';
@@ -1131,7 +1132,10 @@ export default function StudentPage() {
                         { goalsForDay ? (
                             <ul className="text-left text-xs space-y-1 w-full px-1">
                               {availableExercises
-                                .filter(ex => goalsForDay[ex.id] && !dayGoalData.skipped.has(ex.id))
+                                .filter(exercise => {
+                                  const goal = goalsForDay[exercise.id];
+                                  return goal && !dayGoalData.skipped.has(exercise.id);
+                                })
                                 .flatMap(exercise => {
                                   const goal = goalsForDay[exercise.id];
                                   if (!goal) return [];
@@ -1322,3 +1326,5 @@ export default function StudentPage() {
     </div>
   );
 }
+
+    
