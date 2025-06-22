@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import type { Exercise, Student, StudentGoal, ExerciseGoal } from '@/lib/types';
-import { Target, Save, X, PlusCircle, MinusCircle } from 'lucide-react';
+import { Target, Save, X, PlusCircle, MinusCircle, Waves, Check } from 'lucide-react';
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from '@/lib/utils';
 
@@ -126,6 +126,31 @@ const SetStudentGoalsDialog: React.FC<SetStudentGoalsDialogProps> = ({
     onSave({ goals: goalsToSave, skipped });
   };
   
+  const handleRestDayClick = () => {
+    const allExerciseIds = exercises.map(ex => ex.id);
+    const currentlyAllSkipped = allExerciseIds.every(id => skipped.has(id));
+
+    if (currentlyAllSkipped) {
+        // Un-rest: clear all skips and restore goals
+        setSkipped(new Set());
+        const restoredGoals: StudentGoal = {};
+        exercises.forEach(ex => {
+            const initialGoal = initialGoals[ex.id];
+            let specificGoal: ExerciseGoal = {};
+            if (ex.id === 'squat' || ex.id === 'jump_rope') specificGoal.count = initialGoal?.count ?? ex.defaultCount ?? 0;
+            else if (ex.id === 'plank') specificGoal.time = initialGoal?.time ?? ex.defaultTime ?? 0;
+            else if (ex.id === 'walk_run') specificGoal.steps = initialGoal?.steps ?? ex.defaultSteps ?? 0;
+            restoredGoals[ex.id] = specificGoal;
+        });
+        setGoals(restoredGoals);
+    } else {
+        // Rest: skip all
+        setSkipped(new Set(allExerciseIds));
+    }
+  };
+
+  const allSkipped = exercises.length > 0 && exercises.every(ex => skipped.has(ex.id));
+
   if (!currentStudent) return null;
 
   return (
@@ -140,7 +165,7 @@ const SetStudentGoalsDialog: React.FC<SetStudentGoalsDialogProps> = ({
             각 운동별 목표를 설정하거나, 오늘 하루 건너뛸 수 있습니다.
           </DialogDescription>
         </DialogHeader>
-        <div className="p-4 md:p-6 grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[70vh] overflow-y-auto">
+        <div className="p-4 md:p-6 grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[60vh] overflow-y-auto">
           {exercises && exercises.length > 0 ? (
             exercises.map(exercise => {
               const IconComponent = exercise.icon; 
@@ -202,7 +227,26 @@ const SetStudentGoalsDialog: React.FC<SetStudentGoalsDialogProps> = ({
             <p className="text-muted-foreground text-center">운동 목록이 아직 설정되지 않았습니다.</p>
           )}
         </div>
-        <DialogFooter className="p-6 pt-4 bg-slate-50 dark:bg-slate-800/30">
+        
+        <div className="px-6 pb-4 pt-4 border-t">
+          <Button
+            variant={allSkipped ? "default" : "secondary"}
+            className="w-full"
+            onClick={handleRestDayClick}
+          >
+            {allSkipped ? (
+              <>
+                <Check className="mr-2 h-5 w-5" /> 휴식 취소하기
+              </>
+            ) : (
+              <>
+                <Waves className="mr-2 h-5 w-5" /> 오늘은 휴식할래요
+              </>
+            )}
+          </Button>
+        </div>
+
+        <DialogFooter className="p-6 pt-0 bg-slate-50 dark:bg-slate-800/30">
           <DialogClose asChild>
             <Button variant="outline" className="py-3 text-base rounded-lg">
               <X className="mr-2 h-5 w-5" /> 취소

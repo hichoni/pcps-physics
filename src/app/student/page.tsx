@@ -135,6 +135,7 @@ export default function StudentPage() {
   const [cameraExerciseId, setCameraExerciseId] = useState<string | null>(null);
   
   const [skippedExercises, setSkippedExercises] = useState<Set<string>>(new Set());
+  const [isRestDaySet, setIsRestDaySet] = useState(false);
   const todayDate = useMemo(() => new Date(), []);
   
   useEffect(() => {
@@ -143,6 +144,7 @@ export default function StudentPage() {
     setSkippedExercises(new Set());
     // Also reset daily goals from view, they will be re-fetched or user will be prompted to set them.
     setStudentGoals({}); 
+    setIsRestDaySet(false);
   }, [todayDate]);
 
 
@@ -451,7 +453,11 @@ export default function StudentPage() {
         await setDoc(goalsDocRef, { goals: newGoals });
         setStudentGoals(newGoals);
         setSkippedExercises(newSkipped);
-        toast({ title: "성공", description: "운동 목표가 저장되었습니다." });
+        
+        const allExercisesAreSkipped = availableExercises.length > 0 && availableExercises.every(ex => newSkipped.has(ex.id));
+        setIsRestDaySet(allExercisesAreSkipped);
+        
+        toast({ title: "성공", description: allExercisesAreSkipped ? "휴식의 날로 설정되었습니다." : "운동 목표가 저장되었습니다." });
         setIsGoalsDialogOpen(false);
 
         const today = format(new Date(), "yyyy-MM-dd");
@@ -922,7 +928,7 @@ export default function StudentPage() {
                 </div>
               ) :
               hasEffectiveGoals ? (
-                 <div className="space-y-4 flex-grow">
+                 <div className="space-y-3 flex-grow">
                     {availableExercises.filter(ex => {
                       if (skippedExercises.has(ex.id)) return false;
                       const goal = studentGoals[ex.id];
@@ -957,24 +963,28 @@ export default function StudentPage() {
                       }
                       
                       const percent = goalValue > 0 ? Math.min(100, Math.round((achievedValue / goalValue) * 100)) : 0;
-                      const goalText = goalValue > 0 ? `${goalValue}${unit}` : '목표 없음';
-                      const progressText = goalValue > 0 ? `오늘 ${achievedValue}${unit} / 목표 ${goalValue}${unit}` : `오늘 ${achievedValue}${unit}`;
+                      const goalText = goalValue > 0 ? `목표 ${goalValue}${unit}` : '목표 없음';
+                      const progressText = `오늘 ${achievedValue}${unit}`;
                       
                       return (
                         <div key={exercise.id} className="p-3 border rounded-lg bg-secondary/20">
-                          <div className="flex items-center justify-between mb-2">
+                           <div className="flex items-center justify-between mb-1">
                             <span className="font-semibold text-primary flex items-center">
                               <IconComp className="inline-block mr-2 h-5 w-5" />
                               {exercise.koreanName}
                             </span>
                             <span className="text-sm font-medium text-muted-foreground">{goalText}</span>
                           </div>
-                          <Progress value={percent} className="h-3" />
-                          <p className="text-xs text-accent text-right mt-1.5">{progressText} ({percent}%)</p>
+                          <p className="text-xs text-accent text-right mb-1.5">{progressText} ({percent}%)</p>
+                          <Progress value={percent} className="h-2" />
                         </div>
                       );
                     })}
                   </div>
+              ) : isRestDaySet ? (
+                 <div className="flex items-center justify-center text-center py-4 flex-grow min-h-[10rem] rounded-lg">
+                  <p className="text-muted-foreground">오늘은 쉬는 날! 내일 더 힘차게 운동해요. 💪</p>
+                </div>
               ) : (
                  <div className="flex items-center justify-center text-center py-4 flex-grow min-h-[10rem] rounded-lg">
                   <p className="text-muted-foreground">오늘의 운동 목표를 설정해주세요!</p>
@@ -1044,13 +1054,19 @@ export default function StudentPage() {
                 return (
                   <Card 
                     key={index}
-                    onClick={isCurrentDay ? () => setIsGoalsDialogOpen(true) : undefined}
-                    onKeyDown={isCurrentDay ? (e) => (e.key === 'Enter' || e.key === ' ') && setIsGoalsDialogOpen(true) : undefined}
-                    tabIndex={isCurrentDay ? 0 : -1}
+                    onClick={() => {
+                        if (isCurrentDay) {
+                            setIsGoalsDialogOpen(true);
+                        } else {
+                            toast({ title: "준비 중", description: "미래의 운동 계획 기능은 곧 추가될 예정입니다!" });
+                        }
+                    }}
+                    onKeyDown={(e) => isCurrentDay && (e.key === 'Enter' || e.key === ' ') && setIsGoalsDialogOpen(true)}
+                    tabIndex={0}
                     className={cn(
-                      "flex flex-col text-center shadow-sm rounded-lg border transition-all",
+                      "flex flex-col text-center shadow-sm rounded-lg border transition-all cursor-pointer",
                       isCurrentDay 
-                        ? "ring-4 ring-offset-1 ring-primary border-primary shadow-xl bg-primary/5 dark:bg-primary/10 cursor-pointer" 
+                        ? "ring-4 ring-offset-1 ring-primary border-primary shadow-xl bg-primary/5 dark:bg-primary/10" 
                         : "bg-card hover:shadow-md",
                       isWeekend && !isCurrentDay ? "border-red-200 dark:border-red-800/70" : "border-border"
                     )}
@@ -1068,7 +1084,7 @@ export default function StudentPage() {
                     <CardContent className="p-2 flex-grow flex flex-col items-center justify-center">
                       <div className="text-xs flex-grow flex flex-col justify-center min-h-[5em] w-full">
                         {isCurrentDay ? (
-                          todaysEffectiveGoals.length > 0 ? (
+                          hasEffectiveGoals ? (
                             <ul className="text-left text-xs space-y-1 w-full px-1">
                               {todaysEffectiveGoals.map(exercise => {
                                 const goal = studentGoals[exercise.id];
@@ -1088,8 +1104,8 @@ export default function StudentPage() {
                             </ul>
                           ) : (
                             <div className="h-full flex flex-col items-center justify-center text-center">
-                                <p className="font-semibold text-primary">오늘의 목표를</p>
-                                <p className="font-semibold text-primary">설정해주세요</p>
+                                <p className="font-semibold text-primary">{isRestDaySet ? '오늘은 쉬는 날' : '오늘의 목표를'}</p>
+                                <p className="font-semibold text-primary">{isRestDaySet ? '푹 쉬어요!' : '설정해주세요'}</p>
                                 <p className="text-xs text-muted-foreground mt-1">클릭하여 시작</p>
                             </div>
                           )
