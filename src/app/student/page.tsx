@@ -137,7 +137,11 @@ export default function StudentPage() {
   const todayDate = useMemo(() => new Date(), []);
   
   useEffect(() => {
+    // This effect runs only when the component mounts or when the date changes.
+    // It resets the daily "skipped" status for the student.
     setSkippedExercises(new Set());
+    // Also reset daily goals from view, they will be re-fetched or user will be prompted to set them.
+    setStudentGoals({}); 
   }, [todayDate]);
 
 
@@ -438,22 +442,16 @@ export default function StudentPage() {
     }
   };
 
-  const handleSaveGoals = async (newGoals: StudentGoal) => {
+  const handleSaveGoals = async (data: { goals: StudentGoal; skipped: Set<string> }) => {
+    const { goals: newGoals, skipped: newSkipped } = data;
     if (currentStudent && currentLevelInfo) {
       try {
         const goalsDocRef = doc(db, "studentGoals", currentStudent.id);
         await setDoc(goalsDocRef, { goals: newGoals });
         setStudentGoals(newGoals);
+        setSkippedExercises(newSkipped);
         toast({ title: "성공", description: "운동 목표가 저장되었습니다." });
         setIsGoalsDialogOpen(false);
-        
-        setSkippedExercises(prevSkipped => {
-            const newSkipped = new Set(prevSkipped);
-            Object.keys(newGoals).forEach(exerciseId => {
-                newSkipped.delete(exerciseId);
-            });
-            return newSkipped;
-        });
 
         const today = format(new Date(), "yyyy-MM-dd");
         const metToday = new Set<string>();
@@ -480,19 +478,6 @@ export default function StudentPage() {
         toast({ title: "오류", description: "운동 목표 저장에 실패했습니다.", variant: "destructive" });
       }
     }
-  };
-  
-  const handleSkipExercise = (exerciseId: string) => {
-    setSkippedExercises(prev => {
-        const newSet = new Set(prev);
-        newSet.add(exerciseId);
-        return newSet;
-    });
-    const exercise = availableExercises.find(ex => ex.id === exerciseId);
-    if (exercise) {
-        toast({ title: "오늘 하루 쉬기", description: `${exercise.koreanName} 운동은 오늘 쉬기로 설정했습니다.` });
-    }
-    setIsGoalsDialogOpen(false); // Close the goal dialog
   };
 
   const handleLogout = () => {
@@ -713,6 +698,7 @@ export default function StudentPage() {
 
   const hasEffectiveGoals = useMemo(() => {
     return Object.keys(studentGoals).filter(exId => {
+      if (skippedExercises.has(exId)) return false;
       const goal = studentGoals[exId];
       if (!goal) return false;
       const ex = availableExercises.find(e => e.id === exId);
@@ -722,7 +708,7 @@ export default function StudentPage() {
       if (ex.id === 'walk_run' && goal.steps && goal.steps > 0) return true;
       return false;
     }).length > 0;
-  }, [studentGoals, availableExercises]);
+  }, [studentGoals, availableExercises, skippedExercises]);
 
   const mainContentKey = `${currentStudent?.id || 'no-student'}-${isActivityLogsLoading}-${isAiWelcomeLoading}`;
   
@@ -974,6 +960,7 @@ export default function StudentPage() {
                  <div className="flex items-center justify-center min-h-[10rem] bg-secondary/20 rounded-lg p-3 flex-grow">
                   <ul className="text-sm list-none space-y-1.5 pl-0 text-left w-full overflow-y-auto max-h-full">
                     {availableExercises.filter(ex => {
+                      if (skippedExercises.has(ex.id)) return false;
                       const goal = studentGoals[ex.id];
                       if (!goal) return false;
                       if ((ex.id === 'squat' || ex.id === 'jump_rope') && goal.count && goal.count > 0) return true;
@@ -1007,7 +994,7 @@ export default function StudentPage() {
                 </div>
               ) : (
                  <div className="flex items-center justify-center text-center py-4 flex-grow min-h-[10rem] rounded-lg">
-                  <p className="text-muted-foreground">나의 운동 목표를 설정해봐요!</p>
+                  <p className="text-muted-foreground">오늘의 운동 목표를 설정해주세요!</p>
                 </div>
               )}
               <Button variant="outline" className="w-full rounded-lg mt-auto py-3 text-base" onClick={() => setIsGoalsDialogOpen(true)} disabled={availableExercises.length === 0}>목표 설정/확인</Button>
@@ -1225,7 +1212,7 @@ export default function StudentPage() {
           exercises={availableExercises}
           currentStudent={currentStudent}
           initialGoals={studentGoals}
-          onSkipExercise={handleSkipExercise}
+          skippedExercises={skippedExercises}
         />
 
         {currentStudent && (

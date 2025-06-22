@@ -3,16 +3,18 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import type { Exercise, Student, StudentGoal, ExerciseGoal } from '@/lib/types';
-import { Target, Save, X, PlusCircle, MinusCircle, SkipForward } from 'lucide-react';
+import { Target, Save, X, PlusCircle, MinusCircle } from 'lucide-react';
+import { Checkbox } from "@/components/ui/checkbox";
+import { cn } from '@/lib/utils';
 
 interface SetStudentGoalsDialogProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (goals: StudentGoal) => void;
+  onSave: (data: { goals: StudentGoal, skipped: Set<string> }) => void;
   exercises: Exercise[]; 
   currentStudent: Student | null;
   initialGoals: StudentGoal;
-  onSkipExercise: (exerciseId: string) => void;
+  skippedExercises: Set<string>;
 }
 
 const SetStudentGoalsDialog: React.FC<SetStudentGoalsDialogProps> = ({ 
@@ -22,9 +24,10 @@ const SetStudentGoalsDialog: React.FC<SetStudentGoalsDialogProps> = ({
   exercises, 
   currentStudent, 
   initialGoals,
-  onSkipExercise,
+  skippedExercises,
 }) => {
   const [goals, setGoals] = useState<StudentGoal>({});
+  const [skipped, setSkipped] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (isOpen) {
@@ -43,8 +46,9 @@ const SetStudentGoalsDialog: React.FC<SetStudentGoalsDialogProps> = ({
         newGoalsState[ex.id] = specificGoal;
       });
       setGoals(newGoalsState);
+      setSkipped(new Set(skippedExercises));
     }
-  }, [isOpen, exercises, initialGoals]);
+  }, [isOpen, exercises, initialGoals, skippedExercises]);
 
   const handleValueChange = (exerciseId: string, field: keyof ExerciseGoal, delta: number) => {
     const exercise = exercises.find(e => e.id === exerciseId);
@@ -59,7 +63,6 @@ const SetStudentGoalsDialog: React.FC<SetStudentGoalsDialogProps> = ({
       const currentVal = prevGoals[exerciseId]?.[field] ?? 0;
       const newVal = Math.max(0, currentVal + (delta * step));
 
-      // Create a new goal object ensuring only one metric is active
       const newGoalState: ExerciseGoal = {};
       if (field === 'count') newGoalState.count = newVal;
       else if (field === 'time') newGoalState.time = newVal;
@@ -72,20 +75,55 @@ const SetStudentGoalsDialog: React.FC<SetStudentGoalsDialogProps> = ({
     });
   };
 
-  const handleDialogSave = () => {
-    const cleanedGoals: StudentGoal = {};
-    for (const exId in goals) {
-      const exGoal = goals[exId];
-      const cleanedExGoal: ExerciseGoal = {};
-      if (exGoal.count !== undefined && exGoal.count > 0) cleanedExGoal.count = exGoal.count;
-      else if (exGoal.time !== undefined && exGoal.time > 0) cleanedExGoal.time = exGoal.time;
-      else if (exGoal.steps !== undefined && exGoal.steps > 0) cleanedExGoal.steps = exGoal.steps;
-      
-      if (Object.keys(cleanedExGoal).length > 0) {
-        cleanedGoals[exId] = cleanedExGoal;
-      }
+  const handleSkipToggle = (exerciseId: string, isNowSkipped: boolean) => {
+    setSkipped(prev => {
+        const newSkipped = new Set(prev);
+        if (isNowSkipped) {
+            newSkipped.add(exerciseId);
+        } else {
+            newSkipped.delete(exerciseId);
+        }
+        return newSkipped;
+    });
+
+    if (!isNowSkipped) {
+        const exercise = exercises.find(e => e.id === exerciseId);
+        if (exercise) {
+            const initialGoalForExercise = initialGoals[exercise.id];
+            let specificGoal: ExerciseGoal = {};
+
+            if (exercise.id === 'squat' || exercise.id === 'jump_rope') {
+                specificGoal.count = initialGoalForExercise?.count ?? exercise.defaultCount ?? 0;
+            } else if (exercise.id === 'plank') {
+                specificGoal.time = initialGoalForExercise?.time ?? exercise.defaultTime ?? 0;
+            } else if (exercise.id === 'walk_run') {
+                specificGoal.steps = initialGoalForExercise?.steps ?? exercise.defaultSteps ?? 0;
+            }
+
+            setGoals(prevGoals => ({
+                ...prevGoals,
+                [exerciseId]: specificGoal,
+            }));
+        }
     }
-    onSave(cleanedGoals);
+  };
+
+  const handleDialogSave = () => {
+    const goalsToSave: StudentGoal = {};
+    Object.keys(goals).forEach(exId => {
+        if (!skipped.has(exId)) {
+            const exGoal = goals[exId];
+            const cleanedExGoal: ExerciseGoal = {};
+            if (exGoal.count !== undefined && exGoal.count > 0) cleanedExGoal.count = exGoal.count;
+            else if (exGoal.time !== undefined && exGoal.time > 0) cleanedExGoal.time = exGoal.time;
+            else if (exGoal.steps !== undefined && exGoal.steps > 0) cleanedExGoal.steps = exGoal.steps;
+            
+            if (Object.keys(cleanedExGoal).length > 0) {
+                goalsToSave[exId] = cleanedExGoal;
+            }
+        }
+    });
+    onSave({ goals: goalsToSave, skipped });
   };
   
   if (!currentStudent) return null;
@@ -126,24 +164,33 @@ const SetStudentGoalsDialog: React.FC<SetStudentGoalsDialogProps> = ({
 
               if (!field || !unit) return null;
 
+              const isSkipped = skipped.has(exercise.id);
+
               return (
                 <div key={exercise.id} className="p-3 border rounded-lg shadow-sm bg-background">
                   <div className="flex justify-between items-center mb-2">
                     <h3 className="text-base font-semibold text-primary flex items-center">
                       <IconComponent className="mr-2 h-5 w-5" /> {exercise.koreanName}
                     </h3>
-                    <Button variant="ghost" size="sm" onClick={() => onSkipExercise(exercise.id)} className="h-auto px-1.5 py-0.5 text-xs text-muted-foreground hover:text-primary">
-                       <SkipForward className="mr-1 h-3 w-3"/> 패스
-                    </Button>
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id={`skip-${exercise.id}`}
+                        checked={isSkipped}
+                        onCheckedChange={(checked) => handleSkipToggle(exercise.id, !!checked)}
+                      />
+                      <Label htmlFor={`skip-${exercise.id}`} className="text-xs font-normal text-muted-foreground cursor-pointer">
+                        패스
+                      </Label>
+                    </div>
                   </div>
                   <div className="space-y-1">
                     <Label htmlFor={`${exercise.id}-${field}`} className="text-xs">목표 ({unit})</Label>
                     <div className="flex items-center justify-center space-x-2 pt-1">
-                      <Button variant="outline" size="icon" className="h-9 w-9 rounded-full" onClick={() => handleValueChange(exercise.id, field!, -1)}>
+                      <Button variant="outline" size="icon" className="h-9 w-9 rounded-full" onClick={() => handleValueChange(exercise.id, field!, -1)} disabled={isSkipped}>
                         <MinusCircle className="h-5 w-5 text-muted-foreground" />
                       </Button>
-                      <span className="text-2xl font-bold w-20 text-center tabular-nums">{value ?? 0}</span>
-                      <Button variant="outline" size="icon" className="h-9 w-9 rounded-full" onClick={() => handleValueChange(exercise.id, field!, 1)}>
+                      <span className={cn("text-2xl font-bold w-20 text-center tabular-nums", isSkipped && "text-muted-foreground/50")}>{isSkipped ? 0 : (value ?? 0)}</span>
+                      <Button variant="outline" size="icon" className="h-9 w-9 rounded-full" onClick={() => handleValueChange(exercise.id, field!, 1)} disabled={isSkipped}>
                         <PlusCircle className="h-5 w-5 text-muted-foreground" />
                       </Button>
                     </div>
