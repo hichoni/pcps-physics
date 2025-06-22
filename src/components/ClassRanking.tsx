@@ -60,25 +60,22 @@ const calculateStreak = (studentId: string, allLogs: RecordedExercise[]): number
 const PodiumItem: React.FC<{ student: StudentWithStreak; rank: number; isCurrentUser: boolean }> = ({ student, rank, isCurrentUser }) => {
     const podiumStyles = {
         1: {
-            height: 'h-48',
+            height: 'h-40 sm:h-48',
             borderColor: 'border-yellow-400',
-            bgColor: 'bg-yellow-50 dark:bg-yellow-900/20',
             textColor: 'text-yellow-600 dark:text-yellow-400',
-            icon: <Trophy className="h-8 w-8" />,
+            icon: <Trophy className="h-7 sm:h-8 w-7 sm:w-8" />,
         },
         2: {
-            height: 'h-40',
+            height: 'h-36 sm:h-40',
             borderColor: 'border-slate-400',
-            bgColor: 'bg-slate-50 dark:bg-slate-800/20',
             textColor: 'text-slate-500 dark:text-slate-400',
-            icon: <Medal className="h-7 w-7" />,
+            icon: <Medal className="h-6 sm:h-7 w-6 sm:w-7" />,
         },
         3: {
-            height: 'h-36',
+            height: 'h-32 sm:h-36',
             borderColor: 'border-orange-400',
-            bgColor: 'bg-orange-50 dark:bg-orange-900/20',
             textColor: 'text-orange-500 dark:text-orange-400',
-            icon: <Award className="h-6 w-6" />,
+            icon: <Award className="h-5 sm:h-6 w-5 sm:w-6" />,
         },
     };
 
@@ -86,20 +83,20 @@ const PodiumItem: React.FC<{ student: StudentWithStreak; rank: number; isCurrent
     const SelectedAvatarIcon = AVATAR_OPTIONS.find(opt => opt.id === student.avatarSeed)?.icon;
 
     return (
-        <div className={cn("flex flex-1 flex-col items-center justify-end min-w-0", style.height)}>
+        <div className={cn("flex flex-1 flex-col items-center justify-end min-w-0 px-1", style.height)}>
             <div className={cn(style.textColor, "flex flex-col items-center")}>
                  {style.icon}
-                 <span className="font-bold text-lg">{rank}</span>
+                 <span className="font-bold text-base sm:text-lg">{rank}위</span>
             </div>
-            <Avatar className="h-16 w-16 border-4 mt-1" style={{ borderColor: style.borderColor }}>
+            <Avatar className="h-14 w-14 sm:h-16 sm:w-16 border-4 mt-1" style={{ borderColor: style.borderColor }}>
                 {SelectedAvatarIcon ? (
                     <SelectedAvatarIcon className="h-full w-full p-2 text-primary" />
                 ) : (
-                    <AvatarFallback className="text-xl bg-muted">{getInitials(student.name)}</AvatarFallback>
+                    <AvatarFallback className="text-lg sm:text-xl bg-muted">{getInitials(student.name)}</AvatarFallback>
                 )}
             </Avatar>
-            <p className={cn("font-bold text-sm mt-2 truncate w-full text-center", isCurrentUser && "text-primary")}>{student.name}</p>
-            <p className="text-xs text-muted-foreground">{(student.totalXp || 0).toLocaleString()} XP</p>
+            <p className={cn("font-bold text-sm sm:text-base mt-2 truncate w-full text-center", isCurrentUser && "text-primary")}>{student.name}</p>
+            <p className="text-xs sm:text-sm text-muted-foreground">{(student.totalXp || 0).toLocaleString()} XP</p>
         </div>
     );
 };
@@ -142,7 +139,7 @@ const ClassRanking: React.FC<ClassRankingProps> = ({ students, logs, currentStud
       <CardContent>
         {/* Podium for Top 3 */}
         {topThree.length > 0 && (
-            <div className="flex justify-center items-end gap-2 border-b-2 border-border pb-4 mb-4">
+            <div className="flex justify-center items-end gap-1 sm:gap-2 border-b-2 border-border pb-4 mb-4">
                 {podiumOrder.map((student, index) => {
                     // Original rank before reordering for display
                     let rank: number;
@@ -162,54 +159,45 @@ const ClassRanking: React.FC<ClassRankingProps> = ({ students, logs, currentStud
             </div>
         )}
 
-        {/* List for 4th to 8th */}
+        {/* Grid for 4th to 8th */}
         {others.length > 0 && (
-            <ul className="space-y-2">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
             {others.map((student, index) => {
                 const rank = index + 4;
                 const SelectedAvatarIcon = AVATAR_OPTIONS.find(opt => opt.id === student.avatarSeed)?.icon;
                 
                 return (
-                <li
+                <div
                     key={student.id}
                     className={cn(
-                    "flex items-center gap-3 p-2 rounded-lg border transition-all",
-                    student.id === currentStudentId 
-                        ? "bg-primary/10 border-primary"
-                        : "bg-background/50 hover:bg-secondary/40"
+                        "flex flex-col items-center p-2 rounded-lg border transition-all text-center",
+                        student.id === currentStudentId 
+                            ? "bg-primary/10 border-primary shadow-md"
+                            : "bg-background/50 hover:bg-secondary/40"
                     )}
                 >
-                    <div className="flex items-center justify-center w-6 text-muted-foreground font-semibold">
-                      {rank}
-                    </div>
-                    
-                    <Avatar className="h-9 w-9 border">
-                    {SelectedAvatarIcon ? (
-                        <SelectedAvatarIcon className="h-full w-full text-primary p-1" />
-                    ) : (
-                        <AvatarFallback className="text-sm bg-muted">
-                        {getInitials(student.name)}
-                        </AvatarFallback>
-                    )}
+                    <div className="font-bold text-sm text-muted-foreground">{rank}위</div>
+                    <Avatar className="h-10 w-10 border mt-1">
+                        {SelectedAvatarIcon ? (
+                            <SelectedAvatarIcon className="h-full w-full text-primary p-1" />
+                        ) : (
+                            <AvatarFallback className="text-sm bg-muted">
+                                {getInitials(student.name)}
+                            </AvatarFallback>
+                        )}
                     </Avatar>
-                    
-                    <div className="flex-1">
-                      <p className="font-semibold text-sm text-foreground">{student.name}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {(student.totalXp || 0).toLocaleString()} XP
-                      </p>
-                    </div>
-                    
+                    <p className="font-semibold text-xs sm:text-sm mt-2 truncate w-full">{student.name}</p>
+                    <p className="text-xs text-muted-foreground">{(student.totalXp || 0).toLocaleString()} XP</p>
                     {student.streak > 0 && (
-                    <div className="flex items-center gap-1 text-xs text-orange-500 font-medium">
-                        <Flame className="h-3 w-3" />
-                        <span>{student.streak}일</span>
-                    </div>
+                        <div className="flex items-center justify-center gap-1 text-xs text-orange-500 font-medium mt-1">
+                            <Flame className="h-3 w-3" />
+                            <span>{student.streak}일</span>
+                        </div>
                     )}
-                </li>
+                </div>
                 );
             })}
-            </ul>
+            </div>
         )}
       </CardContent>
     </Card>
