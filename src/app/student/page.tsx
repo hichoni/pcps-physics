@@ -699,6 +699,7 @@ export default function StudentPage() {
   
   const currentDayOfWeek = useMemo(() => todayDate.getDay(), [todayDate]); // 0 for Sunday, ..., 6 for Saturday
   const startOfTheCurrentWeek = useMemo(() => startOfWeek(todayDate, { weekStartsOn: 0 }), [todayDate]);
+  const todaysXp = useMemo(() => goalsMetTodayForXp.size * 10, [goalsMetTodayForXp]);
 
 
   if (isLoadingLoginOptions || isLoadingExercises) {
@@ -1065,8 +1066,7 @@ export default function StudentPage() {
                 const currentDateForDay = addDays(startOfTheCurrentWeek, index);
                 const formattedDate = format(currentDateForDay, "M.d", { locale: ko });
                 const isCurrentDay = index === currentDayOfWeek;
-                const isWeekend = index === 0 || index === 6; // 0 for Sunday, 6 for Saturday
-                const showSimulatedXp = item.dayEng === "Wed"; 
+                const isWeekend = index === 0 || index === 6;
 
                 const todaysEffectiveGoals = availableExercises.filter(ex => {
                   if (skippedExercises.has(ex.id)) return false;
@@ -1112,23 +1112,30 @@ export default function StudentPage() {
                       <div className="text-xs flex-grow flex flex-col justify-center min-h-[5em] w-full">
                         {isCurrentDay ? (
                           hasEffectiveGoals ? (
-                            <ul className="text-left text-xs space-y-1 w-full px-1">
-                              {todaysEffectiveGoals.map(exercise => {
-                                const goal = studentGoals[exercise.id];
-                                let goalText = "";
-                                if (exercise.id === 'squat' || exercise.id === 'jump_rope') goalText = `${goal.count}${exercise.countUnit}`;
-                                else if (exercise.id === 'plank') goalText = `${goal.time}${exercise.timeUnit}`;
-                                else if (exercise.id === 'walk_run') goalText = `${goal.steps}${exercise.stepsUnit}`;
-                                
-                                const IconComp = getIconByName(exercise.iconName) || ActivityIconLucide;
-                                return (
-                                  <li key={exercise.id} className="flex items-center gap-1.5 truncate" title={`${exercise.koreanName}: ${goalText}`}>
-                                    <IconComp className="h-3 w-3 shrink-0" />
-                                    <span className="truncate font-medium">{exercise.koreanName}: {goalText}</span>
-                                  </li>
-                                );
-                              })}
-                            </ul>
+                            <>
+                              <ul className="text-left text-xs space-y-1 w-full px-1">
+                                {todaysEffectiveGoals.map(exercise => {
+                                  const goal = studentGoals[exercise.id];
+                                  let goalText = "";
+                                  if (exercise.id === 'squat' || exercise.id === 'jump_rope') goalText = `${goal.count}${exercise.countUnit}`;
+                                  else if (exercise.id === 'plank') goalText = `${goal.time}${exercise.timeUnit}`;
+                                  else if (exercise.id === 'walk_run') goalText = `${goal.steps}${exercise.stepsUnit}`;
+                                  
+                                  const IconComp = getIconByName(exercise.iconName) || ActivityIconLucide;
+                                  return (
+                                    <li key={exercise.id} className="flex items-center gap-1.5 truncate" title={`${exercise.koreanName}: ${goalText}`}>
+                                      <IconComp className="h-3 w-3 shrink-0" />
+                                      <span className="truncate font-medium">{exercise.koreanName}: {goalText}</span>
+                                    </li>
+                                  );
+                                })}
+                              </ul>
+                              {todaysXp > 0 && (
+                                <p className="font-semibold text-green-600 dark:text-green-400 mt-2 text-center text-xs">
+                                  +{todaysXp}XP 😊
+                                </p>
+                              )}
+                            </>
                           ) : (
                             <div className="h-full flex flex-col items-center justify-center text-center">
                                 <p className="font-semibold text-primary">{isRestDaySet ? '오늘은 쉬는 날' : '오늘의 목표를'}</p>
@@ -1137,14 +1144,7 @@ export default function StudentPage() {
                             </div>
                           )
                         ) : (
-                          <>
-                            <p className="min-h-[3em] leading-tight text-center">{item.defaultText}</p>
-                            {showSimulatedXp && (
-                              <p className="font-semibold text-green-600 dark:text-green-400 mt-0.5 text-center">
-                                +40XP 😊
-                              </p>
-                            )}
-                          </>
+                          <p className="min-h-[3em] leading-tight text-center">{item.defaultText}</p>
                         )}
                       </div>
                     </CardContent>
