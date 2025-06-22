@@ -649,7 +649,7 @@ export default function StudentPage() {
         setIsChangeAvatarDialogOpen(false);
       } catch (error) {
         console.error("Error updating avatar:", error);
-        toast({ title: "오류", description: "아바타 변경에 실패했습니다.", variant: "destructive" });
+        toast({ title: "오류", description: "아바타 변경에 실패했습니다. 다시 시도해주세요.", variant: "destructive" });
       }
     }
   };
@@ -1142,7 +1142,7 @@ export default function StudentPage() {
                         ) : dayHasGoals ? (
                             <ul className="text-left text-xs space-y-1 w-full px-1">
                                 {availableExercises.filter(ex => dayGoalData.goals[ex.id] && !dayGoalData.skipped.has(ex.id)).map(exercise => {
-                                  const goal = dayGoalData.goals[ex.id];
+                                  const goal = dayGoalData.goals[exercise.id];
                                   let goalText = "";
                                   if (exercise.id === 'squat' || exercise.id === 'jump_rope') goalText = `${goal.count}${exercise.countUnit}`;
                                   else if (exercise.id === 'plank') goalText = `${goal.time}${exercise.timeUnit}`;
