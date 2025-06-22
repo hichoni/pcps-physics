@@ -481,28 +481,38 @@ export default function StudentPage() {
 
   const handleSaveDailyGoal = async (data: { date: Date; goals: StudentGoal; skipped: Set<string> }) => {
     if (currentStudent) {
-      const { date, goals, skipped } = data;
-      const dateKey = format(date, 'yyyy-MM-dd');
-      
-      const dataToSave: DailyGoalEntry = {
-        goals,
-        skipped: Array.from(skipped),
-      };
+        const { date, goals, skipped } = data;
+        const dateKey = format(date, 'yyyy-MM-dd');
+        
+        const dataToSave: DailyGoalEntry = {
+            goals,
+            skipped: Array.from(skipped),
+        };
 
-      try {
-        const goalsDocRef = doc(db, "studentGoals", currentStudent.id);
-        await setDoc(goalsDocRef, { 
-            dailyGoals: {
-                [dateKey]: dataToSave
+        try {
+            const goalsDocRef = doc(db, "studentGoals", currentStudent.id);
+            const docSnap = await getDoc(goalsDocRef);
+
+            if (docSnap.exists()) {
+                // Document exists, update the specific date field within the map
+                await updateDoc(goalsDocRef, {
+                    [`dailyGoals.${dateKey}`]: dataToSave,
+                });
+            } else {
+                // Document doesn't exist, create it with the initial date's goal
+                await setDoc(goalsDocRef, {
+                    dailyGoals: {
+                        [dateKey]: dataToSave,
+                    },
+                });
             }
-        }, { merge: true });
 
-        toast({ title: "성공", description: `${format(date, 'M월 d일')} 운동 목표가 저장되었습니다.` });
-        setGoalDialogState({isOpen: false, date: null});
-      } catch (error) {
-        console.error("Error saving daily goals: ", error);
-        toast({ title: "오류", description: "운동 목표 저장에 실패했습니다.", variant: "destructive" });
-      }
+            toast({ title: "성공", description: `${format(date, 'M월 d일')} 운동 목표가 저장되었습니다.` });
+            setGoalDialogState({isOpen: false, date: null});
+        } catch (error) {
+            console.error("Error saving daily goals: ", error);
+            toast({ title: "오류", description: "운동 목표 저장에 실패했습니다.", variant: "destructive" });
+        }
     }
   };
 
@@ -1132,7 +1142,7 @@ export default function StudentPage() {
                         ) : dayHasGoals ? (
                             <ul className="text-left text-xs space-y-1 w-full px-1">
                                 {availableExercises.filter(ex => dayGoalData.goals[ex.id] && !dayGoalData.skipped.has(ex.id)).map(exercise => {
-                                  const goal = dayGoalData.goals[exercise.id];
+                                  const goal = dayGoalData.goals[ex.id];
                                   let goalText = "";
                                   if (exercise.id === 'squat' || exercise.id === 'jump_rope') goalText = `${goal.count}${exercise.countUnit}`;
                                   else if (exercise.id === 'plank') goalText = `${goal.time}${exercise.timeUnit}`;
