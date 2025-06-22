@@ -123,7 +123,7 @@ export default function StudentPage() {
   const [currentStudent, setCurrentStudent] = useState<Student | null>(null);
 
   const [isLoadingLoginOptions, setIsLoadingLoginOptions] = useState(true);
-  const [isLoadingStudentData, setIsLoadingStudentData] = useState(false);
+  const [isLoadingStudentData, setIsLoadingStudentData] = useState(true);
   const [isActivityLogsLoading, setIsActivityLogsLoading] = useState(true);
   const [isLoadingExercises, setIsLoadingExercises] = useState(true);
   const [isLoadingClassData, setIsLoadingClassData] = useState(true);
@@ -257,20 +257,16 @@ export default function StudentPage() {
     }
   }, []);
 
-  const fetchStudentSpecificData = useCallback(async (studentId: string, studentName: string, studentRef: Student, currentExercises: ExerciseType[], currentLvlInfo: LevelInfo) => {
-    if (!studentId) return Promise.resolve(undefined);
-
+  // Real-time listener for student's goals
+  useEffect(() => {
+    if (!currentStudent?.id) {
+      setAllDailyGoals({});
+      return;
+    }
     setIsLoadingStudentData(true);
-    setIsActivityLogsLoading(true);
-    setIsAiWelcomeLoading(true);
-
-    let unsubscribeLogs: (() => void) | undefined;
-
-    try {
-      const goalsDocRef = doc(db, "studentGoals", studentId);
-      const goalsDocSnap = await getDoc(goalsDocRef);
-      const dailyGoalsFromDb: Record<string, DailyGoalEntry> = goalsDocSnap.exists() ? (goalsDocSnap.data().dailyGoals || {}) : {};
-
+    const goalsDocRef = doc(db, 'studentGoals', currentStudent.id);
+    const unsubscribe = onSnapshot(goalsDocRef, (docSnap) => {
+      const dailyGoalsFromDb = docSnap.exists() ? docSnap.data().dailyGoals || {} : {};
       const processedGoals: Record<string, { goals: StudentGoal; skipped: Set<string> }> = {};
       for (const dateKey in dailyGoalsFromDb) {
         processedGoals[dateKey] = {
@@ -279,131 +275,131 @@ export default function StudentPage() {
         };
       }
       setAllDailyGoals(processedGoals);
-      
-      const goalsForToday = processedGoals[todayKey] || { goals: {}, skipped: new Set() };
-      setTodaysGoals(goalsForToday.goals);
-      setTodaysSkipped(goalsForToday.skipped);
-      
-      fetchRecommendation(studentRef, goalsForToday.goals, currentLvlInfo.name);
+      setIsLoadingStudentData(false);
+    }, (error) => {
+        console.error("Error fetching goals snapshot: ", error);
+        toast({ title: "오류", description: "목표 데이터를 실시간으로 가져오는 데 실패했습니다.", variant: "destructive" });
+        setIsLoadingStudentData(false);
+    });
 
-      const welcomeMsgDocRef = doc(db, STUDENT_WELCOME_MESSAGE_DOC_PATH);
-      const welcomeMsgDocSnap = await getDoc(welcomeMsgDocRef);
-      const baseWelcome = (welcomeMsgDocSnap.exists() && welcomeMsgDocSnap.data()?.text) 
-                          ? welcomeMsgDocSnap.data()!.text 
-                          : DEFAULT_STUDENT_WELCOME_MESSAGE;
-      setTeacherBaseWelcomeMessage(baseWelcome);
-      fetchAiPersonalizedWelcome(studentRef, currentLvlInfo, baseWelcome);
+    return () => unsubscribe();
+  }, [currentStudent?.id, toast]);
+
+  // Set today's goals whenever all goals are updated
+  useEffect(() => {
+    const goalsForToday = allDailyGoals[todayKey] || { goals: {}, skipped: new Set() };
+    setTodaysGoals(goalsForToday.goals);
+    setTodaysSkipped(goalsForToday.skipped);
+  }, [allDailyGoals, todayKey]);
 
 
-      const logsQuery = query(collection(db, "exerciseLogs"), where("studentId", "==", studentId));
-      unsubscribeLogs = onSnapshot(logsQuery, (logsSnapshot) => {
-        const logsList = logsSnapshot.docs.map(lDoc => {
-          const data = lDoc.data();
-          let dateStr = data.date;
-          if (data.date && typeof data.date.toDate === 'function') {
-            dateStr = data.date.toDate().toISOString();
-          }
-          return {
-            id: lDoc.id,
-            ...data,
-            date: dateStr,
-          } as RecordedExercise;
-        });
-        const sortedLogs = logsList.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-        setStudentActivityLogs(sortedLogs);
+  // Real-time listener for student's logs
+  useEffect(() => {
+    if (!currentStudent?.id) {
+      setStudentActivityLogs([]);
+      setGoalsMetTodayForXp(new Set());
+      return;
+    }
 
-        const todayLogs = sortedLogs.filter(log => isToday(parseISO(log.date)))
-
+    setIsActivityLogsLoading(true);
+    const logsQuery = query(collection(db, 'exerciseLogs'), where('studentId', '==', currentStudent.id));
+    const unsubscribe = onSnapshot(logsQuery, (snapshot) => {
+        const logsList = snapshot.docs.map(lDoc => {
+            const data = lDoc.data();
+            let dateStr = data.date;
+            if (data.date && typeof data.date.toDate === 'function') {
+                dateStr = data.date.toDate().toISOString();
+            }
+            return { id: lDoc.id, ...data, date: dateStr } as RecordedExercise;
+        }).sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        
+        setStudentActivityLogs(logsList);
+        
+        const todayLogs = logsList.filter(log => isToday(parseISO(log.date)));
+        const goalsDataForToday = allDailyGoals[todayKey]?.goals || {};
+        
         const metToday = new Set<string>();
-        currentExercises.forEach(exercise => {
-          const goalData = goalsForToday.goals[exercise.id];
-          if (!goalData) return;
+        if (availableExercises.length > 0) {
+            availableExercises.forEach(exercise => {
+                const goalData = goalsDataForToday[exercise.id];
+                if (!goalData) return;
 
-          const logsForExerciseToday = todayLogs.filter(
-            log => log.exerciseId === exercise.id
-          );
+                const logsForExerciseToday = todayLogs.filter(
+                    log => log.exerciseId === exercise.id
+                );
 
-          let achievedValue = 0;
-          let currentGoalValue: number | undefined;
+                let achievedValue = 0;
+                let currentGoalValue: number | undefined;
 
-          if (exercise.id === 'squat' || exercise.id === 'jump_rope') {
-            achievedValue = logsForExerciseToday.reduce((sum, log) => sum + (log.countValue || 0), 0);
-            currentGoalValue = goalData.count;
-          } else if (exercise.id === 'plank') {
-            achievedValue = logsForExerciseToday.reduce((sum, log) => sum + (log.timeValue || 0), 0);
-            currentGoalValue = goalData.time;
-          } else if (exercise.id === 'walk_run') {
-            achievedValue = logsForExerciseToday.reduce((sum, log) => sum + (log.stepsValue || 0), 0);
-            currentGoalValue = goalData.steps;
-          }
-
-          if (currentGoalValue !== undefined && currentGoalValue > 0 && achievedValue >= currentGoalValue) {
-            metToday.add(exercise.id);
-          }
-        });
+                if (exercise.id === 'squat' || exercise.id === 'jump_rope') {
+                    achievedValue = logsForExerciseToday.reduce((sum, log) => sum + (log.countValue || 0), 0);
+                    currentGoalValue = goalData.count;
+                } else if (exercise.id === 'plank') {
+                    achievedValue = logsForExerciseToday.reduce((sum, log) => sum + (log.timeValue || 0), 0);
+                    currentGoalValue = goalData.time;
+                } else if (exercise.id === 'walk_run') {
+                    achievedValue = logsForExerciseToday.reduce((sum, log) => sum + (log.stepsValue || 0), 0);
+                    currentGoalValue = goalData.steps;
+                }
+                
+                if (currentGoalValue !== undefined && currentGoalValue > 0 && achievedValue >= currentGoalValue) {
+                    metToday.add(exercise.id);
+                }
+            });
+        }
         setGoalsMetTodayForXp(metToday);
         setIsActivityLogsLoading(false);
-      }, (error) => {
-        console.error("Error fetching student logs in real-time:", error);
-        toast({ title: "오류", description: "운동 기록 실시간 업데이트에 실패했습니다.", variant: "destructive" });
+
+    }, (error) => {
+        console.error("Error fetching logs snapshot:", error);
+        toast({ title: "오류", description: "운동 기록을 실시간으로 가져오는 데 실패했습니다.", variant: "destructive" });
         setIsActivityLogsLoading(false);
-      });
+    });
+    
+    return () => unsubscribe();
+  }, [currentStudent?.id, toast, availableExercises, allDailyGoals, todayKey]);
 
-      const complimentsDocRef = doc(db, COMPLIMENTS_DOC_PATH);
-      const complimentsDocSnap = await getDoc(complimentsDocRef);
-      let adjectiveList = DEFAULT_POSITIVE_ADJECTIVES_KR;
-      if (complimentsDocSnap.exists() && complimentsDocSnap.data()?.list && complimentsDocSnap.data()!.list.length > 0) {
-        adjectiveList = complimentsDocSnap.data()!.list;
-      }
-      const dayOfMonth = new Date().getDate();
-      const adjectiveIndex = (dayOfMonth - 1 + studentName.length) % adjectiveList.length;
-      setDailyCompliment(adjectiveList[adjectiveIndex] || adjectiveList[0] || "");
 
-      setIsLoadingStudentData(false);
-    } catch (error) {
-      console.error("Error fetching student specific data:", error);
-      toast({ title: "오류", description: "학생 데이터를 불러오는 데 실패했습니다.", variant: "destructive" });
-      setIsLoadingStudentData(false);
-      setIsActivityLogsLoading(false);
-      setIsAiWelcomeLoading(false);
-    }
-    return unsubscribeLogs;
-  }, [toast, fetchRecommendation, fetchAiPersonalizedWelcome, todayKey]);
-
+  // Effect for one-time fetches and AI calls when student changes
   useEffect(() => {
-    let unsubscribeLogsFunction: (() => void) | undefined;
-    if (currentStudent && currentLevelInfo) {
-        setIsActivityLogsLoading(true);
-
-        if (availableExercises.length > 0 || !isLoadingExercises) {
-            fetchStudentSpecificData(currentStudent.id, currentStudent.name, currentStudent, availableExercises, currentLevelInfo)
-              .then(unsub => {
-                if (unsub) unsubscribeLogsFunction = unsub;
-              });
-        } else {
-            setIsLoadingStudentData(false);
-            setIsActivityLogsLoading(false);
-            setStudentActivityLogs([]);
-        }
-    } else {
-      setTodaysGoals({});
-      setTodaysSkipped(new Set());
-      setAllDailyGoals({});
-      setStudentActivityLogs([]);
-      setRecommendedExercise(null);
-      setAiPersonalizedWelcome('');
-      setDailyCompliment('');
-      setGoalsMetTodayForXp(new Set());
-      setIsLoadingStudentData(false);
-      setIsActivityLogsLoading(false);
-      setIsAiWelcomeLoading(true);
-    }
-    return () => {
-      if (unsubscribeLogsFunction) {
-        unsubscribeLogsFunction();
-      }
+    if (!currentStudent || !currentLevelInfo) {
+        setIsAiWelcomeLoading(true); // Reset loading state
+        setDailyCompliment('');
+        return;
     };
-  }, [currentStudent, fetchStudentSpecificData, availableExercises, isLoadingExercises, currentLevelInfo]);
+
+    const fetchWelcomeData = async () => {
+        setIsAiWelcomeLoading(true);
+        const welcomeMsgDocRef = doc(db, STUDENT_WELCOME_MESSAGE_DOC_PATH);
+        const welcomeMsgDocSnap = await getDoc(welcomeMsgDocRef);
+        const baseWelcome = (welcomeMsgDocSnap.exists() && welcomeMsgDocSnap.data()?.text) 
+                              ? welcomeMsgDocSnap.data()!.text 
+                              : DEFAULT_STUDENT_WELCOME_MESSAGE;
+        setTeacherBaseWelcomeMessage(baseWelcome);
+        fetchAiPersonalizedWelcome(currentStudent, currentLevelInfo, baseWelcome);
+
+        const complimentsDocRef = doc(db, COMPLIMENTS_DOC_PATH);
+        const complimentsDocSnap = await getDoc(complimentsDocRef);
+        let adjectiveList = DEFAULT_POSITIVE_ADJECTIVES_KR;
+        if (complimentsDocSnap.exists() && complimentsDocSnap.data()?.list && complimentsDocSnap.data()!.list.length > 0) {
+            adjectiveList = complimentsDocSnap.data()!.list;
+        }
+        const dayOfMonth = new Date().getDate();
+        const adjectiveIndex = (dayOfMonth - 1 + currentStudent.name.length) % adjectiveList.length;
+        setDailyCompliment(adjectiveList[adjectiveIndex] || adjectiveList[0] || "");
+    };
+
+    fetchWelcomeData();
+  }, [currentStudent, currentLevelInfo, fetchAiPersonalizedWelcome]);
+
+
+  // Effect for AI recommendation, runs when goals change
+  useEffect(() => {
+    if (currentStudent && currentLevelInfo && (Object.keys(todaysGoals).length > 0 || todaysSkipped.size > 0)) {
+      fetchRecommendation(currentStudent, todaysGoals, currentLevelInfo.name);
+    }
+  }, [currentStudent, todaysGoals, todaysSkipped, currentLevelInfo, fetchRecommendation]);
+
 
   useEffect(() => {
     if (!currentStudent?.class) {
@@ -484,53 +480,32 @@ export default function StudentPage() {
   };
 
   const handleSaveDailyGoal = async (data: { date: Date; goals: StudentGoal; skipped: Set<string> }) => {
-    if (currentStudent && currentLevelInfo) {
+    if (currentStudent) {
       const { date, goals, skipped } = data;
       const dateKey = format(date, 'yyyy-MM-dd');
-
-      // Optimistically update local state for faster UI response
-      const newAllDailyGoals = { ...allDailyGoals, [dateKey]: { goals, skipped } };
-      setAllDailyGoals(newAllDailyGoals);
       
-      if (isToday(date)) {
-        setTodaysGoals(goals);
-        setTodaysSkipped(skipped);
-      }
+      const dataToSave: DailyGoalEntry = {
+        goals,
+        skipped: Array.from(skipped),
+      };
 
-      // Prepare data for Firestore (convert Sets to Arrays)
-      const storableDailyGoals: Record<string, DailyGoalEntry> = {};
-      for (const dKey in newAllDailyGoals) {
-        storableDailyGoals[dKey] = {
-          goals: newAllDailyGoals[dKey].goals,
-          skipped: Array.from(newAllDailyGoals[dKey].skipped),
-        };
-      }
-      
       try {
         const goalsDocRef = doc(db, "studentGoals", currentStudent.id);
-        await setDoc(goalsDocRef, { dailyGoals: storableDailyGoals });
-        
+        await setDoc(goalsDocRef, { 
+            dailyGoals: {
+                [dateKey]: dataToSave
+            }
+        }, { merge: true });
+
         toast({ title: "성공", description: `${format(date, 'M월 d일')} 운동 목표가 저장되었습니다.` });
         setGoalDialogState({isOpen: false, date: null});
-        
-        // Re-fetch AI recommendations and welcome message if today's goals were changed
-        if (isToday(date)) {
-            fetchRecommendation(currentStudent, goals, currentLevelInfo.name);
-            fetchAiPersonalizedWelcome(currentStudent, currentLevelInfo, teacherBaseWelcomeMessage);
-        }
-
       } catch (error) {
         console.error("Error saving daily goals: ", error);
         toast({ title: "오류", description: "운동 목표 저장에 실패했습니다.", variant: "destructive" });
-        // Revert optimistic update on failure
-        setAllDailyGoals(allDailyGoals);
-        if (isToday(date)) {
-          setTodaysGoals(todaysGoals);
-          setTodaysSkipped(todaysSkipped);
-        }
       }
     }
   };
+
 
   const handleLogout = () => {
     setCurrentStudent(null);
@@ -817,7 +792,7 @@ export default function StudentPage() {
     );
   }
 
-  if (isLoadingStudentData || (currentStudent && availableExercises.length === 0 && !isLoadingExercises) || isAiWelcomeLoading ) {
+  if (isLoadingStudentData || isLoadingExercises || (currentStudent && isAiWelcomeLoading) ) {
      return (
       <div className="flex flex-col min-h-screen">
         <StudentHeader
@@ -1321,5 +1296,3 @@ export default function StudentPage() {
     </div>
   );
 }
-
-    
