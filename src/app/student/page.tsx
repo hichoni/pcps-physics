@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dumbbell, Target, History, PlusCircle, LogOut, UserCheck, Loader2, AlertTriangle, KeyRound, Edit3, Camera, Info, Activity as ActivityIconLucide, CheckSquare, CalendarDays, Edit } from 'lucide-react';
+import { Dumbbell, Target, History, PlusCircle, LogOut, UserCheck, Loader2, AlertTriangle, KeyRound, Edit3, Camera, Info, Activity as ActivityIconLucide, CheckSquare, CalendarDays, Edit, CheckCircle } from 'lucide-react';
 import type { Student, ClassName, RecordedExercise, Gender, StudentGoal, CustomExercise as CustomExerciseType, Exercise as ExerciseType, LevelInfo } from '@/lib/types';
 import { EXERCISES_SEED_DATA } from '@/data/mockData';
 import SetStudentGoalsDialog from '@/components/SetStudentGoalsDialog';
@@ -53,6 +53,20 @@ const LEVEL_TIERS: LevelInfo[] = [
   { level: 9, name: "피트니스 히어로", icon: ShieldCheck, minXp: 1600, maxXp: 1800, colorClass: "text-red-500 dark:text-red-400" },
   { level: 10, name: "전설의 운동왕", icon: Crown, minXp: 1800, maxXp: Infinity, colorClass: "text-fuchsia-500 dark:text-fuchsia-400" },
 ];
+
+const COMPLETION_COMPLIMENTS = [
+  "목표 달성! 정말 대단해요! 🎉",
+  "완벽해요! 오늘도 해냈군요. 최고! 👍",
+  "성공! 이 기세를 몰아 다른 목표도 도전! 🔥",
+  "해냈군요! 꾸준함이 정답이에요. 멋져요! ✨",
+  "오늘 목표 클리어! 스스로에게 칭찬해주세요! 🏆"
+];
+
+const getCompletionCompliment = (exerciseName: string) => {
+    const index = (new Date().getDate() + exerciseName.length) % COMPLETION_COMPLIMENTS.length;
+    return COMPLETION_COMPLIMENTS[index];
+};
+
 
 const calculateLevelInfo = (xp: number = 0): LevelInfo => {
   for (let i = LEVEL_TIERS.length - 1; i >= 0; i--) {
@@ -963,20 +977,34 @@ export default function StudentPage() {
                       }
                       
                       const percent = goalValue > 0 ? Math.min(100, Math.round((achievedValue / goalValue) * 100)) : 0;
-                      const goalText = goalValue > 0 ? `목표 ${goalValue}${unit}` : '목표 없음';
-                      const progressText = `오늘 ${achievedValue}${unit}`;
-                      
+                      const isCompleted = percent >= 100;
+
                       return (
                         <div key={exercise.id} className="p-3 border rounded-lg bg-secondary/20">
-                           <div className="flex items-center justify-between mb-1">
+                           <div className="flex items-center justify-between mb-2">
                             <span className="font-semibold text-primary flex items-center">
                               <IconComp className="inline-block mr-2 h-5 w-5" />
                               {exercise.koreanName}
                             </span>
-                            <span className="text-sm font-medium text-muted-foreground">{goalText}</span>
+                            <span className="text-sm font-medium text-muted-foreground">{`목표 ${goalValue}${unit}`}</span>
                           </div>
-                          <p className="text-xs text-accent text-right mb-1.5">{progressText} ({percent}%)</p>
-                          <Progress value={percent} className="h-2" />
+                          
+                          {isCompleted ? (
+                              <div className="text-center py-2 bg-green-100 dark:bg-green-900/50 rounded-md border border-green-200 dark:border-green-800">
+                                  <p className="font-semibold text-green-700 dark:text-green-300 text-sm flex items-center justify-center gap-2">
+                                      <CheckCircle className="h-4 w-4" />
+                                      {getCompletionCompliment(exercise.koreanName)}
+                                  </p>
+                              </div>
+                          ) : (
+                            <>
+                              <div className="text-right text-xs text-muted-foreground mb-1.5">
+                                <span>{`지금까지 ${achievedValue}${unit}`}</span>
+                                <span className="font-semibold text-accent ml-1">({percent}%)</span>
+                              </div>
+                              <Progress value={percent} className="h-2" />
+                            </>
+                          )}
                         </div>
                       );
                     })}
@@ -990,7 +1018,6 @@ export default function StudentPage() {
                   <p className="text-muted-foreground">오늘의 운동 목표를 설정해주세요!</p>
                 </div>
               )}
-              <Button variant="outline" className="w-full rounded-lg mt-auto py-3 text-base" onClick={() => setIsGoalsDialogOpen(true)} disabled={availableExercises.length === 0}>목표 설정/확인</Button>
             </CardContent>
           </Card>
 
