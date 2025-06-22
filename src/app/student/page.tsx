@@ -156,17 +156,32 @@ export default function StudentPage() {
       const studentsCollection = collection(db, "students");
       const studentsSnapshot = await getDocs(studentsCollection);
       const studentsList = studentsSnapshot.docs.map(sDoc => {
-        const data = sDoc.data();
+        const data = sDoc.data() as any; // Use any to handle old `class` field
+        
+        // Handle data migration from old format ("3학년 1반") to new format
+        if (data.class && !data.grade) {
+            const classString = data.class;
+            const gradeMatch = classString.match(/(\d+)학년/);
+            const classNumMatch = classString.match(/(\d+)반/);
+            if (gradeMatch && classNumMatch) {
+                data.grade = gradeMatch[1];
+                data.classNum = classNumMatch[1];
+            }
+            delete data.class; // Remove old field
+        }
+
         return { id: sDoc.id, ...data, totalXp: data.totalXp || 0 } as Student;
       });
       setAllStudents(studentsList);
       
       const structure: Record<string, Set<string>> = {};
       studentsList.forEach(s => {
-          if (!structure[s.grade]) {
-              structure[s.grade] = new Set();
+          if (s.grade && s.classNum) { // Ensure grade and classNum exist before adding
+            if (!structure[s.grade]) {
+                structure[s.grade] = new Set();
+            }
+            structure[s.grade].add(s.classNum);
           }
-          structure[s.grade].add(s.classNum);
       });
       setClassStructure(structure);
 
@@ -968,72 +983,69 @@ export default function StudentPage() {
               ) :
               hasEffectiveGoalsToday ? (
                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 flex-grow">
-                    {availableExercises.filter(exercise => {
-                      if (todaysSkipped.has(exercise.id)) return false;
+                    {availableExercises.map(exercise => {
                       const goal = todaysGoals[exercise.id];
-                      if (!goal) return false;
-                      if (exercise.category === 'count_time') {
-                          return ((goal.count ?? 0) > 0 && !!exercise.countUnit) || ((goal.time ?? 0) > 0 && !!exercise.timeUnit);
-                      }
-                      if (exercise.category === 'steps_distance') {
-                          return ((goal.steps ?? 0) > 0 && !!exercise.stepsUnit);
-                      }
-                      return false;
-                    }).map(exercise => {
-                      const goal = todaysGoals[exercise.id];
-                      if (!goal) return null;
+                      if (!goal || todaysSkipped.has(exercise.id)) return null;
 
-                      const IconComp = getIconByName(exercise.iconName) || ActivityIconLucide;
+                      // This container will hold all goals for a single exercise.
+                      const goalItems = [];
+
+                      if (exercise.category === 'count_time') {
+                          if (goal.count && exercise.countUnit) goalItems.push({type: 'count', goal: goal.count, unit: exercise.countUnit});
+                          if (goal.time && exercise.timeUnit) goalItems.push({type: 'time', goal: goal.time, unit: exercise.timeUnit});
+                      } else if (exercise.category === 'steps_distance' && goal.steps && exercise.stepsUnit) {
+                          goalItems.push({type: 'steps', goal: goal.steps, unit: exercise.stepsUnit});
+                      }
+                      
+                      if (goalItems.length === 0) return null;
+
                       const logsForToday = studentActivityLogs.filter(log => log.studentId === currentStudent?.id && log.exerciseId === exercise.id && isToday(parseISO(log.date)));
-                      
-                      let achievedValue = 0;
-                      let goalValue = 0;
-                      let unit = "";
-
-                      if (exercise.category === 'count_time') {
-                          if (goal.count && exercise.countUnit) {
-                              achievedValue = logsForToday.reduce((sum, log) => sum + (log.countValue || 0), 0);
-                              goalValue = goal.count || 0;
-                              unit = exercise.countUnit;
-                          } else if (goal.time && exercise.timeUnit) {
-                              achievedValue = logsForToday.reduce((sum, log) => sum + (log.timeValue || 0), 0);
-                              goalValue = goal.time || 0;
-                              unit = exercise.timeUnit;
-                          }
-                      } else if (exercise.category === 'steps_distance') {
-                          if (goal.steps && exercise.stepsUnit) {
-                              achievedValue = logsForToday.reduce((sum, log) => sum + (log.stepsValue || 0), 0);
-                              goalValue = goal.steps || 0;
-                              unit = exercise.stepsUnit;
-                          }
-                      }
-                      
-                      const percent = goalValue > 0 ? Math.min(100, Math.round((achievedValue / goalValue) * 100)) : 0;
-                      const isCompleted = percent >= 100;
+                      const IconComp = getIconByName(exercise.iconName) || ActivityIconLucide;
 
                       return (
-                        <div key={exercise.id} className="p-3 border rounded-lg bg-secondary/20">
-                           <div className="flex items-center justify-between mb-2">
+                        <div key={exercise.id} className="p-3 border rounded-lg bg-secondary/20 space-y-3">
+                          <div className="flex items-center justify-between">
                             <span className="font-semibold text-primary flex items-center">
                               <IconComp className="inline-block mr-2 h-5 w-5" />
                               {exercise.koreanName}
                             </span>
-                            <span className="text-sm font-medium text-muted-foreground">{`목표 ${goalValue}${unit}`}</span>
                           </div>
-                          <div className="text-right text-xs text-muted-foreground mb-1.5">
-                            <span>{`지금까지 ${achievedValue}${unit}`}</span>
-                            <span className="font-semibold text-accent ml-1">({percent}%)</span>
-                          </div>
-                          {isCompleted ? (
-                              <div className="text-center py-2 bg-green-100 dark:bg-green-900/50 rounded-md border border-green-200 dark:border-green-800">
-                                  <p className="font-semibold text-green-700 dark:text-green-300 text-sm flex items-center justify-center gap-2">
-                                      <CheckCircle className="h-4 w-4" />
-                                      {getCompletionCompliment(exercise.koreanName)}
-                                  </p>
-                              </div>
-                          ) : (
-                              <Progress value={percent} className="h-2" />
-                          )}
+                          {goalItems.map(item => {
+                              let achievedValue = 0;
+                              if (item.type === 'count') {
+                                  achievedValue = logsForToday.reduce((sum, log) => sum + (log.countValue || 0), 0);
+                              } else if (item.type === 'time') {
+                                  achievedValue = logsForToday.reduce((sum, log) => sum + (log.timeValue || 0), 0);
+                              } else if (item.type === 'steps') {
+                                  achievedValue = logsForToday.reduce((sum, log) => sum + (log.stepsValue || 0), 0);
+                              }
+                              
+                              const percent = item.goal > 0 ? Math.min(100, Math.round((achievedValue / item.goal) * 100)) : 0;
+                              const isCompleted = percent >= 100;
+
+                              return (
+                                <div key={`${exercise.id}-${item.type}`}>
+                                  <div className="flex items-center justify-between text-sm font-medium text-muted-foreground">
+                                    <span>목표 ({item.unit})</span>
+                                    <span>{item.goal}{item.unit}</span>
+                                  </div>
+                                  <div className="text-right text-xs text-muted-foreground mt-1">
+                                    <span>{`지금까지 ${achievedValue}${item.unit}`}</span>
+                                    <span className="font-semibold text-accent ml-1">({percent}%)</span>
+                                  </div>
+                                  {isCompleted ? (
+                                      <div className="text-center mt-1.5 py-1.5 bg-green-100 dark:bg-green-900/50 rounded-md border border-green-200 dark:border-green-800">
+                                          <p className="font-semibold text-green-700 dark:text-green-300 text-xs flex items-center justify-center gap-1.5">
+                                              <CheckCircle className="h-3.5 w-3.5" />
+                                              {getCompletionCompliment(exercise.koreanName)}
+                                          </p>
+                                      </div>
+                                  ) : (
+                                      <Progress value={percent} className="h-2 mt-1.5" />
+                                  )}
+                                </div>
+                              );
+                          })}
                         </div>
                       );
                     })}
@@ -1134,7 +1146,7 @@ export default function StudentPage() {
                               {availableExercises
                                 .filter(exercise => {
                                   const goal = goalsForDay[exercise.id];
-                                  return goal && !dayGoalData.skipped.has(exercise.id);
+                                  return goal && Object.values(goal).some(v => v && v > 0) && !dayGoalData.skipped.has(exercise.id);
                                 })
                                 .flatMap(exercise => {
                                   const goal = goalsForDay[exercise.id];
@@ -1326,7 +1338,3 @@ export default function StudentPage() {
     </div>
   );
 }
-
-    
-
-    

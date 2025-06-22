@@ -116,9 +116,25 @@ export default function TeacherPage() {
     try {
       const studentsCollectionRef = collection(db, "students");
       const studentsSnapshot = await getDocs(studentsCollectionRef);
-      const studentsList = studentsSnapshot.docs.map(sDoc => ({ id: sDoc.id, ...sDoc.data() } as Student));
+      const studentsList = studentsSnapshot.docs.map(sDoc => {
+        const data = sDoc.data() as any; // Use any to handle old `class` field
+        
+        // Handle data migration from old format ("3학년 1반") to new format
+        if (data.class && !data.grade) {
+            const classString = data.class;
+            const gradeMatch = classString.match(/(\d+)학년/);
+            const classNumMatch = classString.match(/(\d+)반/);
+            if (gradeMatch && classNumMatch) {
+                data.grade = gradeMatch[1];
+                data.classNum = classNumMatch[1];
+            }
+            delete data.class; // Remove old field
+        }
+
+        return { id: sDoc.id, ...data } as Student
+      });
       setStudents(studentsList);
-      const classNames = Array.from(new Set(studentsList.map(s => `${s.grade}학년 ${s.classNum}반`))).sort();
+      const classNames = Array.from(new Set(studentsList.filter(s => s.grade && s.classNum).map(s => `${s.grade}학년 ${s.classNum}반`))).sort();
       setDynamicClasses(classNames);
     } catch (error) {
       console.error("Error fetching students: ", error);
