@@ -268,13 +268,13 @@ export default function TeacherPage() {
     try {
       const exercisesDocRef = doc(db, CUSTOM_EXERCISES_DOC_PATH);
       const unsub = onSnapshot(exercisesDocRef, (docSnap) => {
-        if (docSnap.exists() && Array.isArray(docSnap.data()?.list)) {
+        if (docSnap.exists() && Array.isArray(docSnap.data()?.list) && docSnap.data().list.length > 0) {
           setCustomExercises(docSnap.data()?.list as CustomExerciseType[]);
         } else {
           const seedDataCopy = EXERCISES_SEED_DATA.map(ex => ({...ex}));
           setDoc(exercisesDocRef, { list: seedDataCopy });
           setCustomExercises(seedDataCopy);
-          toast({ title: "알림", description: "기본 운동 목록으로 초기화되었습니다."});
+          toast({ title: "알림", description: "운동 목록이 비어 있어 기본값으로 복구되었습니다."});
         }
         setIsLoadingCustomExercises(false);
       }, (error) => {
@@ -1255,3 +1255,5 @@ export default function TeacherPage() {
     </div>
   );
 }
+
+    
