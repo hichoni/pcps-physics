@@ -84,13 +84,13 @@ const getGradeFromClassName = (className?: ClassName): string => {
   };
   
 const weeklyPlanDays = [
-  { day: "일", dayEng: "Sun", imageHint: "family park exercise", defaultText: "가족과 함께 공원에서 신나게 뛰어놀아요!" },
-  { day: "월", dayEng: "Mon", imageHint: "school playground friends", defaultText: "방과 후 친구들과 학교 운동장에서 즐거운 시간을 보내요!" },
-  { day: "화", dayEng: "Tue", imageHint: "child resting sleep", defaultText: "오늘은 푹 쉬면서 내일을 준비해요. 휴식도 중요!" },
-  { day: "수", dayEng: "Wed", imageHint: "playground evening family", defaultText: "저녁에는 가족과 함께 집 근처에서 가벼운 운동을!" }, // XP simulation here
-  { day: "목", dayEng: "Thu", imageHint: "school gym teacher", defaultText: "체육 시간! 선생님과 함께 재미있는 활동을 해봐요." },
-  { day: "금", dayEng: "Fri", imageHint: "child relaxing book", defaultText: "오늘은 좋아하는 책을 읽거나 조용한 활동으로 쉬어요." },
-  { day: "토", dayEng: "Sat", imageHint: "park exercise equipment", defaultText: "주말 아침, 공원에서 운동 기구를 이용해볼까요?" },
+  { day: "일", dayEng: "Sun", defaultText: "가족과 함께 공원에서 신나게 뛰어놀아요!" },
+  { day: "월", dayEng: "Mon", defaultText: "방과 후 친구들과 학교 운동장에서 즐거운 시간을 보내요!" },
+  { day: "화", dayEng: "Tue", defaultText: "오늘은 푹 쉬면서 내일을 준비해요. 휴식도 중요!" },
+  { day: "수", dayEng: "Wed", defaultText: "저녁에는 가족과 함께 집 근처에서 가벼운 운동을!" },
+  { day: "목", dayEng: "Thu", defaultText: "체육 시간! 선생님과 함께 재미있는 활동을 해봐요." },
+  { day: "금", dayEng: "Fri", defaultText: "오늘은 좋아하는 책을 읽거나 조용한 활동으로 쉬어요." },
+  { day: "토", dayEng: "Sat", defaultText: "주말 아침, 공원에서 운동 기구를 이용해볼까요?" },
 ];
 
 
@@ -1035,18 +1035,28 @@ export default function StudentPage() {
           <CardHeader>
             <CardTitle className="flex items-center font-headline text-xl">
               <CalendarDays className="mr-3 h-7 w-7 text-green-600 dark:text-green-400" />
-              나의 주간 운동 계획 (예시)
+              나의 주간 운동 계획
             </CardTitle>
-            <CardDescription>이번 주 운동 계획을 세우고 실천해봐요! (디자인 미리보기)</CardDescription>
+            <CardDescription>오늘의 목표를 설정하고, 주간 계획을 확인해보세요.</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-3">
               {weeklyPlanDays.map((item, index) => {
                 const currentDateForDay = addDays(startOfTheCurrentWeek, index);
                 const formattedDate = format(currentDateForDay, "M.d", { locale: ko });
                 const isCurrentDay = index === currentDayOfWeek;
                 const isWeekend = index === 0 || index === 6; // 0 for Sunday, 6 for Saturday
                 const showSimulatedXp = item.dayEng === "Wed"; 
+
+                const todaysEffectiveGoals = availableExercises.filter(ex => {
+                  if (skippedExercises.has(ex.id)) return false;
+                  const goal = studentGoals[ex.id];
+                  if (!goal) return false;
+                  if ((ex.id === 'squat' || ex.id === 'jump_rope') && goal.count && goal.count > 0) return true;
+                  if (ex.id === 'plank' && goal.time && goal.time > 0) return true;
+                  if (ex.id === 'walk_run' && goal.steps && goal.steps > 0) return true;
+                  return false;
+                });
 
                 return (
                   <Card 
@@ -1072,27 +1082,39 @@ export default function StudentPage() {
                       </CardTitle>
                       <CardDescription className="text-xs sr-only">{item.dayEng}</CardDescription>
                     </CardHeader>
-                    <CardContent className="p-2 flex-grow flex flex-col items-center justify-between">
-                      <div className="w-full aspect-[4/3] relative mb-2 rounded overflow-hidden">
-                         <Image 
-                           src={`https://placehold.co/200x150.png`} 
-                           alt={`${item.day} 운동 계획 예시`} 
-                           layout="fill" 
-                           objectFit="cover"
-                           data-ai-hint={item.imageHint}
-                         />
-                      </div>
-                      <div className="text-xs mb-1 flex-grow flex flex-col justify-center min-h-[calc(3em+1.5em)] text-center">
+                    <CardContent className="p-2 flex-grow flex flex-col items-center justify-center">
+                      <div className="text-xs flex-grow flex flex-col justify-center min-h-[5em] w-full">
                         {isCurrentDay ? (
-                            <div className="h-full flex flex-col items-center justify-center">
-                                <p className="font-semibold text-primary">오늘의 목표 설정하기</p>
-                                <p className="text-xs text-muted-foreground">클릭하여 시작</p>
+                          todaysEffectiveGoals.length > 0 ? (
+                            <ul className="text-left text-xs space-y-1 w-full px-1">
+                              {todaysEffectiveGoals.map(exercise => {
+                                const goal = studentGoals[exercise.id];
+                                let goalText = "";
+                                if (exercise.id === 'squat' || exercise.id === 'jump_rope') goalText = `${goal.count}${exercise.countUnit}`;
+                                else if (exercise.id === 'plank') goalText = `${goal.time}${exercise.timeUnit}`;
+                                else if (exercise.id === 'walk_run') goalText = `${goal.steps}${exercise.stepsUnit}`;
+                                
+                                const IconComp = getIconByName(exercise.iconName) || ActivityIconLucide;
+                                return (
+                                  <li key={exercise.id} className="flex items-center gap-1.5 truncate" title={`${exercise.koreanName}: ${goalText}`}>
+                                    <IconComp className="h-3 w-3 shrink-0" />
+                                    <span className="truncate font-medium">{exercise.koreanName}: {goalText}</span>
+                                  </li>
+                                );
+                              })}
+                            </ul>
+                          ) : (
+                            <div className="h-full flex flex-col items-center justify-center text-center">
+                                <p className="font-semibold text-primary">오늘의 목표를</p>
+                                <p className="font-semibold text-primary">설정해주세요</p>
+                                <p className="text-xs text-muted-foreground mt-1">클릭하여 시작</p>
                             </div>
+                          )
                         ) : (
                           <>
-                            <p className="min-h-[3em] leading-tight">{item.defaultText}</p>
+                            <p className="min-h-[3em] leading-tight text-center">{item.defaultText}</p>
                             {showSimulatedXp && (
-                              <p className="font-semibold text-green-600 dark:text-green-400 mt-0.5">
+                              <p className="font-semibold text-green-600 dark:text-green-400 mt-0.5 text-center">
                                 +40XP 😊
                               </p>
                             )}
