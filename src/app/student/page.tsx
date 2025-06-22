@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
@@ -653,42 +654,6 @@ export default function StudentPage() {
     handleCloseCameraMode();
   };
 
-
-  const getExerciseProgressText = useCallback((exerciseId: string): string => {
-    if (!currentStudent) return "";
-    const exercise = availableExercises.find(ex => ex.id === exerciseId);
-    if (!exercise) return "";
-
-    const goal = studentGoals[exerciseId];
-    if (!goal) return "";
-
-    const logsForToday = studentActivityLogs.filter(log => log.studentId === currentStudent.id && log.exerciseId === exerciseId && isToday(parseISO(log.date)));
-
-    let achievedValue = 0;
-    let goalValue = 0;
-    let unit = "";
-
-    if (exercise.id === 'squat' || exercise.id === 'jump_rope') {
-      achievedValue = logsForToday.reduce((sum, log) => sum + (log.countValue || 0), 0);
-      goalValue = goal.count || 0;
-      unit = exercise.countUnit || "";
-    } else if (exercise.id === 'plank') {
-      achievedValue = logsForToday.reduce((sum, log) => sum + (log.timeValue || 0), 0);
-      goalValue = goal.time || 0;
-      unit = exercise.timeUnit || "";
-    } else if (exercise.id === 'walk_run') {
-      achievedValue = logsForToday.reduce((sum, log) => sum + (log.stepsValue || 0), 0);
-      goalValue = goal.steps || 0;
-      unit = exercise.stepsUnit || "";
-    }
-
-    if (goalValue > 0) {
-      const percent = Math.min(100, Math.round((achievedValue / goalValue) * 100));
-      return `오늘 ${achievedValue}${unit} / 목표 ${goalValue}${unit} (${percent}%)`;
-    }
-    return "";
-  }, [studentGoals, studentActivityLogs, currentStudent, availableExercises]);
-
   const xpProgress = useMemo(() => {
     if (!currentStudent || !currentLevelInfo || currentLevelInfo.level === 10) return 100;
     const xpInCurrentLevel = (currentStudent.totalXp || 0) - currentLevelInfo.minXp;
@@ -949,7 +914,7 @@ export default function StudentPage() {
               </CardTitle>
               <CardDescription>목표를 설정하고 달성해봐요! (오늘 기록 기준)</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-3 flex-grow flex flex-col">
+            <CardContent className="space-y-4 flex-grow flex flex-col">
               {isLoadingExercises ? <Loader2 className="h-6 w-6 animate-spin text-primary mx-auto my-4" /> :
               availableExercises.length === 0 ? (
                 <div className="flex items-center justify-center text-center py-4 flex-grow min-h-[10rem] rounded-lg">
@@ -957,8 +922,7 @@ export default function StudentPage() {
                 </div>
               ) :
               hasEffectiveGoals ? (
-                 <div className="flex items-center justify-center min-h-[10rem] bg-secondary/20 rounded-lg p-3 flex-grow">
-                  <ul className="text-sm list-none space-y-1.5 pl-0 text-left w-full overflow-y-auto max-h-full">
+                 <div className="space-y-4 flex-grow">
                     {availableExercises.filter(ex => {
                       if (skippedExercises.has(ex.id)) return false;
                       const goal = studentGoals[ex.id];
@@ -969,29 +933,48 @@ export default function StudentPage() {
                       return false;
                     }).map(exercise => {
                       const goal = studentGoals[exercise.id];
-                      let goalText = "";
-                       if (exercise.id === 'squat' || exercise.id === 'jump_rope') goalText = `${goal.count}${exercise.countUnit}`;
-                       else if (exercise.id === 'plank') goalText = `${goal.time}${exercise.timeUnit}`;
-                       else if (exercise.id === 'walk_run') goalText = `${goal.steps}${exercise.stepsUnit}`;
+                      if (!goal) return null;
 
-                      const progressText = getExerciseProgressText(exercise.id);
                       const IconComp = getIconByName(exercise.iconName) || ActivityIconLucide;
+                      const logsForToday = studentActivityLogs.filter(log => log.studentId === currentStudent?.id && log.exerciseId === exercise.id && isToday(parseISO(log.date)));
+                      
+                      let achievedValue = 0;
+                      let goalValue = 0;
+                      let unit = "";
 
+                      if (exercise.id === 'squat' || exercise.id === 'jump_rope') {
+                        achievedValue = logsForToday.reduce((sum, log) => sum + (log.countValue || 0), 0);
+                        goalValue = goal.count || 0;
+                        unit = exercise.countUnit || "";
+                      } else if (exercise.id === 'plank') {
+                        achievedValue = logsForToday.reduce((sum, log) => sum + (log.timeValue || 0), 0);
+                        goalValue = goal.time || 0;
+                        unit = exercise.timeUnit || "";
+                      } else if (exercise.id === 'walk_run') {
+                        achievedValue = logsForToday.reduce((sum, log) => sum + (log.stepsValue || 0), 0);
+                        goalValue = goal.steps || 0;
+                        unit = exercise.stepsUnit || "";
+                      }
+                      
+                      const percent = goalValue > 0 ? Math.min(100, Math.round((achievedValue / goalValue) * 100)) : 0;
+                      const goalText = goalValue > 0 ? `${goalValue}${unit}` : '목표 없음';
+                      const progressText = goalValue > 0 ? `오늘 ${achievedValue}${unit} / 목표 ${goalValue}${unit}` : `오늘 ${achievedValue}${unit}`;
+                      
                       return (
-                        <li key={exercise.id} className="truncate py-1 border-b border-border/50 last:border-b-0" title={`${exercise.koreanName}: ${goalText}`}>
-                          <div className="flex items-center justify-between">
-                            <span className="font-medium text-primary flex items-center">
-                              <IconComp className="inline-block mr-2 h-4 w-4" />
+                        <div key={exercise.id} className="p-3 border rounded-lg bg-secondary/20">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="font-semibold text-primary flex items-center">
+                              <IconComp className="inline-block mr-2 h-5 w-5" />
                               {exercise.koreanName}
                             </span>
-                            <span className="text-xs text-muted-foreground">{goalText}</span>
+                            <span className="text-sm font-medium text-muted-foreground">{goalText}</span>
                           </div>
-                          {progressText && <p className="text-xs text-accent mt-0.5">{progressText}</p>}
-                        </li>
+                          <Progress value={percent} className="h-3" />
+                          <p className="text-xs text-accent text-right mt-1.5">{progressText} ({percent}%)</p>
+                        </div>
                       );
                     })}
-                  </ul>
-                </div>
+                  </div>
               ) : (
                  <div className="flex items-center justify-center text-center py-4 flex-grow min-h-[10rem] rounded-lg">
                   <p className="text-muted-foreground">오늘의 운동 목표를 설정해주세요!</p>
