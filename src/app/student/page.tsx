@@ -755,7 +755,7 @@ export default function StudentPage() {
                     <SelectTrigger id="class-select" className="w-full"><SelectValue placeholder="반 선택" /></SelectTrigger>
                     <SelectContent>
                     {selectedGrade && classStructure[selectedGrade] &&
-                        Array.from(classStructure[selectedGrade]).sort().map(classNum => (
+                        Array.from(classStructure[selectedGrade]).filter(Boolean).sort().map(classNum => (
                         <SelectItem key={classNum} value={classNum}>{classNum}반</SelectItem>
                         ))}
                     </SelectContent>
@@ -1326,5 +1326,7 @@ export default function StudentPage() {
     </div>
   );
 }
+
+    
 
     
