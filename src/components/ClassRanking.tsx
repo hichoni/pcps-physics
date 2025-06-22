@@ -86,7 +86,7 @@ const PodiumItem: React.FC<{ student: StudentWithStreak; rank: number; isCurrent
     const SelectedAvatarIcon = AVATAR_OPTIONS.find(opt => opt.id === student.avatarSeed)?.icon;
 
     return (
-        <div className={cn("flex flex-col items-center justify-end w-1/3", style.height)}>
+        <div className={cn("flex flex-1 flex-col items-center justify-end min-w-0", style.height)}>
             <div className={cn(style.textColor, "flex flex-col items-center")}>
                  {style.icon}
                  <span className="font-bold text-lg">{rank}</span>
@@ -98,7 +98,7 @@ const PodiumItem: React.FC<{ student: StudentWithStreak; rank: number; isCurrent
                     <AvatarFallback className="text-xl bg-muted">{getInitials(student.name)}</AvatarFallback>
                 )}
             </Avatar>
-            <p className={cn("font-bold text-sm mt-2 truncate max-w-full", isCurrentUser && "text-primary")}>{student.name}</p>
+            <p className={cn("font-bold text-sm mt-2 truncate w-full text-center", isCurrentUser && "text-primary")}>{student.name}</p>
             <p className="text-xs text-muted-foreground">{(student.totalXp || 0).toLocaleString()} XP</p>
         </div>
     );
