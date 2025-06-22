@@ -5,13 +5,12 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import Header from '@/components/Header';
 import ClassSelector from '@/components/ClassSelector';
 import StudentCard from '@/components/StudentCard';
-// import ExerciseSummaryChart from '@/components/ExerciseSummaryChart'; // ExerciseSummaryChart 사용 중단
 import AiSuggestionBox from '@/components/AiSuggestionBox';
 import AddStudentDialog from '@/components/AddStudentDialog';
 import ManageStudentPinDialog from '@/components/ManageStudentPinDialog';
 import ManageCustomExerciseDialog from '@/components/ManageCustomExerciseDialog';
-import ClassSummaryStats from '@/components/ClassSummaryStats'; // 새로운 요약 컴포넌트
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import ClassSummaryStats from '@/components/ClassSummaryStats'; 
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import type { Student, ClassName, RecordedExercise, CustomExercise as CustomExerciseType, Gender, TeacherExerciseRecommendation, StudentGoal, Exercise as ExerciseType } from '@/lib/types';
 import { EXERCISES_SEED_DATA } from '@/data/mockData';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -19,7 +18,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Users, BarChart2, Lightbulb, ListChecks, UserPlus, Trash2, Sparkles, MessageSquarePlus, MessageSquareX, Loader2, Wand2, KeyRound, LogIn, Image as ImageIconLucide, Edit, Settings2, School, PlusCircle, Edit3, AlertCircle, TrendingUp, CalendarDays, ChevronLeft, ChevronRight, Activity as ActivityIcon, Construction } from 'lucide-react';
+import { Users, BarChart2, Lightbulb, ListChecks, UserPlus, Trash2, Sparkles, MessageSquarePlus, MessageSquareX, Loader2, Wand2, KeyRound, LogIn, Image as ImageIconLucide, Edit, Settings2, School, PlusCircle, Edit3, AlertCircle, TrendingUp, CalendarDays, ChevronLeft, ChevronRight, Activity as ActivityIcon, Construction, RotateCcw } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle as UICardTitle, CardDescription as UICardDescription } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -27,10 +26,10 @@ import { format, parseISO, isSameDay, subDays, addDays, isToday } from 'date-fns
 import { ko } from 'date-fns/locale';
 import { useToast } from "@/hooks/use-toast";
 import { db } from '@/lib/firebase';
+import { v4 as uuidv4 } from 'uuid';
 import {
   collection, getDocs, addDoc, deleteDoc, doc, writeBatch, query, where, setDoc, getDoc, updateDoc, arrayUnion, arrayRemove, onSnapshot
 } from 'firebase/firestore';
-// import NextImage from 'next/image'; // Removed as gallery is disabled
 import { getIconByName } from '@/lib/iconMap';
 import { cn } from '@/lib/utils';
 import { Calendar } from "@/components/ui/calendar";
@@ -82,12 +81,12 @@ export default function TeacherPage() {
 
   const [isManageExerciseDialogOpen, setIsManageExerciseDialogOpen] = useState(false);
   const [exerciseToEdit, setExerciseToEdit] = useState<CustomExerciseType | null>(null);
+  const [exerciseToDelete, setExerciseToDelete] = useState<CustomExerciseType | null>(null);
 
   const [studentsInClass, setStudentsInClass] = useState<Student[]>([]);
   const [activeTab, setActiveTab] = useState<string>("students");
   const [isAddStudentDialogOpen, setIsAddStudentDialogOpen] = useState(false);
   const [studentToDelete, setStudentToDelete] = useState<Student | null>(null);
-  const [isConfirmDeleteDialogOpen, setIsConfirmDeleteDialogOpen] = useState(false);
 
   const [newCompliment, setNewCompliment] = useState<string>('');
   const [newRecommendationTitle, setNewRecommendationTitle] = useState<string>('');
@@ -270,29 +269,7 @@ export default function TeacherPage() {
       const exercisesDocRef = doc(db, CUSTOM_EXERCISES_DOC_PATH);
       const unsub = onSnapshot(exercisesDocRef, (docSnap) => {
         if (docSnap.exists() && Array.isArray(docSnap.data()?.list)) {
-          const exercisesFromDb = docSnap.data()?.list as CustomExerciseType[];
-          const allowedExerciseIds = ['squat', 'plank', 'walk_run', 'jump_rope'];
-          let currentExercises = exercisesFromDb.filter(ex => allowedExerciseIds.includes(ex.id));
-
-          if (currentExercises.length < 4) {
-            const tempExercises = [...currentExercises];
-            EXERCISES_SEED_DATA.forEach(seedEx => {
-              if (!tempExercises.find(ex => ex.id === seedEx.id)) {
-                tempExercises.push({...seedEx});
-              }
-            });
-            currentExercises = tempExercises.filter(ex => allowedExerciseIds.includes(ex.id));
-             if (currentExercises.length < 4 || !currentExercises.every(ex => allowedExerciseIds.includes(ex.id))) {
-                setCustomExercises(EXERCISES_SEED_DATA.map(ex => ({...ex})));
-                setDoc(exercisesDocRef, { list: EXERCISES_SEED_DATA.map(ex => ({...ex})) });
-                toast({ title: "알림", description: "운동 목록을 기본값으로 재설정했습니다."});
-             } else {
-                setCustomExercises(currentExercises);
-             }
-          } else {
-             setCustomExercises(currentExercises);
-          }
-
+          setCustomExercises(docSnap.data()?.list as CustomExerciseType[]);
         } else {
           const seedDataCopy = EXERCISES_SEED_DATA.map(ex => ({...ex}));
           setDoc(exercisesDocRef, { list: seedDataCopy });
@@ -378,7 +355,6 @@ export default function TeacherPage() {
 
   const requestDeleteStudent = (student: Student) => {
     setStudentToDelete(student);
-    setIsConfirmDeleteDialogOpen(true);
   };
 
   const confirmDeleteStudent = async () => {
@@ -406,13 +382,12 @@ export default function TeacherPage() {
         const updatedClassNames = Array.from(new Set(remainingStudents.map(s => s.class))).sort();
         setDynamicClasses(updatedClassNames);
         toast({ title: "성공", description: `${studentToDelete.name} 학생 정보가 삭제되었습니다.` });
-        setStudentToDelete(null);
       } catch (error) {
         console.error("Error deleting student: ", error);
         toast({ title: "오류", description: "학생 정보 삭제에 실패했습니다.", variant: "destructive"});
       }
     }
-    setIsConfirmDeleteDialogOpen(false);
+    setStudentToDelete(null);
   };
 
   const handleAddCompliment = async () => {
@@ -505,36 +480,29 @@ export default function TeacherPage() {
     }
   };
 
-  const handleSaveCustomExercise = async (exerciseData: CustomExerciseType) => {
+  const handleSaveCustomExercise = async (exerciseData: CustomExerciseType | Omit<CustomExerciseType, 'id'>) => {
     try {
       const exercisesDocRef = doc(db, CUSTOM_EXERCISES_DOC_PATH);
-      let currentExercises = [...customExercises];
-      const allowedIds = ['squat', 'plank', 'walk_run', 'jump_rope'];
-
-      if (!allowedIds.includes(exerciseData.id) && !exerciseToEdit) {
-         toast({ title: "오류", description: "새로운 운동은 추가할 수 없습니다. 기존 4가지 운동만 수정 가능합니다.", variant: "destructive"});
-         setIsManageExerciseDialogOpen(false);
-         return;
-      }
-
-      if (exerciseToEdit) {
-        const index = currentExercises.findIndex(ex => ex.id === exerciseToEdit.id);
-        if (index > -1) {
-          currentExercises[index] = exerciseData;
-        } else {
-           currentExercises.push(exerciseData);
+      
+      if ('id' in exerciseData) { // Edit mode
+        const updatedExercises = customExercises.map(ex => 
+          ex.id === exerciseData.id ? exerciseData : ex
+        );
+        await setDoc(exercisesDocRef, { list: updatedExercises });
+        toast({ title: "성공", description: `운동 "${exerciseData.koreanName}"이(가) 수정되었습니다.` });
+      } else { // Add mode
+        if (customExercises.length >= 6) {
+          toast({ title: "제한 초과", description: "운동은 최대 6개까지만 추가할 수 있습니다.", variant: "destructive" });
+          return;
         }
-      } else {
-         if (allowedIds.includes(exerciseData.id)) {
-            const existingIndex = currentExercises.findIndex(ex => ex.id === exerciseData.id);
-            if (existingIndex > -1) currentExercises[existingIndex] = exerciseData;
-            else currentExercises.push(exerciseData);
-         }
+        const newExercise: CustomExerciseType = {
+          id: uuidv4(),
+          ...exerciseData
+        };
+        await updateDoc(exercisesDocRef, { list: arrayUnion(newExercise) });
+        toast({ title: "성공", description: `운동 "${newExercise.koreanName}"이(가) 추가되었습니다.` });
       }
-      currentExercises = currentExercises.filter(ex => allowedIds.includes(ex.id));
-
-      await setDoc(exercisesDocRef, { list: currentExercises });
-      toast({ title: "성공", description: `운동이 ${exerciseToEdit ? '수정' : '업데이트'}되었습니다.` });
+      
       setIsManageExerciseDialogOpen(false);
       setExerciseToEdit(null);
     } catch (error) {
@@ -544,14 +512,36 @@ export default function TeacherPage() {
   };
 
   const openAddExerciseDialog = () => {
-    const exercisesDocRef = doc(db, CUSTOM_EXERCISES_DOC_PATH);
-    const seedDataCopy = EXERCISES_SEED_DATA.map(ex => ({...ex}));
-    setDoc(exercisesDocRef, { list: seedDataCopy })
-        .then(() => {
-            setCustomExercises(seedDataCopy);
-            toast({title: "성공", description: "운동 목록이 기본값으로 초기화되었습니다."});
-        })
-        .catch(() => toast({title: "오류", description: "운동 목록 초기화에 실패했습니다.", variant: "destructive"}));
+    setExerciseToEdit(null);
+    setIsManageExerciseDialogOpen(true);
+  };
+  
+  const resetExercisesToDefault = async () => {
+    try {
+      const exercisesDocRef = doc(db, CUSTOM_EXERCISES_DOC_PATH);
+      await setDoc(exercisesDocRef, { list: EXERCISES_SEED_DATA });
+      toast({title: "성공", description: "운동 목록이 기본값으로 초기화되었습니다."});
+    } catch (error) {
+      toast({title: "오류", description: "운동 목록 초기화에 실패했습니다.", variant: "destructive"});
+    }
+  };
+
+  const requestDeleteExercise = (exercise: CustomExerciseType) => {
+    setExerciseToDelete(exercise);
+  };
+
+  const confirmDeleteExercise = async () => {
+    if (exerciseToDelete) {
+        try {
+            const exercisesDocRef = doc(db, CUSTOM_EXERCISES_DOC_PATH);
+            await updateDoc(exercisesDocRef, { list: arrayRemove(exerciseToDelete) });
+            toast({ title: "성공", description: `운동 "${exerciseToDelete.koreanName}"이(가) 삭제되었습니다.` });
+        } catch (error) {
+            console.error("Error deleting exercise: ", error);
+            toast({ title: "오류", description: "운동 삭제에 실패했습니다.", variant: "destructive" });
+        }
+    }
+    setExerciseToDelete(null);
   };
 
   const openEditExerciseDialog = (exercise: CustomExerciseType) => {
@@ -835,21 +825,23 @@ export default function TeacherPage() {
                               let unit = '';
                               let hasGoal = false;
 
-                              if (exercise.id === 'squat' || exercise.id === 'jump_rope') {
-                                achievedValue = studentLogsForExerciseSelectedDate.reduce((sum, log) => sum + (log.countValue || 0), 0);
-                                unit = exercise.countUnit || '회';
-                                if (studentGoalForExercise?.count !== undefined) {
-                                  goalValue = studentGoalForExercise.count;
-                                  hasGoal = true;
+                              if (exercise.category === 'count_time') {
+                                if(exercise.countUnit){
+                                  achievedValue = studentLogsForExerciseSelectedDate.reduce((sum, log) => sum + (log.countValue || 0), 0);
+                                  unit = exercise.countUnit;
+                                  if (studentGoalForExercise?.count !== undefined) {
+                                    goalValue = studentGoalForExercise.count;
+                                    hasGoal = true;
+                                  }
+                                } else if (exercise.timeUnit) {
+                                  achievedValue = studentLogsForExerciseSelectedDate.reduce((sum, log) => sum + (log.timeValue || 0), 0);
+                                  unit = exercise.timeUnit;
+                                  if (studentGoalForExercise?.time !== undefined) {
+                                    goalValue = studentGoalForExercise.time;
+                                    hasGoal = true;
+                                  }
                                 }
-                              } else if (exercise.id === 'plank') {
-                                achievedValue = studentLogsForExerciseSelectedDate.reduce((sum, log) => sum + (log.timeValue || 0), 0);
-                                unit = exercise.timeUnit || '초';
-                                if (studentGoalForExercise?.time !== undefined) {
-                                  goalValue = studentGoalForExercise.time;
-                                  hasGoal = true;
-                                }
-                              } else if (exercise.id === 'walk_run') {
+                              } else if (exercise.category === 'steps_distance') {
                                 achievedValue = studentLogsForExerciseSelectedDate.reduce((sum, log) => sum + (log.stepsValue || 0), 0);
                                 unit = exercise.stepsUnit || '걸음';
                                 if (studentGoalForExercise?.steps !== undefined) {
@@ -971,54 +963,86 @@ export default function TeacherPage() {
 
           <TabsContent value="exerciseManagement" className="mt-6">
             <section aria-labelledby="exercise-management-heading" className="bg-card p-6 rounded-xl shadow-md">
-              <div className="flex justify-between items-center mb-6">
+              <div className="flex flex-wrap gap-4 justify-between items-center mb-6">
                 <h2 id="exercise-management-heading" className="text-xl font-semibold font-headline flex items-center">
                   <Settings2 className="mr-3 h-6 w-6 text-primary" />
-                  학생 운동 목록 관리 (4개 고정)
+                  학생 운동 목록 관리 (최대 6개)
                 </h2>
-                <Button onClick={openAddExerciseDialog} className="rounded-lg">
-                  <PlusCircle className="mr-2 h-5 w-5" /> 운동 목록 초기화
-                </Button>
+                <div className="flex gap-2">
+                    <Button onClick={openAddExerciseDialog} className="rounded-lg" disabled={customExercises.length >= 6}>
+                      <PlusCircle className="mr-2 h-5 w-5" /> 새 운동 추가
+                    </Button>
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button variant="outline" className="rounded-lg">
+                          <RotateCcw className="mr-2 h-5 w-5" /> 기본값으로 초기화
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>정말 초기화하시겠습니까?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            현재 설정된 모든 운동이 삭제되고, 4개의 기본 운동으로 재설정됩니다. 이 작업은 되돌릴 수 없습니다.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>취소</AlertDialogCancel>
+                          <AlertDialogAction onClick={resetExercisesToDefault}>초기화</AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                </div>
               </div>
               {isLoadingCustomExercises ? (
                  <div className="flex justify-center py-4"><Loader2 className="h-6 w-6 animate-spin text-primary" /> 운동 목록 로딩 중...</div>
               ) : customExercises.length === 0 ? (
                 <div className="text-center py-6">
-                    <p className="text-muted-foreground mb-3">운동 목록이 없습니다. 기본 운동 목록으로 초기화해주세요.</p>
-                     <Button onClick={openAddExerciseDialog}>기본 운동 목록으로 초기화</Button>
+                    <p className="text-muted-foreground mb-3">운동 목록이 없습니다. 새 운동을 추가하거나 기본값으로 초기화해주세요.</p>
                 </div>
               ) : (
                 <div className="space-y-4">
                   {customExercises.map((ex) => {
-                    const Icon = Edit;
+                    const Icon = getIconByName(ex.iconName) || ActivityIcon;
                     return (
                        <Card key={ex.id} className="shadow-sm">
                         <CardHeader className="flex flex-row justify-between items-start">
                           <div>
                             <UICardTitle className="text-lg flex items-center">
-                               <ActivityIcon className="mr-2 h-5 w-5 text-muted-foreground" /> {ex.koreanName}
+                               <Icon className="mr-2 h-5 w-5 text-muted-foreground" /> {ex.koreanName}
                             </UICardTitle>
                             <UICardDescription className="text-xs">
-                                {ex.id === 'squat' && `주요 지표: ${ex.countUnit || '회'}`}
-                                {ex.id === 'plank' && `주요 지표: ${ex.timeUnit || '초'}`}
-                                {ex.id === 'walk_run' && `주요 지표: ${ex.stepsUnit || '걸음'}`}
-                                {ex.id === 'jump_rope' && `주요 지표: ${ex.countUnit || '회'}`}
+                                {ex.category === 'count_time' ? (ex.countUnit ? `횟수(${ex.countUnit})` : `시간(${ex.timeUnit})`) : `걸음(${ex.stepsUnit})`} 기반
                             </UICardDescription>
                           </div>
                           <div className="flex gap-2">
                             <Button variant="ghost" size="icon" onClick={() => openEditExerciseDialog(ex)} aria-label="운동 수정">
                               <Edit className="h-4 w-4" />
                             </Button>
+                            <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                    <Button variant="ghost" size="icon" onClick={() => requestDeleteExercise(ex)} aria-label="운동 삭제">
+                                      <Trash2 className="h-4 w-4 text-destructive" />
+                                    </Button>
+                                </AlertDialogTrigger>
+                                {exerciseToDelete && exerciseToDelete.id === ex.id && (
+                                <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                    <AlertDialogTitle>운동 삭제 확인</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                        <strong>{ex.koreanName}</strong> 운동을 정말 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.
+                                    </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                    <AlertDialogCancel onClick={() => setExerciseToDelete(null)}>취소</AlertDialogCancel>
+                                    <AlertDialogAction onClick={confirmDeleteExercise} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                                        삭제
+                                    </AlertDialogAction>
+                                    </AlertDialogFooter>
+                                </AlertDialogContent>
+                                )}
+                            </AlertDialog>
                           </div>
                         </CardHeader>
-                        <CardContent className="text-xs space-y-1 pl-6 pr-6 pb-4">
-                          <p>아이콘: {ex.iconName}</p>
-                          {ex.id === 'squat' && <p>{ex.countUnit}: 기본 {ex.defaultCount ?? 0}, 증가폭 {ex.countStep ?? 0}</p>}
-                          {ex.id === 'plank' && <p>{ex.timeUnit}: 기본 {ex.defaultTime ?? 0}, 증가폭 {ex.timeStep ?? 0}</p>}
-                          {ex.id === 'walk_run' && <p>{ex.stepsUnit}: 기본 {ex.defaultSteps ?? 0}, 증가폭 {ex.stepsStep ?? 0}</p>}
-                          {ex.id === 'jump_rope' && <p>{ex.countUnit}: 기본 {ex.defaultCount ?? 0}, 증가폭 {ex.countStep ?? 0}</p>}
-                          <p>AI 이미지 힌트: {ex.dataAiHint}</p>
-                        </CardContent>
                        </Card>
                     );
                   })}
@@ -1207,22 +1231,22 @@ export default function TeacherPage() {
         />
 
         {studentToDelete && (
-          <AlertDialog open={isConfirmDeleteDialogOpen} onOpenChange={setIsConfirmDeleteDialogOpen}>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>학생 삭제 확인</AlertDialogTitle>
-                <AlertDialogDescription>
-                  <strong>{studentToDelete.name}</strong> ({studentToDelete.class} {studentToDelete.studentNumber}번) 학생을 정말 삭제하시겠습니까? 이 학생의 모든 운동 기록과 목표도 함께 삭제됩니다. 이 작업은 되돌릴 수 없습니다.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel onClick={() => setIsConfirmDeleteDialogOpen(false)}>취소</AlertDialogCancel>
-                <AlertDialogAction onClick={confirmDeleteStudent} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-                  <Trash2 className="mr-2 h-4 w-4" /> 삭제
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
+            <AlertDialog open={!!studentToDelete} onOpenChange={(isOpen) => !isOpen && setStudentToDelete(null)}>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>학생 삭제 확인</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    <strong>{studentToDelete.name}</strong> ({studentToDelete.class} {studentToDelete.studentNumber}번) 학생을 정말 삭제하시겠습니까? 이 학생의 모든 운동 기록과 목표도 함께 삭제됩니다. 이 작업은 되돌릴 수 없습니다.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel onClick={() => setStudentToDelete(null)}>취소</AlertDialogCancel>
+                  <AlertDialogAction onClick={confirmDeleteStudent} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                    <Trash2 className="mr-2 h-4 w-4" /> 삭제
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
         )}
       </main>
       <footer className="text-center p-4 text-sm text-muted-foreground border-t">

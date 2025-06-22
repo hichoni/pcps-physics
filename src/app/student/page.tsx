@@ -24,7 +24,7 @@ import { recommendStudentExercise, RecommendStudentExerciseOutput, RecommendStud
 import { generatePersonalizedWelcomeMessage, GeneratePersonalizedWelcomeMessageInput, GeneratePersonalizedWelcomeMessageOutput } from '@/ai/flows/generatePersonalizedWelcomeMessage';
 import { db } from '@/lib/firebase';
 import { collection, getDocs, doc, getDoc, setDoc, query, where, addDoc, updateDoc, onSnapshot } from 'firebase/firestore';
-import { format, parseISO, isToday, startOfWeek, addDays } from 'date-fns';
+import { format, parseISO, isToday, startOfWeek, addDays, endOfMonth } from 'date-fns';
 import { ko } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { getIconByName } from '@/lib/iconMap';
@@ -155,14 +155,13 @@ export default function StudentPage() {
   const [isRestDaySet, setIsRestDaySet] = useState(false);
   const todayDate = useMemo(() => new Date(), []);
   
+  const todayKey = useMemo(() => format(new Date(), 'yyyy-MM-dd'), []);
   useEffect(() => {
-    // This effect runs only when the component mounts or when the date changes.
-    // It resets the daily "skipped" status for the student.
+    // This effect now specifically depends on todayKey to reset daily states.
     setSkippedExercises(new Set());
-    // Also reset daily goals from view, they will be re-fetched or user will be prompted to set them.
     setStudentGoals({}); 
     setIsRestDaySet(false);
-  }, [todayDate]);
+  }, [todayKey]);
 
 
   const [activityChartTimeFrame, setActivityChartTimeFrame] = useState<'today' | 'week' | 'month'>('today');
@@ -197,23 +196,9 @@ export default function StudentPage() {
     setIsLoadingExercises(true);
     const exercisesDocRef = doc(db, CUSTOM_EXERCISES_DOC_PATH);
     const unsubscribe = onSnapshot(exercisesDocRef, (docSnap) => {
-      if (docSnap.exists() && Array.isArray(docSnap.data()?.list)) {
+      if (docSnap.exists() && Array.isArray(docSnap.data()?.list) && docSnap.data().list.length > 0) {
         const customExercisesFromDb = docSnap.data()?.list as CustomExerciseType[];
-        const allowedExercises = customExercisesFromDb
-          .filter(ex => ['squat', 'plank', 'walk_run', 'jump_rope'].includes(ex.id))
-          .map(convertCustomToInternalExercise);
-
-        if (allowedExercises.length < 4 && customExercisesFromDb.length > 0) {
-            const seededByName = EXERCISES_SEED_DATA.map(seedEx => {
-                const dbMatch = customExercisesFromDb.find(dbEx => dbEx.koreanName === seedEx.koreanName);
-                return dbMatch ? convertCustomToInternalExercise(dbMatch) : convertCustomToInternalExercise(seedEx);
-            });
-            setAvailableExercises(seededByName);
-        } else if (allowedExercises.length === 4) {
-            setAvailableExercises(allowedExercises);
-        } else {
-          setAvailableExercises(EXERCISES_SEED_DATA.map(convertCustomToInternalExercise));
-        }
+        setAvailableExercises(customExercisesFromDb.map(convertCustomToInternalExercise));
       } else {
         setAvailableExercises(EXERCISES_SEED_DATA.map(convertCustomToInternalExercise));
       }
@@ -291,7 +276,10 @@ export default function StudentPage() {
       const goalsDocRef = doc(db, "studentGoals", studentId);
       const goalsDocSnap = await getDoc(goalsDocRef);
       const fetchedGoals = goalsDocSnap.exists() ? (goalsDocSnap.data().goals || {}) : {};
+      const fetchedSkipped = new Set(goalsDocSnap.exists() ? (goalsDocSnap.data().skipped || []) : []);
       setStudentGoals(fetchedGoals);
+      setSkippedExercises(fetchedSkipped);
+      setIsRestDaySet(currentExercises.length > 0 && currentExercises.every(ex => fetchedSkipped.has(ex.id)));
       
       fetchRecommendation(studentRef, fetchedGoals, currentLvlInfo.name);
 
@@ -497,7 +485,7 @@ export default function StudentPage() {
     if (currentStudent && currentLevelInfo) {
       try {
         const goalsDocRef = doc(db, "studentGoals", currentStudent.id);
-        await setDoc(goalsDocRef, { goals: newGoals, skipped: Array.from(newSkipped) }); // Store skipped as an array
+        await setDoc(goalsDocRef, { goals: newGoals, skipped: Array.from(newSkipped) });
         setStudentGoals(newGoals);
         setSkippedExercises(newSkipped);
         
@@ -506,22 +494,6 @@ export default function StudentPage() {
         
         toast({ title: "성공", description: allExercisesAreSkipped ? "휴식의 날로 설정되었습니다." : "운동 목표가 저장되었습니다." });
         setIsGoalsDialogOpen(false);
-
-        const metToday = new Set<string>();
-        availableExercises.forEach(exercise => {
-          const goalData = newGoals[exercise.id];
-          if (!goalData) return;
-          const logsForExerciseToday = studentActivityLogs.filter(
-            log => log.studentId === currentStudent.id && log.exerciseId === exercise.id && isToday(parseISO(log.date))
-          );
-          let achievedValue = 0;
-          let currentGoalValue: number | undefined;
-          if (exercise.id === 'squat' || exercise.id === 'jump_rope') { achievedValue = logsForExerciseToday.reduce((sum, log) => sum + (log.countValue || 0), 0); currentGoalValue = goalData.count; }
-          else if (exercise.id === 'plank') { achievedValue = logsForExerciseToday.reduce((sum, log) => sum + (log.timeValue || 0), 0); currentGoalValue = goalData.time; }
-          else if (exercise.id === 'walk_run') { achievedValue = logsForExerciseToday.reduce((sum, log) => sum + (log.stepsValue || 0), 0); currentGoalValue = goalData.steps; }
-          if (currentGoalValue !== undefined && currentGoalValue > 0 && achievedValue >= currentGoalValue) { metToday.add(exercise.id); }
-        });
-        setGoalsMetTodayForXp(metToday);
         fetchRecommendation(currentStudent, newGoals, currentLevelInfo.name);
         fetchAiPersonalizedWelcome(currentStudent, currentLevelInfo, teacherBaseWelcomeMessage);
 
@@ -548,6 +520,7 @@ export default function StudentPage() {
   const handleOpenLogForm = () => {
     if (currentStudent) {
         const exercisesWithGoals = Object.keys(studentGoals).filter(exId => {
+            if (skippedExercises.has(exId)) return false;
             const goal = studentGoals[exId];
             if (!goal) return false;
             return (goal.count ?? 0) > 0 || (goal.time ?? 0) > 0 || (goal.steps ?? 0) > 0;
@@ -555,15 +528,7 @@ export default function StudentPage() {
 
         if (exercisesWithGoals.length === 0) {
             toast({ title: "알림", description: "먼저 오늘의 운동 목표를 설정해주세요.", variant: "default"});
-            return;
-        }
-
-        const loggableExercises = availableExercises.filter(ex => 
-            exercisesWithGoals.includes(ex.id) && !skippedExercises.has(ex.id)
-        );
-
-        if (loggableExercises.length === 0) {
-            toast({ title: "알림", description: "오늘 기록할 수 있는 운동이 없습니다. (모든 목표 운동을 건너뛰었을 수 있습니다)", variant: "default"});
+            setIsGoalsDialogOpen(true);
             return;
         }
         setIsLogFormOpen(true);
@@ -968,7 +933,7 @@ export default function StudentPage() {
               </CardTitle>
               <CardDescription>목표를 설정하고 달성해봐요! (오늘 기록 기준)</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4 flex-grow flex flex-col">
+            <CardContent className="flex-grow flex flex-col">
               {isLoadingExercises ? <Loader2 className="h-6 w-6 animate-spin text-primary mx-auto my-4" /> :
               availableExercises.length === 0 ? (
                 <div className="flex items-center justify-center text-center py-4 flex-grow min-h-[10rem] rounded-lg">
@@ -976,7 +941,7 @@ export default function StudentPage() {
                 </div>
               ) :
               hasEffectiveGoals ? (
-                 <div className="space-y-3 flex-grow">
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 flex-grow">
                     {availableExercises.filter(ex => {
                       if (skippedExercises.has(ex.id)) return false;
                       const goal = studentGoals[ex.id];

@@ -3,14 +3,12 @@ import type { CustomExercise } from '@/lib/types';
 
 // EXERCISES_SEED_DATA는 Firestore에 초기 데이터가 없을 경우
 // 또는 교사가 "기본 운동 목록으로 초기화" 기능을 통해 사용할 수 있는 시드 데이터입니다.
-// 학생 앱에서는 직접 사용하지 않고, Firestore에서 데이터를 가져옵니다.
-// 운동 종류를 4가지로 제한하고, 각 운동에 단일 지표만 사용하도록 수정합니다.
 export const EXERCISES_SEED_DATA: CustomExercise[] = [
   { 
     id: 'squat', 
     koreanName: '스쿼트', 
     iconName: 'Dumbbell',
-    category: 'count_time', // 내부적으로는 count만 사용
+    category: 'count_time',
     countUnit: '회', 
     defaultCount: 20, 
     countStep: 1,
@@ -28,14 +26,14 @@ export const EXERCISES_SEED_DATA: CustomExercise[] = [
   { 
     id: 'plank', 
     koreanName: '플랭크', 
-    iconName: 'Activity', // PlankIcon이 없으므로 Activity로 대체 또는 사용자 정의 아이콘 필요
-    category: 'count_time', // 내부적으로는 time(초)만 사용
+    iconName: 'Activity',
+    category: 'count_time',
     countUnit: undefined, 
     defaultCount: undefined, 
     countStep: undefined,
     timeUnit: '초', 
     defaultTime: 20, 
-    timeStep: 1,
+    timeStep: 5,
     stepsUnit: undefined,
     defaultSteps: undefined,
     stepsStep: undefined,
@@ -48,7 +46,7 @@ export const EXERCISES_SEED_DATA: CustomExercise[] = [
     id: 'walk_run', 
     koreanName: '걷기/달리기', 
     iconName: 'Footprints',
-    category: 'steps_distance', // 내부적으로는 steps(걸음)만 사용
+    category: 'steps_distance',
     countUnit: undefined, 
     defaultCount: undefined, 
     countStep: undefined,
@@ -66,8 +64,8 @@ export const EXERCISES_SEED_DATA: CustomExercise[] = [
   { 
     id: 'jump_rope', 
     koreanName: '줄넘기', 
-    iconName: 'Zap', // JumpRopeIcon이 없으므로 Zap으로 대체 또는 사용자 정의 아이콘 필요
-    category: 'count_time', // 내부적으로는 count만 사용
+    iconName: 'Zap',
+    category: 'count_time',
     countUnit: '회',
     defaultCount: 50,
     countStep: 20,
