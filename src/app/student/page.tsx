@@ -194,6 +194,7 @@ export default function StudentPage() {
         const customExercisesFromDb = docSnap.data()?.list as CustomExerciseType[];
         setAvailableExercises(customExercisesFromDb.map(convertCustomToInternalExercise));
       } else {
+        // Fallback to seed data if Firestore is empty for students
         setAvailableExercises(EXERCISES_SEED_DATA.map(convertCustomToInternalExercise));
       }
       setIsLoadingExercises(false);
@@ -331,15 +332,19 @@ export default function StudentPage() {
                 let achievedValue = 0;
                 let currentGoalValue: number | undefined;
 
-                if (exercise.id === 'squat' || exercise.id === 'jump_rope') {
-                    achievedValue = logsForExerciseToday.reduce((sum, log) => sum + (log.countValue || 0), 0);
-                    currentGoalValue = goalData.count;
-                } else if (exercise.id === 'plank') {
-                    achievedValue = logsForExerciseToday.reduce((sum, log) => sum + (log.timeValue || 0), 0);
-                    currentGoalValue = goalData.time;
-                } else if (exercise.id === 'walk_run') {
-                    achievedValue = logsForExerciseToday.reduce((sum, log) => sum + (log.stepsValue || 0), 0);
-                    currentGoalValue = goalData.steps;
+                if (exercise.category === 'count_time') {
+                    if (exercise.countUnit && goalData.count) {
+                        achievedValue = logsForExerciseToday.reduce((sum, log) => sum + (log.countValue || 0), 0);
+                        currentGoalValue = goalData.count;
+                    } else if (exercise.timeUnit && goalData.time) {
+                        achievedValue = logsForExerciseToday.reduce((sum, log) => sum + (log.timeValue || 0), 0);
+                        currentGoalValue = goalData.time;
+                    }
+                } else if (exercise.category === 'steps_distance') {
+                    if (exercise.stepsUnit && goalData.steps) {
+                        achievedValue = logsForExerciseToday.reduce((sum, log) => sum + (log.stepsValue || 0), 0);
+                        currentGoalValue = goalData.steps;
+                    }
                 }
                 
                 if (currentGoalValue !== undefined && currentGoalValue > 0 && achievedValue >= currentGoalValue) {
@@ -578,20 +583,25 @@ export default function StudentPage() {
         const combinedLogs = [...logsForExerciseToday, { ...logData, id: docRef.id }];
 
         let achievedValue = 0;
-        if (exercise.id === 'squat' || exercise.id === 'jump_rope') {
-          achievedValue = combinedLogs.reduce((sum, log) => sum + (log.countValue || 0), 0);
-        } else if (exercise.id === 'plank') {
-          achievedValue = combinedLogs.reduce((sum, log) => sum + (log.timeValue || 0), 0);
-        } else if (exercise.id === 'walk_run') {
-          achievedValue = combinedLogs.reduce((sum, log) => sum + (log.stepsValue || 0), 0);
+        if (exercise.category === 'count_time') {
+            if(exercise.countUnit) {
+                achievedValue = combinedLogs.reduce((sum, log) => sum + (log.countValue || 0), 0);
+            } else if (exercise.timeUnit) {
+                achievedValue = combinedLogs.reduce((sum, log) => sum + (log.timeValue || 0), 0);
+            }
+        } else if (exercise.category === 'steps_distance') {
+            achievedValue = combinedLogs.reduce((sum, log) => sum + (log.stepsValue || 0), 0);
         }
 
         const goalData = todaysGoals[exerciseId];
         let currentGoalValue: number | undefined;
         if (goalData) {
-          if (exercise.id === 'squat' || exercise.id === 'jump_rope') currentGoalValue = goalData.count;
-          else if (exercise.id === 'plank') currentGoalValue = goalData.time;
-          else if (exercise.id === 'walk_run') currentGoalValue = goalData.steps;
+          if (exercise.category === 'count_time') {
+              if (exercise.countUnit) currentGoalValue = goalData.count;
+              else if (exercise.timeUnit) currentGoalValue = goalData.time;
+          } else if (exercise.category === 'steps_distance') {
+              currentGoalValue = goalData.steps;
+          }
         }
 
         if (currentGoalValue !== undefined && currentGoalValue > 0 && achievedValue >= currentGoalValue) {
@@ -692,18 +702,22 @@ export default function StudentPage() {
   }, [currentStudent, currentLevelInfo]);
 
   const hasEffectiveGoalsToday = useMemo(() => {
-    return Object.keys(todaysGoals).filter(exId => {
-      if (todaysSkipped.has(exId)) return false;
-      const goal = todaysGoals[exId];
+    return availableExercises.some(exercise => {
+      if (todaysSkipped.has(exercise.id)) return false;
+      const goal = todaysGoals[exercise.id];
       if (!goal) return false;
-      const ex = availableExercises.find(e => e.id === exId);
-      if (!ex) return false;
-      if ((ex.id === 'squat' || ex.id === 'jump_rope') && goal.count && goal.count > 0) return true;
-      if (ex.id === 'plank' && goal.time && goal.time > 0) return true;
-      if (ex.id === 'walk_run' && goal.steps && goal.steps > 0) return true;
+
+      if (exercise.category === 'count_time') {
+        if ((goal.count ?? 0) > 0 && exercise.countUnit) return true;
+        if ((goal.time ?? 0) > 0 && exercise.timeUnit) return true;
+      }
+      if (exercise.category === 'steps_distance') {
+        if ((goal.steps ?? 0) > 0 && exercise.stepsUnit) return true;
+      }
       return false;
-    }).length > 0;
+    });
   }, [todaysGoals, availableExercises, todaysSkipped]);
+
 
   const mainContentKey = `${currentStudent?.id || 'no-student'}-${isActivityLogsLoading}-${isAiWelcomeLoading}`;
   
@@ -954,13 +968,16 @@ export default function StudentPage() {
               ) :
               hasEffectiveGoalsToday ? (
                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 flex-grow">
-                    {availableExercises.filter(ex => {
-                      if (todaysSkipped.has(ex.id)) return false;
-                      const goal = todaysGoals[ex.id];
+                    {availableExercises.filter(exercise => {
+                      if (todaysSkipped.has(exercise.id)) return false;
+                      const goal = todaysGoals[exercise.id];
                       if (!goal) return false;
-                      if ((ex.id === 'squat' || ex.id === 'jump_rope') && goal.count && goal.count > 0) return true;
-                      if (ex.id === 'plank' && goal.time && goal.time > 0) return true;
-                      if (ex.id === 'walk_run' && goal.steps && goal.steps > 0) return true;
+                      if (exercise.category === 'count_time') {
+                          return ((goal.count ?? 0) > 0 && !!exercise.countUnit) || ((goal.time ?? 0) > 0 && !!exercise.timeUnit);
+                      }
+                      if (exercise.category === 'steps_distance') {
+                          return ((goal.steps ?? 0) > 0 && !!exercise.stepsUnit);
+                      }
                       return false;
                     }).map(exercise => {
                       const goal = todaysGoals[exercise.id];
@@ -973,18 +990,22 @@ export default function StudentPage() {
                       let goalValue = 0;
                       let unit = "";
 
-                      if (exercise.id === 'squat' || exercise.id === 'jump_rope') {
-                        achievedValue = logsForToday.reduce((sum, log) => sum + (log.countValue || 0), 0);
-                        goalValue = goal.count || 0;
-                        unit = exercise.countUnit || "";
-                      } else if (exercise.id === 'plank') {
-                        achievedValue = logsForToday.reduce((sum, log) => sum + (log.timeValue || 0), 0);
-                        goalValue = goal.time || 0;
-                        unit = exercise.timeUnit || "";
-                      } else if (exercise.id === 'walk_run') {
-                        achievedValue = logsForToday.reduce((sum, log) => sum + (log.stepsValue || 0), 0);
-                        goalValue = goal.steps || 0;
-                        unit = exercise.stepsUnit || "";
+                      if (exercise.category === 'count_time') {
+                          if (goal.count && exercise.countUnit) {
+                              achievedValue = logsForToday.reduce((sum, log) => sum + (log.countValue || 0), 0);
+                              goalValue = goal.count || 0;
+                              unit = exercise.countUnit;
+                          } else if (goal.time && exercise.timeUnit) {
+                              achievedValue = logsForToday.reduce((sum, log) => sum + (log.timeValue || 0), 0);
+                              goalValue = goal.time || 0;
+                              unit = exercise.timeUnit;
+                          }
+                      } else if (exercise.category === 'steps_distance') {
+                          if (goal.steps && exercise.stepsUnit) {
+                              achievedValue = logsForToday.reduce((sum, log) => sum + (log.stepsValue || 0), 0);
+                              goalValue = goal.steps || 0;
+                              unit = exercise.stepsUnit;
+                          }
                       }
                       
                       const percent = goalValue > 0 ? Math.min(100, Math.round((achievedValue / goalValue) * 100)) : 0;
@@ -1077,8 +1098,10 @@ export default function StudentPage() {
                 const isWeekend = index === 0 || index === 6;
 
                 const dayGoalData = allDailyGoals[dateKey];
-                const isRestDay = dayGoalData && availableExercises.every(ex => dayGoalData.skipped.has(ex.id));
-                const dayHasGoals = dayGoalData && Object.keys(dayGoalData.goals).length > 0 && !isRestDay;
+                const dayHasGoals = dayGoalData && Object.values(dayGoalData.goals).some(g => Object.values(g).some(v => (v ?? 0) > 0));
+                const isRestDay = dayGoalData && availableExercises.every(ex => dayGoalData.skipped.has(ex.id)) && !dayHasGoals;
+
+                const goalsForDay = dayHasGoals && dayGoalData.goals;
 
                 return (
                   <Card 
@@ -1106,60 +1129,54 @@ export default function StudentPage() {
                     </CardHeader>
                     <CardContent className="p-2 flex-grow flex flex-col items-center justify-center">
                       <div className="text-xs flex-grow flex flex-col justify-center min-h-[5em] w-full">
-                        {isCurrentDay ? (
-                          hasEffectiveGoalsToday ? (
-                            <>
-                              <ul className="text-left text-xs space-y-1 w-full px-1">
-                                {availableExercises.filter(ex => todaysGoals[ex.id] && !todaysSkipped.has(ex.id)).map(exercise => {
-                                  const goal = todaysGoals[exercise.id];
-                                  let goalText = "";
-                                  if (exercise.id === 'squat' || exercise.id === 'jump_rope') goalText = `${goal.count}${exercise.countUnit}`;
-                                  else if (exercise.id === 'plank') goalText = `${goal.time}${exercise.timeUnit}`;
-                                  else if (exercise.id === 'walk_run') goalText = `${goal.steps}${exercise.stepsUnit}`;
-                                  
-                                  const IconComp = getIconByName(exercise.iconName) || ActivityIconLucide;
-                                  return (
-                                    <li key={exercise.id} className="flex items-center gap-1.5 truncate" title={`${exercise.koreanName}: ${goalText}`}>
-                                      <IconComp className="h-3 w-3 shrink-0" />
-                                      <span className="truncate font-medium">{exercise.koreanName}: {goalText}</span>
-                                    </li>
-                                  );
-                                })}
-                              </ul>
-                              {todaysXp > 0 && (
-                                <p className="font-semibold text-green-600 dark:text-green-400 mt-2 text-center text-xs">
-                                  +{todaysXp}XP 😊
-                                </p>
-                              )}
-                            </>
-                          ) : (
-                            <div className="h-full flex flex-col items-center justify-center text-center">
-                                <p className="font-semibold text-primary">{availableExercises.every(ex => todaysSkipped.has(ex.id)) ? '오늘은 쉬는 날' : '오늘의 목표를'}</p>
-                                <p className="font-semibold text-primary">{availableExercises.every(ex => todaysSkipped.has(ex.id)) ? '푹 쉬어요!' : '설정해주세요'}</p>
-                                <p className="text-xs text-muted-foreground mt-1">클릭하여 시작</p>
-                            </div>
-                          )
-                        ) : dayHasGoals ? (
+                        { goalsForDay ? (
                             <ul className="text-left text-xs space-y-1 w-full px-1">
-                                {availableExercises.filter(ex => dayGoalData.goals[ex.id] && !dayGoalData.skipped.has(ex.id)).map(exercise => {
-                                  const goal = dayGoalData.goals[exercise.id];
-                                  let goalText = "";
-                                  if (exercise.id === 'squat' || exercise.id === 'jump_rope') goalText = `${goal.count}${exercise.countUnit}`;
-                                  else if (exercise.id === 'plank') goalText = `${goal.time}${exercise.timeUnit}`;
-                                  else if (exercise.id === 'walk_run') goalText = `${goal.steps}${exercise.stepsUnit}`;
-                                  
+                              {availableExercises
+                                .filter(ex => goalsForDay[ex.id] && !dayGoalData.skipped.has(ex.id))
+                                .flatMap(exercise => {
+                                  const goal = goalsForDay[exercise.id];
+                                  if (!goal) return [];
                                   const IconComp = getIconByName(exercise.iconName) || ActivityIconLucide;
-                                  return (
-                                    <li key={exercise.id} className="flex items-center gap-1.5 truncate" title={`${exercise.koreanName}: ${goalText}`}>
-                                      <IconComp className="h-3 w-3 shrink-0" />
-                                      <span className="truncate font-medium">{exercise.koreanName}: {goalText}</span>
-                                    </li>
-                                  );
-                                })}
+                                  const goalItems = [];
+                                  if ((goal.count ?? 0) > 0 && exercise.countUnit) {
+                                    goalItems.push({
+                                      key: `${exercise.id}-count`, text: `${exercise.koreanName}: ${goal.count}${exercise.countUnit}`, Icon: IconComp
+                                    });
+                                  }
+                                  if ((goal.time ?? 0) > 0 && exercise.timeUnit) {
+                                    goalItems.push({
+                                      key: `${exercise.id}-time`, text: `${exercise.koreanName}: ${goal.time}${exercise.timeUnit}`, Icon: IconComp
+                                    });
+                                  }
+                                  if ((goal.steps ?? 0) > 0 && exercise.stepsUnit) {
+                                    goalItems.push({
+                                      key: `${exercise.id}-steps`, text: `${exercise.koreanName}: ${goal.steps}${exercise.stepsUnit}`, Icon: IconComp
+                                    });
+                                  }
+                                  return goalItems;
+                                })
+                                .map(goalItem => (
+                                  <li key={goalItem.key} className="flex items-center gap-1.5 truncate" title={goalItem.text}>
+                                    <goalItem.Icon className="h-3 w-3 shrink-0" />
+                                    <span className="truncate font-medium">{goalItem.text}</span>
+                                  </li>
+                                ))
+                              }
+                              {isCurrentDay && todaysXp > 0 && (
+                                <li className="font-semibold text-green-600 dark:text-green-400 mt-2 text-center text-xs list-none">
+                                  +{todaysXp}XP 😊
+                                </li>
+                              )}
                             </ul>
                         ) : isRestDay ? (
-                            <div className="h-full flex flex-col items-center justify-center text-center">
+                           <div className="h-full flex flex-col items-center justify-center text-center">
                                 <p className="font-semibold text-muted-foreground">휴식의 날</p>
+                            </div>
+                        ) : isCurrentDay ? (
+                            <div className="h-full flex flex-col items-center justify-center text-center">
+                                <p className="font-semibold text-primary">오늘의 목표를</p>
+                                <p className="font-semibold text-primary">설정해주세요</p>
+                                <p className="text-xs text-muted-foreground mt-1">클릭하여 시작</p>
                             </div>
                         ) : (
                           <p className="min-h-[3em] leading-tight text-center">{item.defaultText}</p>
