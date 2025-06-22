@@ -6,7 +6,7 @@ import type { RecordedExercise, Student, Exercise as ExerciseType, StudentGoal }
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getIconByName } from '@/lib/iconMap';
 import { AlertCircle, TrendingUp } from 'lucide-react';
-import { format, parseISO, isWithinInterval, startOfWeek, endOfWeek, startOfMonth, isToday } from 'date-fns';
+import { format, parseISO, isWithinInterval, startOfWeek, endOfWeek, startOfMonth, endOfMonth, isToday } from 'date-fns';
 import { ko } from 'date-fns/locale';
 
 interface StudentActivityChartProps {
