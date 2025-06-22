@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dumbbell, Target, History, PlusCircle, LogOut, UserCheck, Loader2, AlertTriangle, KeyRound, Edit3, Camera, Info, Activity as ActivityIconLucide, CheckSquare, CalendarDays, Edit, CheckCircle, Trophy } from 'lucide-react';
-import type { Student, ClassName, RecordedExercise, Gender, StudentGoal, CustomExercise as CustomExerciseType, Exercise as ExerciseType, LevelInfo, DailyGoalEntry } from '@/lib/types';
+import type { Student, RecordedExercise, Gender, StudentGoal, CustomExercise as CustomExerciseType, Exercise as ExerciseType, LevelInfo, DailyGoalEntry } from '@/lib/types';
 import { EXERCISES_SEED_DATA } from '@/data/mockData';
 import SetStudentGoalsDialog from '@/components/SetStudentGoalsDialog';
 import ExerciseLogForm from '@/components/ExerciseLogForm';
@@ -84,20 +84,6 @@ const convertCustomToInternalExercise = (customEx: CustomExerciseType): Exercise
     icon: getIconByName(customEx.iconName) || ActivityIconLucide,
   };
 };
-
-const getGradeFromClassName = (className?: ClassName): string => {
-    if (!className) return "초등학생";
-    const match = className.match(/(\d+)학년/);
-    if (match && match[1]) {
-      return `${match[1]}학년`;
-    }
-    const numMatch = className.match(/\d+/);
-    if (numMatch && numMatch[0]) {
-        const gradeNum = parseInt(numMatch[0], 10);
-        if (gradeNum >=1 && gradeNum <=6) return `${gradeNum}학년`;
-    }
-    return "초등학생"; 
-  };
   
 const weeklyPlanDays = [
   { day: "일", dayEng: "Sun", defaultText: "가족과 함께 공원에서 신나게 뛰어놀아요!" },
@@ -112,9 +98,10 @@ const weeklyPlanDays = [
 
 export default function StudentPage() {
   const [allStudents, setAllStudents] = useState<Student[]>([]);
-  const [availableClasses, setAvailableClasses] = useState<ClassName[]>([]);
+  const [classStructure, setClassStructure] = useState<Record<string, Set<string>>>({});
 
-  const [selectedClass, setSelectedClass] = useState<ClassName | ''>('');
+  const [selectedGrade, setSelectedGrade] = useState<string>('');
+  const [selectedClassNum, setSelectedClassNum] = useState<string>('');
   const [studentsInClass, setStudentsInClass] = useState<Student[]>([]);
   const [selectedStudentId, setSelectedStudentId] = useState<string | ''>('');
   const [studentForPinCheck, setStudentForPinCheck] = useState<Student | null>(null);
@@ -172,8 +159,16 @@ export default function StudentPage() {
         return { id: sDoc.id, ...data, totalXp: data.totalXp || 0 } as Student;
       });
       setAllStudents(studentsList);
-      const classNames = Array.from(new Set(studentsList.map(s => s.class))).sort();
-      setAvailableClasses(classNames);
+      
+      const structure: Record<string, Set<string>> = {};
+      studentsList.forEach(s => {
+          if (!structure[s.grade]) {
+              structure[s.grade] = new Set();
+          }
+          structure[s.grade].add(s.classNum);
+      });
+      setClassStructure(structure);
+
     } catch (error) {
       console.error("Error fetching login options:", error);
       toast({ title: "오류", description: "학생 정보를 불러오는 데 실패했습니다.", variant: "destructive" });
@@ -239,7 +234,7 @@ export default function StudentPage() {
     if (!student) return;
     setIsRecommendationLoading(true);
     try {
-      const studentGrade = getGradeFromClassName(student.class);
+      const studentGrade = `${student.grade}학년`;
       const input: RecommendStudentExerciseInput = {
         studentName: student.name,
         studentGrade: studentGrade,
@@ -407,13 +402,14 @@ export default function StudentPage() {
 
 
   useEffect(() => {
-    if (!currentStudent?.class) {
+    if (!currentStudent?.grade || !currentStudent?.classNum) {
       setIsLoadingClassData(false);
       return;
     }
-
+    
+    const currentClassName = `${currentStudent.grade}학년 ${currentStudent.classNum}반`;
     setIsLoadingClassData(true);
-    const logsQuery = query(collection(db, "exerciseLogs"), where("className", "==", currentStudent.class));
+    const logsQuery = query(collection(db, "exerciseLogs"), where("className", "==", currentClassName));
 
     const unsubscribe = onSnapshot(logsQuery, (snapshot) => {
         const logs = snapshot.docs.map(doc => {
@@ -433,12 +429,12 @@ export default function StudentPage() {
     });
 
     return () => unsubscribe();
-}, [currentStudent?.class, toast]);
+}, [currentStudent?.grade, currentStudent?.classNum, toast]);
 
 
   useEffect(() => {
-    if (selectedClass && allStudents.length > 0) {
-      setStudentsInClass(allStudents.filter(student => student.class === selectedClass).sort((a,b) => a.studentNumber - b.studentNumber));
+    if (selectedGrade && selectedClassNum && allStudents.length > 0) {
+      setStudentsInClass(allStudents.filter(student => student.grade === selectedGrade && student.classNum === selectedClassNum).sort((a,b) => a.studentNumber - b.studentNumber));
       setSelectedStudentId('');
       setStudentForPinCheck(null);
       setEnteredPin('');
@@ -446,7 +442,7 @@ export default function StudentPage() {
     } else {
       setStudentsInClass([]);
     }
-  }, [selectedClass, allStudents]);
+  }, [selectedGrade, selectedClassNum, allStudents]);
 
   const handleStudentSelect = (studentId: string) => {
     setSelectedStudentId(studentId);
@@ -524,7 +520,8 @@ export default function StudentPage() {
 
   const handleLogout = () => {
     setCurrentStudent(null);
-    setSelectedClass('');
+    setSelectedGrade('');
+    setSelectedClassNum('');
     setSelectedStudentId('');
     setStudentForPinCheck(null);
     setEnteredPin('');
@@ -683,7 +680,7 @@ export default function StudentPage() {
           studentId: currentStudent.id,
           exerciseId: cameraExerciseId,
           date: new Date().toISOString(),
-          className: currentStudent.class as ClassName,
+          className: `${currentStudent.grade}학년 ${currentStudent.classNum}반`,
           countValue: count,
         };
         handleSaveExerciseLog(logEntry);
@@ -739,41 +736,45 @@ export default function StudentPage() {
             <CardDescription>운동 기록을 시작하려면 학급, 이름, PIN을 입력하세요.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <label htmlFor="class-select" className="block text-sm font-medium text-gray-700 dark:text-gray-300">학급 선택</label>
-              <Select
-                value={selectedClass}
-                onValueChange={(value) => setSelectedClass(value as ClassName)}
-                disabled={availableClasses.length === 0}
-              >
-                <SelectTrigger id="class-select" className="w-full text-base py-3 rounded-lg">
-                  <SelectValue placeholder={availableClasses.length === 0 ? "선생님께서 아직 학급을 만들지 않으셨어요." : "학급을 선택하세요"} />
-                </SelectTrigger>
-                <SelectContent>
-                  {availableClasses.map(cls => (
-                    <SelectItem key={cls} value={cls} className="text-base py-2">{cls}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                <Label htmlFor="grade-select">학년</Label>
+                <Select value={selectedGrade} onValueChange={v => {setSelectedGrade(v); setSelectedClassNum(''); setSelectedStudentId('');}}>
+                    <SelectTrigger id="grade-select" className="w-full"><SelectValue placeholder="학년 선택" /></SelectTrigger>
+                    <SelectContent>
+                    {Object.keys(classStructure).sort().map(grade => (
+                        <SelectItem key={grade} value={grade}>{grade}학년</SelectItem>
+                    ))}
+                    </SelectContent>
+                </Select>
+                </div>
+                <div className="space-y-2">
+                <Label htmlFor="class-select">반</Label>
+                <Select value={selectedClassNum} onValueChange={v => {setSelectedClassNum(v); setSelectedStudentId('');}} disabled={!selectedGrade}>
+                    <SelectTrigger id="class-select" className="w-full"><SelectValue placeholder="반 선택" /></SelectTrigger>
+                    <SelectContent>
+                    {selectedGrade && classStructure[selectedGrade] &&
+                        Array.from(classStructure[selectedGrade]).sort().map(classNum => (
+                        <SelectItem key={classNum} value={classNum}>{classNum}반</SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+                </div>
             </div>
 
             <div className="space-y-2">
-              <label htmlFor="student-select" className="block text-sm font-medium text-gray-700 dark:text-gray-300">학생 선택</label>
+              <Label htmlFor="student-select">이름</Label>
               <Select
                 value={selectedStudentId}
                 onValueChange={handleStudentSelect}
-                disabled={availableClasses.length === 0 || !selectedClass || studentsInClass.length === 0}
+                disabled={!selectedGrade || !selectedClassNum || studentsInClass.length === 0}
               >
-                <SelectTrigger id="student-select" className="w-full text-base py-3 rounded-lg">
-                  <SelectValue placeholder={
-                     availableClasses.length === 0 ? "먼저 학급 정보가 필요합니다." :
-                    !selectedClass ? "학급을 먼저 선택하세요" :
-                    (studentsInClass.length === 0 ? "이 학급에 학생 없음" : "학생을 선택하세요")
-                  } />
+                <SelectTrigger id="student-select" className="w-full">
+                    <SelectValue placeholder={!selectedGrade || !selectedClassNum ? "학년과 반을 먼저 선택하세요" : (studentsInClass.length === 0 ? "이 학급에 학생 없음" : "학생 선택")} />
                 </SelectTrigger>
                 <SelectContent>
                   {studentsInClass.map(student => (
-                    <SelectItem key={student.id} value={student.id} className="text-base py-2">
+                    <SelectItem key={student.id} value={student.id}>
                       {student.studentNumber}번 {student.name}
                     </SelectItem>
                   ))}
@@ -783,9 +784,7 @@ export default function StudentPage() {
 
             {studentForPinCheck && (
               <div className="space-y-2">
-                <label htmlFor="pin-input" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                  PIN (4자리 숫자)
-                </label>
+                <Label htmlFor="pin-input">PIN (4자리 숫자)</Label>
                 <div className="flex items-center gap-2">
                     <KeyRound className="h-5 w-5 text-muted-foreground" />
                     <Input

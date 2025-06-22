@@ -7,18 +7,19 @@ import ClassSelector from '@/components/ClassSelector';
 import StudentCard from '@/components/StudentCard';
 import AiSuggestionBox from '@/components/AiSuggestionBox';
 import AddStudentDialog from '@/components/AddStudentDialog';
+import BatchAddStudentsDialog from '@/components/BatchAddStudentsDialog';
 import ManageStudentPinDialog from '@/components/ManageStudentPinDialog';
 import ManageCustomExerciseDialog from '@/components/ManageCustomExerciseDialog';
 import ClassSummaryStats from '@/components/ClassSummaryStats'; 
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import type { Student, ClassName, RecordedExercise, CustomExercise as CustomExerciseType, Gender, TeacherExerciseRecommendation, StudentGoal, Exercise as ExerciseType } from '@/lib/types';
+import type { Student, RecordedExercise, CustomExercise as CustomExerciseType, Gender, TeacherExerciseRecommendation, StudentGoal, Exercise as ExerciseType } from '@/lib/types';
 import { EXERCISES_SEED_DATA } from '@/data/mockData';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Users, BarChart2, Lightbulb, ListChecks, UserPlus, Trash2, Sparkles, MessageSquarePlus, MessageSquareX, Loader2, Wand2, KeyRound, LogIn, Image as ImageIconLucide, Edit, Settings2, School, PlusCircle, Edit3, AlertCircle, TrendingUp, CalendarDays, ChevronLeft, ChevronRight, Activity as ActivityIcon, Construction, RotateCcw } from 'lucide-react';
+import { Users, BarChart2, Lightbulb, ListChecks, UserPlus, Trash2, Sparkles, MessageSquarePlus, MessageSquareX, Loader2, Wand2, KeyRound, LogIn, Image as ImageIconLucide, Edit, Settings2, School, PlusCircle, Edit3, AlertCircle, TrendingUp, CalendarDays, ChevronLeft, ChevronRight, Activity as ActivityIcon, Construction, RotateCcw, FileUp } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle as UICardTitle, CardDescription as UICardDescription } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -58,11 +59,11 @@ export default function TeacherPage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [pinError, setPinError] = useState('');
 
-  const [selectedClass, setSelectedClass] = useState<ClassName | undefined>(undefined);
+  const [selectedClass, setSelectedClass] = useState<string | undefined>(undefined);
   const { toast } = useToast();
 
   const [students, setStudents] = useState<Student[]>([]);
-  const [dynamicClasses, setDynamicClasses] = useState<ClassName[]>([]);
+  const [dynamicClasses, setDynamicClasses] = useState<string[]>([]);
   const [recordedExercises, setRecordedExercises] = useState<RecordedExercise[]>([]);
   const [compliments, setCompliments] = useState<string[]>(DEFAULT_COMPLIMENTS_LIST);
   const [exerciseRecommendations, setExerciseRecommendations] = useState<TeacherExerciseRecommendation[]>([]);
@@ -86,6 +87,7 @@ export default function TeacherPage() {
   const [studentsInClass, setStudentsInClass] = useState<Student[]>([]);
   const [activeTab, setActiveTab] = useState<string>("students");
   const [isAddStudentDialogOpen, setIsAddStudentDialogOpen] = useState(false);
+  const [isBatchAddDialogOpen, setIsBatchAddDialogOpen] = useState(false);
   const [studentToDelete, setStudentToDelete] = useState<Student | null>(null);
 
   const [newCompliment, setNewCompliment] = useState<string>('');
@@ -116,7 +118,7 @@ export default function TeacherPage() {
       const studentsSnapshot = await getDocs(studentsCollectionRef);
       const studentsList = studentsSnapshot.docs.map(sDoc => ({ id: sDoc.id, ...sDoc.data() } as Student));
       setStudents(studentsList);
-      const classNames = Array.from(new Set(studentsList.map(s => s.class))).sort();
+      const classNames = Array.from(new Set(studentsList.map(s => `${s.grade}학년 ${s.classNum}반`))).sort();
       setDynamicClasses(classNames);
     } catch (error) {
       console.error("Error fetching students: ", error);
@@ -311,40 +313,39 @@ export default function TeacherPage() {
 
   useEffect(() => {
     if (selectedClass) {
-      setStudentsInClass(students.filter(student => student.class === selectedClass).sort((a, b) => a.studentNumber - b.studentNumber));
+      setStudentsInClass(students.filter(student => `${student.grade}학년 ${student.classNum}반` === selectedClass).sort((a, b) => a.studentNumber - b.studentNumber));
     } else {
       setStudentsInClass(students.sort((a,b) => {
-        const classCompare = a.class.localeCompare(b.class);
+        const classCompare = (`${a.grade}학년 ${a.classNum}반`).localeCompare(`${b.grade}학년 ${b.classNum}반`);
         if (classCompare !== 0) return classCompare;
         return a.studentNumber - b.studentNumber;
       }));
     }
   }, [selectedClass, students]);
 
-  const handleClassChange = (className: ClassName | 'all') => {
+  const handleClassChange = (className: string | 'all') => {
     if (className === 'all') {
       setSelectedClass(undefined);
     } else {
-      setSelectedClass(className as ClassName);
+      setSelectedClass(className);
     }
   };
 
-  const handleAddStudent = async (newStudentData: { name: string; class: string; studentNumber: number; gender: Gender; pin: string; totalXp: number }) => {
+  const handleAddStudent = async (newStudentData: Omit<Student, 'id' | 'avatarSeed'>) => {
     try {
-      const studentWithAvatarAndPin = {
-        ...newStudentData,
-        class: newStudentData.class.trim(),
-        avatarSeed: '',
-      };
-      const docRef = await addDoc(collection(db, "students"), studentWithAvatarAndPin);
-      const newStudent = { ...studentWithAvatarAndPin, id: docRef.id };
-      setStudents(prevStudents => [...prevStudents, newStudent].sort((a,b) => a.class.localeCompare(b.class) || a.studentNumber - b.studentNumber));
-      if (!dynamicClasses.includes(newStudent.class)) {
-        setDynamicClasses(prevClasses => [...prevClasses, newStudent.class].sort());
+      const studentWithAvatar = { ...newStudentData, avatarSeed: '' };
+      const docRef = await addDoc(collection(db, "students"), studentWithAvatar);
+      const newStudent = { ...studentWithAvatar, id: docRef.id };
+      
+      const newClassName = `${newStudent.grade}학년 ${newStudent.classNum}반`;
+      setStudents(prev => [...prev, newStudent].sort((a, b) => (`${a.grade}학년 ${a.classNum}반`).localeCompare(`${b.grade}학년 ${b.classNum}반`) || a.studentNumber - b.studentNumber));
+      if (!dynamicClasses.includes(newClassName)) {
+        setDynamicClasses(prev => [...prev, newClassName].sort());
       }
-      setAllStudentGoals(prevGoals => ({...prevGoals, [newStudent.id]: {}}));
+      
       const studentGoalsDocRef = doc(db, "studentGoals", newStudent.id);
-      await setDoc(studentGoalsDocRef, { goals: {} });
+      await setDoc(studentGoalsDocRef, { dailyGoals: {} });
+      setAllStudentGoals(prev => ({...prev, [newStudent.id]: {}}));
 
       toast({ title: "성공", description: "학생이 추가되었습니다." });
     } catch (error) {
@@ -352,6 +353,45 @@ export default function TeacherPage() {
       toast({ title: "오류", description: "학생 추가에 실패했습니다.", variant: "destructive"});
     }
   };
+  
+  const handleBatchAddStudents = async (studentsToAdd: Omit<Student, 'id' | 'avatarSeed'>[]) => {
+    try {
+      const batch = writeBatch(db);
+      const studentsCollectionRef = collection(db, "students");
+      const goalsCollectionRef = collection(db, "studentGoals");
+
+      const newStudents: Student[] = [];
+      const newGoals: Record<string, StudentGoal> = {};
+      const newClassNames = new Set(dynamicClasses);
+
+      studentsToAdd.forEach(studentData => {
+        const studentWithAvatar = { ...studentData, avatarSeed: '' };
+        const newDocRef = doc(studentsCollectionRef); // Create a new doc reference with an auto-generated ID
+        batch.set(newDocRef, studentWithAvatar);
+        
+        const newStudent = { ...studentWithAvatar, id: newDocRef.id };
+        newStudents.push(newStudent);
+        
+        const goalsDocRef = doc(goalsCollectionRef, newDocRef.id);
+        batch.set(goalsDocRef, { dailyGoals: {} });
+        newGoals[newDocRef.id] = {};
+        
+        newClassNames.add(`${newStudent.grade}학년 ${newStudent.classNum}반`);
+      });
+      
+      await batch.commit();
+
+      setStudents(prev => [...prev, ...newStudents].sort((a,b) => (`${a.grade}학년 ${a.classNum}반`).localeCompare(`${b.grade}학년 ${b.classNum}반`) || a.studentNumber - b.studentNumber));
+      setAllStudentGoals(prev => ({...prev, ...newGoals}));
+      setDynamicClasses(Array.from(newClassNames).sort());
+
+    } catch (error) {
+      console.error("Error batch adding students: ", error);
+      toast({ title: "오류", description: "학생 일괄 추가에 실패했습니다.", variant: "destructive"});
+      throw error; // re-throw to be caught by the dialog
+    }
+  };
+
 
   const requestDeleteStudent = (student: Student) => {
     setStudentToDelete(student);
@@ -371,16 +411,22 @@ export default function TeacherPage() {
         const goalsDocRef = doc(db, "studentGoals", studentToDelete.id);
         batch.delete(goalsDocRef);
         await batch.commit();
-        setStudents(prevStudents => prevStudents.filter(s => s.id !== studentToDelete.id));
+        
+        const remainingStudents = students.filter(s => s.id !== studentToDelete.id);
+        setStudents(remainingStudents);
         setRecordedExercises(prevLogs => prevLogs.filter(log => log.studentId !== studentToDelete.id));
         setAllStudentGoals(prevGoals => {
             const newGoals = {...prevGoals};
             delete newGoals[studentToDelete.id];
             return newGoals;
         });
-        const remainingStudents = students.filter(s => s.id !== studentToDelete.id);
-        const updatedClassNames = Array.from(new Set(remainingStudents.map(s => s.class))).sort();
+
+        const updatedClassNames = Array.from(new Set(remainingStudents.map(s => `${s.grade}학년 ${s.classNum}반`))).sort();
         setDynamicClasses(updatedClassNames);
+        if(selectedClass && !updatedClassNames.includes(selectedClass)){
+          setSelectedClass(undefined); // If the deleted student was the last in a class, deselect it
+        }
+
         toast({ title: "성공", description: `${studentToDelete.name} 학생 정보가 삭제되었습니다.` });
       } catch (error) {
         console.error("Error deleting student: ", error);
@@ -480,7 +526,7 @@ export default function TeacherPage() {
     }
   };
 
-  const handleSaveCustomExercise = async (exerciseData: CustomExerciseType | Omit<CustomExerciseType, 'id'>) => {
+  const handleSaveCustomExercise = async (exerciseData: CustomExercise | Omit<CustomExercise, 'id'>) => {
     try {
       const exercisesDocRef = doc(db, CUSTOM_EXERCISES_DOC_PATH);
       
@@ -699,13 +745,18 @@ export default function TeacherPage() {
 
           <TabsContent value="students" className="mt-6">
             <section aria-labelledby="student-list-heading">
-              <div className="flex justify-between items-center mb-4">
+              <div className="flex flex-wrap gap-2 justify-between items-center mb-4">
                 <h2 id="student-list-heading" className="text-xl font-semibold font-headline">
                   {selectedClass ? `${selectedClass} 학생들` : '전체 학생 목록'}
                 </h2>
-                <Button onClick={() => setIsAddStudentDialogOpen(true)} className="rounded-lg">
-                  <UserPlus className="mr-2 h-5 w-5" /> 학생 추가
-                </Button>
+                <div className="flex gap-2">
+                  <Button onClick={() => setIsAddStudentDialogOpen(true)} className="rounded-lg">
+                    <UserPlus className="mr-2 h-5 w-5" /> 학생 추가
+                  </Button>
+                   <Button onClick={() => setIsBatchAddDialogOpen(true)} variant="outline" className="rounded-lg">
+                    <FileUp className="mr-2 h-5 w-5" /> 일괄 추가
+                  </Button>
+                </div>
               </div>
               {students.length === 0 && (
                 <div className="text-center py-10 bg-card p-6 rounded-xl shadow-md">
@@ -1207,6 +1258,12 @@ export default function TeacherPage() {
           onClose={() => setIsAddStudentDialogOpen(false)}
           onSave={handleAddStudent}
         />
+        
+        <BatchAddStudentsDialog
+          isOpen={isBatchAddDialogOpen}
+          onClose={() => setIsBatchAddDialogOpen(false)}
+          onSave={handleBatchAddStudents}
+        />
 
         {studentForPinManage && (
           <ManageStudentPinDialog
@@ -1236,7 +1293,7 @@ export default function TeacherPage() {
                 <AlertDialogHeader>
                   <AlertDialogTitle>학생 삭제 확인</AlertDialogTitle>
                   <AlertDialogDescription>
-                    <strong>{studentToDelete.name}</strong> ({studentToDelete.class} {studentToDelete.studentNumber}번) 학생을 정말 삭제하시겠습니까? 이 학생의 모든 운동 기록과 목표도 함께 삭제됩니다. 이 작업은 되돌릴 수 없습니다.
+                    <strong>{studentToDelete.name}</strong> ({studentToDelete.grade}학년 {studentToDelete.classNum}반 {studentToDelete.studentNumber}번) 학생을 정말 삭제하시겠습니까? 이 학생의 모든 운동 기록과 목표도 함께 삭제됩니다. 이 작업은 되돌릴 수 없습니다.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
@@ -1255,5 +1312,3 @@ export default function TeacherPage() {
     </div>
   );
 }
-
-    

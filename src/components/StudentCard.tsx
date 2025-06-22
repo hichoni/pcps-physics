@@ -46,7 +46,7 @@ const StudentCard: React.FC<StudentCardProps> = ({ student, onDeleteStudent, onM
           <div>
             <CardTitle className="text-lg font-headline">{student.name}</CardTitle>
             <CardDescription className="text-xs text-muted-foreground">
-              {student.class} {student.studentNumber}번 ({student.gender === 'male' ? '남' : '여'})
+              {student.grade}학년 {student.classNum}반 {student.studentNumber}번 ({student.gender === 'male' ? '남' : '여'})
             </CardDescription>
             <div className="text-xs text-muted-foreground mt-0.5 flex items-center">
               PIN: {showPin ? student.pin : '••••'}

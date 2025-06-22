@@ -1,7 +1,7 @@
 
 import type React from 'react';
 import { useState, useEffect, useMemo } from 'react';
-import type { Student, Exercise, RecordedExercise, ClassName, StudentGoal } from '@/lib/types';
+import type { Student, Exercise, RecordedExercise, StudentGoal } from '@/lib/types';
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
@@ -101,7 +101,7 @@ const ExerciseLogForm: React.FC<ExerciseLogFormProps> = ({
       studentId: student.id,
       exerciseId: selectedExercise.id,
       date: logDate.toISOString(),
-      className: student.class as ClassName,
+      className: `${student.grade}학년 ${student.classNum}반`,
     };
 
     if (selectedExercise.id === 'squat' || selectedExercise.id === 'jump_rope') {
@@ -135,7 +135,7 @@ const ExerciseLogForm: React.FC<ExerciseLogFormProps> = ({
         currentUnit = selectedExercise.timeUnit || "";
         if (totalTime > 0) totalLoggedTodayDisplay = `오늘 총 ${selectedExercise.koreanName} 기록: ${totalTime}${currentUnit}`;
     } else if (selectedExercise.id === 'walk_run') {
-        const totalSteps = exercisesLoggedTodayForStudent.reduce((sum, rec) => sum + (rec.stepsValue || 0), 0);
+        const totalSteps = exercisesLoggedTodayForStudent.reduce((sum, rec) => sum + (log.stepsValue || 0), 0);
         currentUnit = selectedExercise.stepsUnit || "";
         if (totalSteps > 0) totalLoggedTodayDisplay = `오늘 총 ${selectedExercise.koreanName} 기록: ${totalSteps}${currentUnit}`;
     }

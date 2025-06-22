@@ -8,26 +8,32 @@ import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import type { Gender } from "@/lib/types"; 
 import { UserPlus, Save } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface AddStudentDialogProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (newStudentData: { name: string; class: string; studentNumber: number; gender: Gender; pin: string; totalXp: number }) => void;
+  onSave: (newStudentData: { name: string; grade: string; classNum: string; studentNumber: number; gender: Gender; pin: string; totalXp: number }) => void;
 }
+
+const GRADES = ["1", "2", "3", "4", "5", "6"];
 
 const AddStudentDialog: React.FC<AddStudentDialogProps> = ({ isOpen, onClose, onSave }) => {
   const [name, setName] = useState('');
   const [studentNumber, setStudentNumber] = useState<string>('');
   const [gender, setGender] = useState<Gender | undefined>(undefined);
-  const [classNameInput, setClassNameInput] = useState<string>('');
+  const [grade, setGrade] = useState<string>('');
+  const [classNum, setClassNum] = useState<string>('');
 
   const handleSave = () => {
     const num = parseInt(studentNumber, 10);
+    const classNumInt = parseInt(classNum, 10);
 
-    if (name.trim() && classNameInput.trim() && !isNaN(num) && num > 0 && gender) {
+    if (name.trim() && grade && !isNaN(classNumInt) && classNumInt > 0 && !isNaN(num) && num > 0 && gender) {
       onSave({ 
         name: name.trim(), 
-        class: classNameInput.trim(), 
+        grade,
+        classNum: classNum,
         studentNumber: num, 
         gender, 
         pin: "0000", // 기본 PIN "0000"
@@ -36,10 +42,11 @@ const AddStudentDialog: React.FC<AddStudentDialogProps> = ({ isOpen, onClose, on
       setName('');
       setStudentNumber('');
       setGender(undefined);
-      setClassNameInput('');
+      setGrade('');
+      setClassNum('');
       onClose();
     } else {
-      alert("모든 필드를 올바르게 입력해주세요 (학생 이름, 학급 이름, 학번, 성별).");
+      alert("모든 필드를 올바르게 입력해주세요 (학생 이름, 학년, 반, 학번, 성별).");
     }
   };
 
@@ -50,7 +57,8 @@ const AddStudentDialog: React.FC<AddStudentDialogProps> = ({ isOpen, onClose, on
         setName('');
         setStudentNumber('');
         setGender(undefined);
-        setClassNameInput('');
+        setGrade('');
+        setClassNum('');
       }
     }}>
       <DialogContent className="sm:max-w-[425px] p-0 rounded-xl">
@@ -60,7 +68,7 @@ const AddStudentDialog: React.FC<AddStudentDialogProps> = ({ isOpen, onClose, on
             새 학생 추가
           </DialogTitle>
           <DialogDescription>
-            새로운 학생의 이름, 학급, 학번, 성별을 입력해주세요. 초기 PIN은 "0000"으로, XP는 0으로 자동 설정됩니다.
+            새로운 학생의 정보를 입력해주세요. 초기 PIN은 "0000"으로, XP는 0으로 자동 설정됩니다.
           </DialogDescription>
         </DialogHeader>
         <div className="p-6 space-y-4">
@@ -74,15 +82,30 @@ const AddStudentDialog: React.FC<AddStudentDialogProps> = ({ isOpen, onClose, on
               className="text-base py-3 rounded-lg"
             />
           </div>
-           <div className="space-y-2">
-            <Label htmlFor="className" className="text-base">학급 이름</Label>
-            <Input
-              id="className"
-              value={classNameInput}
-              onChange={(e) => setClassNameInput(e.target.value)}
-              placeholder="예: 3학년 1반"
-              className="text-base py-3 rounded-lg"
-            />
+          <div className="grid grid-cols-2 gap-4">
+             <div className="space-y-2">
+              <Label htmlFor="grade" className="text-base">학년</Label>
+               <Select value={grade} onValueChange={setGrade}>
+                <SelectTrigger id="grade" className="text-base py-3 rounded-lg">
+                  <SelectValue placeholder="학년 선택" />
+                </SelectTrigger>
+                <SelectContent>
+                  {GRADES.map(g => <SelectItem key={g} value={g}>{g}학년</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="classNum" className="text-base">반</Label>
+              <Input
+                id="classNum"
+                type="number"
+                value={classNum}
+                onChange={(e) => setClassNum(e.target.value)}
+                placeholder="예: 1"
+                className="text-base py-3 rounded-lg"
+                min="1"
+              />
+            </div>
           </div>
           <div className="space-y-2">
             <Label htmlFor="studentNumber" className="text-base">학번</Label>

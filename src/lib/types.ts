@@ -1,14 +1,13 @@
 
 import type { LucideIcon } from 'lucide-react'; 
 
-export type ClassName = string; 
-
 export type Gender = 'male' | 'female';
 
 export interface Student {
   id: string;
   name: string;
-  class: ClassName;
+  grade: string; // 예: "1", "2", "3"
+  classNum: string; // 예: "1", "2", "3"
   studentNumber: number;
   gender: Gender;
   avatarSeed: string;
@@ -82,7 +81,7 @@ export interface RecordedExercise {
   
   distanceValue?: number;
   
-  className: ClassName;
+  className: string; // 예: "1학년 1반"
   imageUrl?: string; 
 }
 
@@ -93,7 +92,7 @@ export interface AiSuggestion {
 
 export interface DailyLog {
   date: string; 
-  className: ClassName;
+  className: string;
   studentId: string;
   exerciseId: string;
   value: number; 
