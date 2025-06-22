@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
@@ -6,11 +7,14 @@ import type { Exercise, Student, StudentGoal, ExerciseGoal } from '@/lib/types';
 import { Target, Save, X, PlusCircle, MinusCircle, Waves, Check } from 'lucide-react';
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from '@/lib/utils';
+import { format } from 'date-fns';
+import { ko } from 'date-fns/locale';
 
 interface SetStudentGoalsDialogProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (data: { goals: StudentGoal, skipped: Set<string> }) => void;
+  onSave: (data: { date: Date, goals: StudentGoal, skipped: Set<string> }) => void;
+  date: Date;
   exercises: Exercise[]; 
   currentStudent: Student | null;
   initialGoals: StudentGoal;
@@ -21,6 +25,7 @@ const SetStudentGoalsDialog: React.FC<SetStudentGoalsDialogProps> = ({
   isOpen, 
   onClose, 
   onSave, 
+  date,
   exercises, 
   currentStudent, 
   initialGoals,
@@ -53,7 +58,7 @@ const SetStudentGoalsDialog: React.FC<SetStudentGoalsDialogProps> = ({
       setGoals(newGoalsState);
       setSkipped(new Set(skippedExercises));
     }
-  }, [isOpen, exercises, initialGoals, skippedExercises]);
+  }, [isOpen, exercises, initialGoals, skippedExercises, date]);
 
   const handleValueChange = (exerciseId: string, field: keyof ExerciseGoal, delta: number) => {
     const exercise = exercises.find(e => e.id === exerciseId);
@@ -140,7 +145,7 @@ const SetStudentGoalsDialog: React.FC<SetStudentGoalsDialogProps> = ({
             }
         }
     });
-    onSave({ goals: goalsToSave, skipped });
+    onSave({ date, goals: goalsToSave, skipped });
   };
   
   const handleRestDayClick = () => {
@@ -148,7 +153,6 @@ const SetStudentGoalsDialog: React.FC<SetStudentGoalsDialogProps> = ({
     const currentlyAllSkipped = allExerciseIds.every(id => skipped.has(id));
 
     if (currentlyAllSkipped) {
-        // Un-rest: clear all skips and restore goals
         setSkipped(new Set());
         const restoredGoals: StudentGoal = {};
         exercises.forEach(ex => {
@@ -170,7 +174,6 @@ const SetStudentGoalsDialog: React.FC<SetStudentGoalsDialogProps> = ({
         });
         setGoals(restoredGoals);
     } else {
-        // Rest: skip all
         setSkipped(new Set(allExerciseIds));
     }
   };
@@ -185,7 +188,7 @@ const SetStudentGoalsDialog: React.FC<SetStudentGoalsDialogProps> = ({
         <DialogHeader className="p-6 pb-4">
           <DialogTitle className="text-2xl font-headline flex items-center">
             <Target className="mr-2 h-6 w-6 text-primary" />
-            {currentStudent.name} 학생 운동 목표 설정
+            {format(date, "M월 d일", { locale: ko })} 운동 목표 설정
           </DialogTitle>
           <DialogDescription>
             각 운동별 목표를 설정하거나, 오늘 하루 건너뛸 수 있습니다.
@@ -289,7 +292,7 @@ const SetStudentGoalsDialog: React.FC<SetStudentGoalsDialogProps> = ({
               </>
             ) : (
               <>
-                <Waves className="mr-2 h-5 w-5" /> 오늘은 휴식할래요
+                <Waves className="mr-2 h-5 w-5" /> 이날은 휴식할래요
               </>
             )}
           </Button>

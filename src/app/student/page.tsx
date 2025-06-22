@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dumbbell, Target, History, PlusCircle, LogOut, UserCheck, Loader2, AlertTriangle, KeyRound, Edit3, Camera, Info, Activity as ActivityIconLucide, CheckSquare, CalendarDays, Edit, CheckCircle, Trophy } from 'lucide-react';
-import type { Student, ClassName, RecordedExercise, Gender, StudentGoal, CustomExercise as CustomExerciseType, Exercise as ExerciseType, LevelInfo } from '@/lib/types';
+import type { Student, ClassName, RecordedExercise, Gender, StudentGoal, CustomExercise as CustomExerciseType, Exercise as ExerciseType, LevelInfo, DailyGoalEntry } from '@/lib/types';
 import { EXERCISES_SEED_DATA } from '@/data/mockData';
 import SetStudentGoalsDialog from '@/components/SetStudentGoalsDialog';
 import ExerciseLogForm from '@/components/ExerciseLogForm';
@@ -128,13 +128,16 @@ export default function StudentPage() {
   const [isLoadingExercises, setIsLoadingExercises] = useState(true);
   const [isLoadingClassData, setIsLoadingClassData] = useState(true);
 
-  const [isGoalsDialogOpen, setIsGoalsDialogOpen] = useState(false);
+  const [goalDialogState, setGoalDialogState] = useState<{isOpen: boolean; date: Date | null}>({ isOpen: false, date: null });
   const [isLogFormOpen, setIsLogFormOpen] = useState(false);
   const [isChangeOwnPinDialogOpen, setIsChangeOwnPinDialogOpen] = useState(false);
   const [isChangeAvatarDialogOpen, setIsChangeAvatarDialogOpen] = useState(false);
   const [isLevelGuideDialogOpen, setIsLevelGuideDialogOpen] = useState(false);
 
-  const [studentGoals, setStudentGoals] = useState<StudentGoal>({});
+  const [todaysGoals, setTodaysGoals] = useState<StudentGoal>({});
+  const [todaysSkipped, setTodaysSkipped] = useState<Set<string>>(new Set());
+  const [allDailyGoals, setAllDailyGoals] = useState<Record<string, { goals: StudentGoal; skipped: Set<string> }>>({});
+
   const [studentActivityLogs, setStudentActivityLogs] = useState<RecordedExercise[]>([]);
   const [classActivityLogs, setClassActivityLogs] = useState<RecordedExercise[]>([]);
   const [recommendedExercise, setRecommendedExercise] = useState<RecommendStudentExerciseOutput | null>(null);
@@ -151,18 +154,9 @@ export default function StudentPage() {
   const [isCameraModeOpen, setIsCameraModeOpen] = useState(false);
   const [cameraExerciseId, setCameraExerciseId] = useState<string | null>(null);
   
-  const [skippedExercises, setSkippedExercises] = useState<Set<string>>(new Set());
-  const [isRestDaySet, setIsRestDaySet] = useState(false);
   const todayDate = useMemo(() => new Date(), []);
   
   const todayKey = useMemo(() => format(new Date(), 'yyyy-MM-dd'), []);
-  useEffect(() => {
-    // This effect now specifically depends on todayKey to reset daily states.
-    setSkippedExercises(new Set());
-    setStudentGoals({}); 
-    setIsRestDaySet(false);
-  }, [todayKey]);
-
 
   const [activityChartTimeFrame, setActivityChartTimeFrame] = useState<'today' | 'week' | 'month'>('today');
 
@@ -275,13 +269,22 @@ export default function StudentPage() {
     try {
       const goalsDocRef = doc(db, "studentGoals", studentId);
       const goalsDocSnap = await getDoc(goalsDocRef);
-      const fetchedGoals = goalsDocSnap.exists() ? (goalsDocSnap.data().goals || {}) : {};
-      const fetchedSkipped = new Set(goalsDocSnap.exists() ? (goalsDocSnap.data().skipped || []) : []);
-      setStudentGoals(fetchedGoals);
-      setSkippedExercises(fetchedSkipped);
-      setIsRestDaySet(currentExercises.length > 0 && currentExercises.every(ex => fetchedSkipped.has(ex.id)));
+      const dailyGoalsFromDb: Record<string, DailyGoalEntry> = goalsDocSnap.exists() ? (goalsDocSnap.data().dailyGoals || {}) : {};
+
+      const processedGoals: Record<string, { goals: StudentGoal; skipped: Set<string> }> = {};
+      for (const dateKey in dailyGoalsFromDb) {
+        processedGoals[dateKey] = {
+          goals: dailyGoalsFromDb[dateKey].goals || {},
+          skipped: new Set(dailyGoalsFromDb[dateKey].skipped || []),
+        };
+      }
+      setAllDailyGoals(processedGoals);
       
-      fetchRecommendation(studentRef, fetchedGoals, currentLvlInfo.name);
+      const goalsForToday = processedGoals[todayKey] || { goals: {}, skipped: new Set() };
+      setTodaysGoals(goalsForToday.goals);
+      setTodaysSkipped(goalsForToday.skipped);
+      
+      fetchRecommendation(studentRef, goalsForToday.goals, currentLvlInfo.name);
 
       const welcomeMsgDocRef = doc(db, STUDENT_WELCOME_MESSAGE_DOC_PATH);
       const welcomeMsgDocSnap = await getDoc(welcomeMsgDocRef);
@@ -297,7 +300,6 @@ export default function StudentPage() {
         const logsList = logsSnapshot.docs.map(lDoc => {
           const data = lDoc.data();
           let dateStr = data.date;
-          // Handle old Firestore Timestamps if they exist
           if (data.date && typeof data.date.toDate === 'function') {
             dateStr = data.date.toDate().toISOString();
           }
@@ -314,7 +316,7 @@ export default function StudentPage() {
 
         const metToday = new Set<string>();
         currentExercises.forEach(exercise => {
-          const goalData = fetchedGoals[exercise.id];
+          const goalData = goalsForToday.goals[exercise.id];
           if (!goalData) return;
 
           const logsForExerciseToday = todayLogs.filter(
@@ -366,7 +368,7 @@ export default function StudentPage() {
       setIsAiWelcomeLoading(false);
     }
     return unsubscribeLogs;
-  }, [toast, fetchRecommendation, fetchAiPersonalizedWelcome]);
+  }, [toast, fetchRecommendation, fetchAiPersonalizedWelcome, todayKey]);
 
   useEffect(() => {
     let unsubscribeLogsFunction: (() => void) | undefined;
@@ -384,7 +386,9 @@ export default function StudentPage() {
             setStudentActivityLogs([]);
         }
     } else {
-      setStudentGoals({});
+      setTodaysGoals({});
+      setTodaysSkipped(new Set());
+      setAllDailyGoals({});
       setStudentActivityLogs([]);
       setRecommendedExercise(null);
       setAiPersonalizedWelcome('');
@@ -414,7 +418,6 @@ export default function StudentPage() {
         const logs = snapshot.docs.map(doc => {
             const data = doc.data();
             let dateStr = data.date;
-            // Handle old Firestore Timestamps if they exist
             if (data.date && typeof data.date.toDate === 'function') {
                 dateStr = data.date.toDate().toISOString();
             }
@@ -480,27 +483,51 @@ export default function StudentPage() {
     }
   };
 
-  const handleSaveGoals = async (data: { goals: StudentGoal; skipped: Set<string> }) => {
-    const { goals: newGoals, skipped: newSkipped } = data;
+  const handleSaveDailyGoal = async (data: { date: Date; goals: StudentGoal; skipped: Set<string> }) => {
     if (currentStudent && currentLevelInfo) {
+      const { date, goals, skipped } = data;
+      const dateKey = format(date, 'yyyy-MM-dd');
+
+      // Optimistically update local state for faster UI response
+      const newAllDailyGoals = { ...allDailyGoals, [dateKey]: { goals, skipped } };
+      setAllDailyGoals(newAllDailyGoals);
+      
+      if (isToday(date)) {
+        setTodaysGoals(goals);
+        setTodaysSkipped(skipped);
+      }
+
+      // Prepare data for Firestore (convert Sets to Arrays)
+      const storableDailyGoals: Record<string, DailyGoalEntry> = {};
+      for (const dKey in newAllDailyGoals) {
+        storableDailyGoals[dKey] = {
+          goals: newAllDailyGoals[dKey].goals,
+          skipped: Array.from(newAllDailyGoals[dKey].skipped),
+        };
+      }
+      
       try {
         const goalsDocRef = doc(db, "studentGoals", currentStudent.id);
-        await setDoc(goalsDocRef, { goals: newGoals, skipped: Array.from(newSkipped) });
-        setStudentGoals(newGoals);
-        setSkippedExercises(newSkipped);
+        await setDoc(goalsDocRef, { dailyGoals: storableDailyGoals });
         
-        const allExercisesAreSkipped = availableExercises.length > 0 && availableExercises.every(ex => newSkipped.has(ex.id));
-        setIsRestDaySet(allExercisesAreSkipped);
+        toast({ title: "성공", description: `${format(date, 'M월 d일')} 운동 목표가 저장되었습니다.` });
+        setGoalDialogState({isOpen: false, date: null});
         
-        toast({ title: "성공", description: allExercisesAreSkipped ? "휴식의 날로 설정되었습니다." : "운동 목표가 저장되었습니다." });
-        setIsGoalsDialogOpen(false);
-        fetchRecommendation(currentStudent, newGoals, currentLevelInfo.name);
-        fetchAiPersonalizedWelcome(currentStudent, currentLevelInfo, teacherBaseWelcomeMessage);
-
+        // Re-fetch AI recommendations and welcome message if today's goals were changed
+        if (isToday(date)) {
+            fetchRecommendation(currentStudent, goals, currentLevelInfo.name);
+            fetchAiPersonalizedWelcome(currentStudent, currentLevelInfo, teacherBaseWelcomeMessage);
+        }
 
       } catch (error) {
-        console.error("Error saving goals: ", error);
+        console.error("Error saving daily goals: ", error);
         toast({ title: "오류", description: "운동 목표 저장에 실패했습니다.", variant: "destructive" });
+        // Revert optimistic update on failure
+        setAllDailyGoals(allDailyGoals);
+        if (isToday(date)) {
+          setTodaysGoals(todaysGoals);
+          setTodaysSkipped(todaysSkipped);
+        }
       }
     }
   };
@@ -519,16 +546,16 @@ export default function StudentPage() {
 
   const handleOpenLogForm = () => {
     if (currentStudent) {
-        const exercisesWithGoals = Object.keys(studentGoals).filter(exId => {
-            if (skippedExercises.has(exId)) return false;
-            const goal = studentGoals[exId];
+        const exercisesWithGoals = Object.keys(todaysGoals).filter(exId => {
+            if (todaysSkipped.has(exId)) return false;
+            const goal = todaysGoals[exId];
             if (!goal) return false;
             return (goal.count ?? 0) > 0 || (goal.time ?? 0) > 0 || (goal.steps ?? 0) > 0;
         });
 
         if (exercisesWithGoals.length === 0) {
             toast({ title: "알림", description: "먼저 오늘의 운동 목표를 설정해주세요.", variant: "default"});
-            setIsGoalsDialogOpen(true);
+            setGoalDialogState({ isOpen: true, date: new Date() });
             return;
         }
         setIsLogFormOpen(true);
@@ -574,7 +601,7 @@ export default function StudentPage() {
           achievedValue = combinedLogs.reduce((sum, log) => sum + (log.stepsValue || 0), 0);
         }
 
-        const goalData = studentGoals[exerciseId];
+        const goalData = todaysGoals[exerciseId];
         let currentGoalValue: number | undefined;
         if (goalData) {
           if (exercise.id === 'squat' || exercise.id === 'jump_rope') currentGoalValue = goalData.count;
@@ -589,7 +616,7 @@ export default function StudentPage() {
           await updateDoc(studentDocRef, { totalXp: newTotalXp });
           
           const updatedStudent = { ...currentStudent, totalXp: newTotalXp };
-          setCurrentStudent(updatedStudent); // This will trigger re-calculation of currentLevelInfo via useMemo
+          setCurrentStudent(updatedStudent);
           setGoalsMetTodayForXp(prev => new Set(prev).add(exerciseId));
 
           toast({ title: "✨ XP 획득! ✨", description: `${exercise.koreanName} 목표 달성! +10 XP` });
@@ -597,13 +624,13 @@ export default function StudentPage() {
           const newLevelInfoAfterUpdate = calculateLevelInfo(newTotalXp);
           if (newLevelInfoAfterUpdate.level > currentLevelInfo.level) {
             toast({ title: "🎉 레벨 업! 🎉", description: `축하합니다! ${newLevelInfoAfterUpdate.name}(으)로 레벨 업!`, duration: 7000 });
-            fetchAiPersonalizedWelcome(updatedStudent, newLevelInfoAfterUpdate, teacherBaseWelcomeMessage); // Re-fetch welcome on level up
+            fetchAiPersonalizedWelcome(updatedStudent, newLevelInfoAfterUpdate, teacherBaseWelcomeMessage);
           } else {
-            fetchAiPersonalizedWelcome(updatedStudent, newLevelInfoAfterUpdate, teacherBaseWelcomeMessage); // Re-fetch welcome on XP change
+            fetchAiPersonalizedWelcome(updatedStudent, newLevelInfoAfterUpdate, teacherBaseWelcomeMessage);
           }
         }
       }
-      fetchRecommendation(currentStudent, studentGoals, currentLevelInfo.name);
+      fetchRecommendation(currentStudent, todaysGoals, currentLevelInfo.name);
 
 
     } catch (error) {
@@ -679,10 +706,10 @@ export default function StudentPage() {
     return xpForNextLevel > 0 ? (xpInCurrentLevel / xpForNextLevel) * 100 : 0;
   }, [currentStudent, currentLevelInfo]);
 
-  const hasEffectiveGoals = useMemo(() => {
-    return Object.keys(studentGoals).filter(exId => {
-      if (skippedExercises.has(exId)) return false;
-      const goal = studentGoals[exId];
+  const hasEffectiveGoalsToday = useMemo(() => {
+    return Object.keys(todaysGoals).filter(exId => {
+      if (todaysSkipped.has(exId)) return false;
+      const goal = todaysGoals[exId];
       if (!goal) return false;
       const ex = availableExercises.find(e => e.id === exId);
       if (!ex) return false;
@@ -691,11 +718,11 @@ export default function StudentPage() {
       if (ex.id === 'walk_run' && goal.steps && goal.steps > 0) return true;
       return false;
     }).length > 0;
-  }, [studentGoals, availableExercises, skippedExercises]);
+  }, [todaysGoals, availableExercises, todaysSkipped]);
 
   const mainContentKey = `${currentStudent?.id || 'no-student'}-${isActivityLogsLoading}-${isAiWelcomeLoading}`;
   
-  const currentDayOfWeek = useMemo(() => todayDate.getDay(), [todayDate]); // 0 for Sunday, ..., 6 for Saturday
+  const currentDayOfWeek = useMemo(() => todayDate.getDay(), [todayDate]);
   const startOfTheCurrentWeek = useMemo(() => startOfWeek(todayDate, { weekStartsOn: 0 }), [todayDate]);
   const todaysXp = useMemo(() => goalsMetTodayForXp.size * 10, [goalsMetTodayForXp]);
 
@@ -897,7 +924,7 @@ export default function StudentPage() {
                           variant="outline" 
                           size="lg" 
                           className="rounded-lg py-3 px-6 text-lg flex-grow sm:flex-grow-0" 
-                          onClick={() => setIsGoalsDialogOpen(true)}
+                          onClick={() => setGoalDialogState({ isOpen: true, date: new Date() })}
                           disabled={availableExercises.length === 0}
                         >
                             <CheckSquare className="mr-2 h-6 w-6" />
@@ -940,18 +967,18 @@ export default function StudentPage() {
                   <p className="text-muted-foreground">선생님께서 아직 운동을 설정하지 않으셨어요.</p>
                 </div>
               ) :
-              hasEffectiveGoals ? (
+              hasEffectiveGoalsToday ? (
                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 flex-grow">
                     {availableExercises.filter(ex => {
-                      if (skippedExercises.has(ex.id)) return false;
-                      const goal = studentGoals[ex.id];
+                      if (todaysSkipped.has(ex.id)) return false;
+                      const goal = todaysGoals[ex.id];
                       if (!goal) return false;
                       if ((ex.id === 'squat' || ex.id === 'jump_rope') && goal.count && goal.count > 0) return true;
                       if (ex.id === 'plank' && goal.time && goal.time > 0) return true;
                       if (ex.id === 'walk_run' && goal.steps && goal.steps > 0) return true;
                       return false;
                     }).map(exercise => {
-                      const goal = studentGoals[exercise.id];
+                      const goal = todaysGoals[exercise.id];
                       if (!goal) return null;
 
                       const IconComp = getIconByName(exercise.iconName) || ActivityIconLucide;
@@ -1005,7 +1032,7 @@ export default function StudentPage() {
                       );
                     })}
                   </div>
-              ) : isRestDaySet ? (
+              ) : availableExercises.every(ex => todaysSkipped.has(ex.id)) ? (
                  <div className="flex items-center justify-center text-center py-4 flex-grow min-h-[10rem] rounded-lg">
                   <p className="text-muted-foreground">오늘은 쉬는 날! 내일 더 힘차게 운동해요. 💪</p>
                 </div>
@@ -1039,7 +1066,7 @@ export default function StudentPage() {
                   <div className="flex flex-col items-center text-muted-foreground">
                      <AlertTriangle className="h-8 w-8 mb-2" />
                     <p>추천을 불러오지 못했어요.</p>
-                    <Button variant="link" size="sm" onClick={() => currentStudent && currentLevelInfo && fetchRecommendation(currentStudent, studentGoals, currentLevelInfo.name)} className="mt-1">다시 시도</Button>
+                    <Button variant="link" size="sm" onClick={() => currentStudent && currentLevelInfo && fetchRecommendation(currentStudent, todaysGoals, currentLevelInfo.name)} className="mt-1">다시 시도</Button>
                   </div>
                 )}
               </div>
@@ -1053,37 +1080,26 @@ export default function StudentPage() {
               <CalendarDays className="mr-3 h-7 w-7 text-green-600 dark:text-green-400" />
               나의 주간 운동 계획
             </CardTitle>
-            <CardDescription>오늘의 목표를 설정하고, 주간 계획을 확인해보세요.</CardDescription>
+            <CardDescription>날짜를 클릭하여 해당 날의 운동 목표를 설정하거나 수정할 수 있습니다.</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-3">
               {weeklyPlanDays.map((item, index) => {
                 const currentDateForDay = addDays(startOfTheCurrentWeek, index);
+                const dateKey = format(currentDateForDay, 'yyyy-MM-dd');
                 const formattedDate = format(currentDateForDay, "M.d", { locale: ko });
-                const isCurrentDay = index === currentDayOfWeek;
+                const isCurrentDay = isToday(currentDateForDay);
                 const isWeekend = index === 0 || index === 6;
 
-                const todaysEffectiveGoals = availableExercises.filter(ex => {
-                  if (skippedExercises.has(ex.id)) return false;
-                  const goal = studentGoals[ex.id];
-                  if (!goal) return false;
-                  if ((ex.id === 'squat' || ex.id === 'jump_rope') && goal.count && goal.count > 0) return true;
-                  if (ex.id === 'plank' && goal.time && goal.time > 0) return true;
-                  if (ex.id === 'walk_run' && goal.steps && goal.steps > 0) return true;
-                  return false;
-                });
+                const dayGoalData = allDailyGoals[dateKey];
+                const isRestDay = dayGoalData && availableExercises.every(ex => dayGoalData.skipped.has(ex.id));
+                const dayHasGoals = dayGoalData && Object.keys(dayGoalData.goals).length > 0 && !isRestDay;
 
                 return (
                   <Card 
                     key={index}
-                    onClick={() => {
-                        if (isCurrentDay) {
-                            setIsGoalsDialogOpen(true);
-                        } else {
-                            toast({ title: "준비 중", description: "미래의 운동 계획 기능은 곧 추가될 예정입니다!" });
-                        }
-                    }}
-                    onKeyDown={(e) => isCurrentDay && (e.key === 'Enter' || e.key === ' ') && setIsGoalsDialogOpen(true)}
+                    onClick={() => setGoalDialogState({ isOpen: true, date: currentDateForDay })}
+                    onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && setGoalDialogState({ isOpen: true, date: currentDateForDay })}
                     tabIndex={0}
                     className={cn(
                       "flex flex-col text-center shadow-sm rounded-lg border transition-all cursor-pointer",
@@ -1106,11 +1122,11 @@ export default function StudentPage() {
                     <CardContent className="p-2 flex-grow flex flex-col items-center justify-center">
                       <div className="text-xs flex-grow flex flex-col justify-center min-h-[5em] w-full">
                         {isCurrentDay ? (
-                          hasEffectiveGoals ? (
+                          hasEffectiveGoalsToday ? (
                             <>
                               <ul className="text-left text-xs space-y-1 w-full px-1">
-                                {todaysEffectiveGoals.map(exercise => {
-                                  const goal = studentGoals[exercise.id];
+                                {availableExercises.filter(ex => todaysGoals[ex.id] && !todaysSkipped.has(ex.id)).map(exercise => {
+                                  const goal = todaysGoals[exercise.id];
                                   let goalText = "";
                                   if (exercise.id === 'squat' || exercise.id === 'jump_rope') goalText = `${goal.count}${exercise.countUnit}`;
                                   else if (exercise.id === 'plank') goalText = `${goal.time}${exercise.timeUnit}`;
@@ -1133,11 +1149,33 @@ export default function StudentPage() {
                             </>
                           ) : (
                             <div className="h-full flex flex-col items-center justify-center text-center">
-                                <p className="font-semibold text-primary">{isRestDaySet ? '오늘은 쉬는 날' : '오늘의 목표를'}</p>
-                                <p className="font-semibold text-primary">{isRestDaySet ? '푹 쉬어요!' : '설정해주세요'}</p>
+                                <p className="font-semibold text-primary">{availableExercises.every(ex => todaysSkipped.has(ex.id)) ? '오늘은 쉬는 날' : '오늘의 목표를'}</p>
+                                <p className="font-semibold text-primary">{availableExercises.every(ex => todaysSkipped.has(ex.id)) ? '푹 쉬어요!' : '설정해주세요'}</p>
                                 <p className="text-xs text-muted-foreground mt-1">클릭하여 시작</p>
                             </div>
                           )
+                        ) : dayHasGoals ? (
+                            <ul className="text-left text-xs space-y-1 w-full px-1">
+                                {availableExercises.filter(ex => dayGoalData.goals[ex.id] && !dayGoalData.skipped.has(ex.id)).map(exercise => {
+                                  const goal = dayGoalData.goals[exercise.id];
+                                  let goalText = "";
+                                  if (exercise.id === 'squat' || exercise.id === 'jump_rope') goalText = `${goal.count}${exercise.countUnit}`;
+                                  else if (exercise.id === 'plank') goalText = `${goal.time}${exercise.timeUnit}`;
+                                  else if (exercise.id === 'walk_run') goalText = `${goal.steps}${exercise.stepsUnit}`;
+                                  
+                                  const IconComp = getIconByName(exercise.iconName) || ActivityIconLucide;
+                                  return (
+                                    <li key={exercise.id} className="flex items-center gap-1.5 truncate" title={`${exercise.koreanName}: ${goalText}`}>
+                                      <IconComp className="h-3 w-3 shrink-0" />
+                                      <span className="truncate font-medium">{exercise.koreanName}: {goalText}</span>
+                                    </li>
+                                  );
+                                })}
+                            </ul>
+                        ) : isRestDay ? (
+                            <div className="h-full flex flex-col items-center justify-center text-center">
+                                <p className="font-semibold text-muted-foreground">휴식의 날</p>
+                            </div>
                         ) : (
                           <p className="min-h-[3em] leading-tight text-center">{item.defaultText}</p>
                         )}
@@ -1188,7 +1226,7 @@ export default function StudentPage() {
                   students={allStudents.filter(s => s.id === currentStudent.id)}
                   availableExercises={availableExercises}
                   timeFrame={activityChartTimeFrame}
-                  studentGoals={studentGoals}
+                  studentGoals={todaysGoals}
                 />
               )
             }
@@ -1234,20 +1272,24 @@ export default function StudentPage() {
             recordedExercises={studentActivityLogs}
             onSwitchToCameraMode={handleSwitchToCameraMode}
             availableExercises={availableExercises}
-            skippedExercises={skippedExercises}
-            studentGoals={studentGoals}
+            skippedExercises={todaysSkipped}
+            studentGoals={todaysGoals}
           />
         )}
 
-        <SetStudentGoalsDialog
-          isOpen={isGoalsDialogOpen}
-          onClose={() => setIsGoalsDialogOpen(false)}
-          onSave={handleSaveGoals}
-          exercises={availableExercises}
-          currentStudent={currentStudent}
-          initialGoals={studentGoals}
-          skippedExercises={skippedExercises}
-        />
+        {goalDialogState.isOpen && goalDialogState.date && (
+            <SetStudentGoalsDialog
+              isOpen={goalDialogState.isOpen}
+              onClose={() => setGoalDialogState({ isOpen: false, date: null })}
+              onSave={handleSaveDailyGoal}
+              date={goalDialogState.date}
+              exercises={availableExercises}
+              currentStudent={currentStudent}
+              initialGoals={allDailyGoals[format(goalDialogState.date, 'yyyy-MM-dd')]?.goals || {}}
+              skippedExercises={allDailyGoals[format(goalDialogState.date, 'yyyy-MM-dd')]?.skipped || new Set()}
+            />
+        )}
+
 
         {currentStudent && (
           <ChangeOwnPinDialog
