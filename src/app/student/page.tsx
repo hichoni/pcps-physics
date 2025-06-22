@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dumbbell, Target, History, PlusCircle, LogOut, UserCheck, Loader2, AlertTriangle, KeyRound, Edit3, Camera, Info, Activity as ActivityIconLucide, CheckSquare, CalendarDays, Edit, CheckCircle } from 'lucide-react';
+import { Dumbbell, Target, History, PlusCircle, LogOut, UserCheck, Loader2, AlertTriangle, KeyRound, Edit3, Camera, Info, Activity as ActivityIconLucide, CheckSquare, CalendarDays, Edit, CheckCircle, Trophy } from 'lucide-react';
 import type { Student, ClassName, RecordedExercise, Gender, StudentGoal, CustomExercise as CustomExerciseType, Exercise as ExerciseType, LevelInfo } from '@/lib/types';
 import { EXERCISES_SEED_DATA } from '@/data/mockData';
 import SetStudentGoalsDialog from '@/components/SetStudentGoalsDialog';
@@ -18,6 +18,7 @@ import ChangeAvatarDialog from '@/components/ChangeAvatarDialog';
 import JumpRopeCameraMode from '@/components/JumpRopeCameraMode';
 import StudentActivityChart from '@/components/StudentActivityChart';
 import LevelGuideDialog from '@/components/LevelGuideDialog';
+import ClassRanking from '@/components/ClassRanking';
 import { useToast } from "@/hooks/use-toast";
 import { recommendStudentExercise, RecommendStudentExerciseOutput, RecommendStudentExerciseInput } from '@/ai/flows/recommend-student-exercise';
 import { generatePersonalizedWelcomeMessage, GeneratePersonalizedWelcomeMessageInput, GeneratePersonalizedWelcomeMessageOutput } from '@/ai/flows/generatePersonalizedWelcomeMessage';
@@ -27,7 +28,7 @@ import { format, parseISO, isToday, startOfWeek, addDays } from 'date-fns';
 import { ko } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { getIconByName } from '@/lib/iconMap';
-import { Leaf, Droplets, Sprout, Star, Footprints, Trophy, Zap, Medal, ShieldCheck, Crown, Gem } from 'lucide-react';
+import { Leaf, Droplets, Sprout, Star, Footprints, Zap, Medal, ShieldCheck, Crown, Gem } from 'lucide-react';
 import Image from 'next/image';
 
 const DEFAULT_POSITIVE_ADJECTIVES_KR = [
@@ -125,6 +126,7 @@ export default function StudentPage() {
   const [isLoadingStudentData, setIsLoadingStudentData] = useState(false);
   const [isActivityLogsLoading, setIsActivityLogsLoading] = useState(true);
   const [isLoadingExercises, setIsLoadingExercises] = useState(true);
+  const [isLoadingClassData, setIsLoadingClassData] = useState(true);
 
   const [isGoalsDialogOpen, setIsGoalsDialogOpen] = useState(false);
   const [isLogFormOpen, setIsLogFormOpen] = useState(false);
@@ -134,6 +136,7 @@ export default function StudentPage() {
 
   const [studentGoals, setStudentGoals] = useState<StudentGoal>({});
   const [studentActivityLogs, setStudentActivityLogs] = useState<RecordedExercise[]>([]);
+  const [classActivityLogs, setClassActivityLogs] = useState<RecordedExercise[]>([]);
   const [recommendedExercise, setRecommendedExercise] = useState<RecommendStudentExerciseOutput | null>(null);
   const [isRecommendationLoading, setIsRecommendationLoading] = useState(false);
   const [dailyCompliment, setDailyCompliment] = useState<string>('');
@@ -409,6 +412,37 @@ export default function StudentPage() {
       }
     };
   }, [currentStudent, fetchStudentSpecificData, availableExercises, isLoadingExercises, currentLevelInfo]);
+
+  useEffect(() => {
+    if (!currentStudent?.class) {
+      setIsLoadingClassData(false);
+      return;
+    }
+
+    setIsLoadingClassData(true);
+    const logsQuery = query(collection(db, "exerciseLogs"), where("className", "==", currentStudent.class));
+
+    const unsubscribe = onSnapshot(logsQuery, (snapshot) => {
+        const logs = snapshot.docs.map(doc => {
+            const data = doc.data();
+            let dateStr = data.date;
+            if (data.date && typeof data.date.toDate === 'function') {
+                dateStr = format(data.date.toDate(), "yyyy-MM-dd");
+            } else if (typeof data.date === 'string' && data.date.includes('T')) {
+                dateStr = data.date.split('T')[0];
+            }
+            return { id: doc.id, ...data, date: dateStr } as RecordedExercise
+        });
+        setClassActivityLogs(logs);
+        setIsLoadingClassData(false);
+    }, (error) => {
+        console.error("Error fetching class activity logs:", error);
+        toast({ title: "오류", description: "학급 활동 기록을 불러오는 데 실패했습니다.", variant: "destructive" });
+        setIsLoadingClassData(false);
+    });
+
+    return () => unsubscribe();
+}, [currentStudent?.class, toast]);
 
 
   useEffect(() => {
@@ -1231,6 +1265,29 @@ export default function StudentPage() {
             )}
           </CardContent>
         </Card>
+
+        {studentsInClass.length > 1 && (
+            isLoadingClassData ? (
+                <Card className="shadow-lg rounded-xl">
+                    <CardHeader>
+                        <CardTitle className="flex items-center font-headline text-xl">
+                            <Trophy className="mr-3 h-7 w-7 text-yellow-500" />
+                            우리반 명예의 전당
+                        </CardTitle>
+                    </CardHeader>
+                    <CardContent className="h-40 flex justify-center items-center">
+                        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                        <span className="ml-2">랭킹 불러오는 중...</span>
+                    </CardContent>
+                </Card>
+            ) : (
+                <ClassRanking 
+                    students={studentsInClass}
+                    logs={classActivityLogs}
+                    currentStudentId={currentStudent.id}
+                />
+            )
+        )}
 
         <div className="mt-8">
             <Button variant="outline" size="lg" onClick={handleLogout} className="rounded-lg py-3 px-6 text-lg w-full">
