@@ -310,18 +310,17 @@ export default function TeacherPage() {
       unsubscribers.forEach(unsub => unsub());
     };
   }, [isAuthenticated, fetchStudents, fetchLogs, fetchCompliments, fetchExerciseRecommendations, fetchStudentWelcomeMessage, fetchCustomExercises]);
-
+  
   useEffect(() => {
-    if (selectedClass) {
-      setStudentsInClass(students.filter(student => `${student.grade}학년 ${student.classNum}반` === selectedClass).sort((a, b) => Number(a.studentNumber) - Number(b.studentNumber)));
-    } else {
-      setStudentsInClass(students.sort((a,b) => {
-        const classCompare = (`${a.grade}학년 ${a.classNum}반`).localeCompare(`${b.grade}학년 ${b.classNum}반`);
-        if (classCompare !== 0) return classCompare;
-        return Number(a.studentNumber) - Number(b.studentNumber);
-      }));
+    // Set initial studentsInClass on load (all students)
+    if (!selectedClass) {
+        setStudentsInClass(students.sort((a,b) => {
+            const classCompare = (`${a.grade}학년 ${a.classNum}반`).localeCompare(`${b.grade}학년 ${b.classNum}반`);
+            if (classCompare !== 0) return classCompare;
+            return Number(a.studentNumber) - Number(b.studentNumber);
+        }));
     }
-  }, [selectedClass, students]);
+  }, [students, selectedClass]);
   
   // Real-time listener for student goals in the selected class
   useEffect(() => {
@@ -385,12 +384,18 @@ export default function TeacherPage() {
   const handleClassChange = (className: string | 'all') => {
     if (className === 'all') {
       setSelectedClass(undefined);
+      setSelectedGrade('');
+      setStudentsInClass(students.sort((a, b) => {
+        const classCompare = (`${a.grade}학년 ${a.classNum}반`).localeCompare(`${b.grade}학년 ${b.classNum}반`);
+        if (classCompare !== 0) return classCompare;
+        return Number(a.studentNumber) - Number(b.studentNumber);
+      }));
     } else {
       setSelectedClass(className);
       const gradeMatch = className.match(/(\d+)학년/);
-      if (gradeMatch && gradeMatch[1]) {
-        setSelectedGrade(gradeMatch[1]);
-      }
+      const grade = (gradeMatch && gradeMatch[1]) ? gradeMatch[1] : '';
+      setSelectedGrade(grade);
+      setStudentsInClass(students.filter(student => `${student.grade}학년 ${student.classNum}반` === className).sort((a, b) => Number(a.studentNumber) - Number(b.studentNumber)));
     }
   };
 
