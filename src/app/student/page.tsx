@@ -751,6 +751,23 @@ export default function StudentPage() {
   const startOfTheCurrentWeek = useMemo(() => startOfWeek(todayDate, { weekStartsOn: 0 }), [todayDate]);
   const todaysXp = useMemo(() => goalsMetTodayForXp.size * 10, [goalsMetTodayForXp]);
 
+  const renderWelcomeMessage = (message: string) => {
+    if (!message) return null;
+
+    const parts = message.split(/(<level>.*?<\/level>)/g);
+
+    return parts.filter(Boolean).map((part, index) => {
+        if (part.startsWith('<level>')) {
+            const levelName = part.replace(/<\/?level>/g, '');
+            return (
+                <strong key={index} className={cn("font-bold", currentLevelInfo?.colorClass)}>
+                    {levelName}
+                </strong>
+            );
+        }
+        return <span key={index}>{part}</span>;
+    });
+  };
 
   if (isLoadingLoginOptions || isLoadingExercises) {
     return <div className="flex justify-center items-center min-h-screen"><Loader2 className="h-8 w-8 animate-spin text-primary" /> {isLoadingLoginOptions ? '학생 정보' : '운동 목록'} 로딩 중...</div>;
@@ -904,7 +921,7 @@ export default function StudentPage() {
                 <CardContent className="flex-grow flex flex-col justify-between">
                     <div>
                         <p className="text-base sm:text-lg text-muted-foreground mb-6 text-center lg:text-left whitespace-pre-wrap">
-                            {isAiWelcomeLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : aiPersonalizedWelcome}
+                            {isAiWelcomeLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : renderWelcomeMessage(aiPersonalizedWelcome)}
                         </p>
                     </div>
 
