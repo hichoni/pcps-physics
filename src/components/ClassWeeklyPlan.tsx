@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useMemo } from 'react';
@@ -94,7 +93,7 @@ const ClassWeeklyPlan: React.FC<ClassWeeklyPlanProps> = ({ studentsInClass, allS
             <TableRow>
               <TableHead className="w-[120px] sticky left-0 bg-card z-10 font-semibold">학생</TableHead>
               {weekDates.map(date => (
-                <TableHead key={date.toISOString()} className={cn("text-center min-w-[150px]", isToday(date) && "text-primary font-bold")}>
+                <TableHead key={date.toISOString()} className={cn("text-center min-w-[120px]", isToday(date) && "text-primary font-bold")}>
                   {format(date, 'M/d (E)', { locale: ko })}
                 </TableHead>
               ))}
@@ -104,16 +103,16 @@ const ClassWeeklyPlan: React.FC<ClassWeeklyPlanProps> = ({ studentsInClass, allS
             {studentsInClass.map(student => (
               <TableRow 
                 key={student.id} 
-                className="cursor-pointer" 
+                className="cursor-pointer group"
                 onClick={() => onViewStudentPlan(student)}
               >
-                <TableCell className="sticky left-0 bg-card z-10 font-medium">{student.studentNumber}번 {student.name}</TableCell>
+                <TableCell className="sticky left-0 bg-card z-10 font-medium group-hover:bg-muted/50">{student.studentNumber}번 {student.name}</TableCell>
                 {weekDates.map(date => {
                   const dateKey = format(date, 'yyyy-MM-dd');
                   const dayGoals = allStudentDailyGoals[student.id]?.[dateKey];
                   
                   if (!dayGoals) {
-                    return <TableCell key={dateKey} className="text-center text-muted-foreground/50">-</TableCell>;
+                    return <TableCell key={dateKey} className="text-center text-muted-foreground/50 group-hover:bg-muted/50">-</TableCell>;
                   }
                   
                   const goalItems = availableExercises
@@ -123,18 +122,18 @@ const ClassWeeklyPlan: React.FC<ClassWeeklyPlanProps> = ({ studentsInClass, allS
                       if (!goal) return [];
                       
                       const IconComp = getIconByName(exercise.iconName);
-                      const items: {key: string, text: string, Icon: React.ElementType}[] = [];
+                      const items: {key: string, name: string, value: number, unit: string, Icon: React.ElementType}[] = [];
 
                       if (exercise.category === 'count_time') {
                         if ((goal.count ?? 0) > 0 && exercise.countUnit) {
-                          items.push({ key: `${exercise.id}-count`, text: `${exercise.koreanName}: ${goal.count}${exercise.countUnit}`, Icon: IconComp });
+                          items.push({ key: `${exercise.id}-count`, name: exercise.koreanName, value: goal.count!, unit: exercise.countUnit, Icon: IconComp });
                         }
                         if ((goal.time ?? 0) > 0 && exercise.timeUnit) {
-                          items.push({ key: `${exercise.id}-time`, text: `${exercise.koreanName}: ${goal.time}${exercise.timeUnit}`, Icon: IconComp });
+                          items.push({ key: `${exercise.id}-time`, name: exercise.koreanName, value: goal.time!, unit: exercise.timeUnit, Icon: IconComp });
                         }
                       } else if (exercise.category === 'steps_distance') {
                         if ((goal.steps ?? 0) > 0 && exercise.stepsUnit) {
-                          items.push({ key: `${exercise.id}-steps`, text: `${exercise.koreanName}: ${goal.steps}${exercise.stepsUnit}`, Icon: IconComp });
+                          items.push({ key: `${exercise.id}-steps`, name: exercise.koreanName, value: goal.steps!, unit: exercise.stepsUnit, Icon: IconComp });
                         }
                       }
                       return items;
@@ -144,7 +143,7 @@ const ClassWeeklyPlan: React.FC<ClassWeeklyPlanProps> = ({ studentsInClass, allS
 
                   if (isRestDay) {
                     return (
-                        <TableCell key={dateKey} className="text-center text-blue-500">
+                        <TableCell key={dateKey} className="text-center text-blue-500 group-hover:bg-muted/50">
                           <div className="flex items-center justify-center gap-2">
                             <Waves className="h-4 w-4" /> <span>휴식</span>
                           </div>
@@ -153,16 +152,16 @@ const ClassWeeklyPlan: React.FC<ClassWeeklyPlanProps> = ({ studentsInClass, allS
                   }
                   
                   if (goalItems.length === 0) {
-                    return <TableCell key={dateKey} className="text-center text-muted-foreground/50">-</TableCell>;
+                    return <TableCell key={dateKey} className="text-center text-muted-foreground/50 group-hover:bg-muted/50">-</TableCell>;
                   }
 
                   return (
-                    <TableCell key={dateKey}>
-                      <ul className="space-y-1 text-xs">
+                    <TableCell key={dateKey} className="group-hover:bg-muted/50">
+                      <ul className="space-y-1.5 text-xs">
                         {goalItems.map(item => (
-                          <li key={item.key} className="flex items-center gap-1.5" title={`${item.text}`}>
-                             <item.Icon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                             <span className="truncate">{item.text}</span>
+                          <li key={item.key} className="flex items-center gap-1.5" title={`${item.name}: ${item.value}${item.unit}`}>
+                             <item.Icon className="h-4 w-4 shrink-0 text-muted-foreground" />
+                             <span className="font-semibold whitespace-nowrap">{`${item.value}${item.unit}`}</span>
                           </li>
                         ))}
                       </ul>

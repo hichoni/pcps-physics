@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useMemo } from 'react';
@@ -59,18 +58,18 @@ const StudentWeeklyPlanDialog: React.FC<StudentWeeklyPlanDialogProps> = ({
                 if (!goal) return [];
                 
                 const IconComp = getIconByName(exercise.iconName);
-                const items: {key: string, text: string, Icon: React.ElementType}[] = [];
+                const items: {key: string, name: string, value: number, unit: string, Icon: React.ElementType}[] = [];
 
                 if (exercise.category === 'count_time') {
                   if ((goal.count ?? 0) > 0 && exercise.countUnit) {
-                    items.push({ key: `${exercise.id}-count`, text: `${exercise.koreanName}: ${goal.count}${exercise.countUnit}`, Icon: IconComp });
+                    items.push({ key: `${exercise.id}-count`, name: exercise.koreanName, value: goal.count!, unit: exercise.countUnit, Icon: IconComp });
                   }
                   if ((goal.time ?? 0) > 0 && exercise.timeUnit) {
-                    items.push({ key: `${exercise.id}-time`, text: `${exercise.koreanName}: ${goal.time}${exercise.timeUnit}`, Icon: IconComp });
+                    items.push({ key: `${exercise.id}-time`, name: exercise.koreanName, value: goal.time!, unit: exercise.timeUnit, Icon: IconComp });
                   }
                 } else if (exercise.category === 'steps_distance') {
                   if ((goal.steps ?? 0) > 0 && exercise.stepsUnit) {
-                    items.push({ key: `${exercise.id}-steps`, text: `${exercise.koreanName}: ${goal.steps}${exercise.stepsUnit}`, Icon: IconComp });
+                    items.push({ key: `${exercise.id}-steps`, name: exercise.koreanName, value: goal.steps!, unit: exercise.stepsUnit, Icon: IconComp });
                   }
                 }
                 return items;
@@ -92,11 +91,14 @@ const StudentWeeklyPlanDialog: React.FC<StudentWeeklyPlanDialogProps> = ({
                       <span className="font-semibold">휴식</span>
                     </div>
                   ) : goalItems.length > 0 ? (
-                    <ul className="space-y-1.5 text-sm">
+                    <ul className="space-y-2 text-sm">
                       {goalItems.map(item => (
-                        <li key={item.key} className="flex items-center gap-2" title={item.text}>
-                          <item.Icon className="h-4 w-4 shrink-0 text-muted-foreground" />
-                          <span className="truncate">{item.text}</span>
+                         <li key={item.key} className="flex items-center justify-between gap-2" title={`${item.name}: ${item.value}${item.unit}`}>
+                            <div className="flex items-center gap-2 truncate">
+                               <item.Icon className="h-4 w-4 shrink-0 text-muted-foreground" />
+                               <span className="truncate">{item.name}</span>
+                            </div>
+                            <span className="font-semibold whitespace-nowrap">{item.value}{item.unit}</span>
                         </li>
                       ))}
                     </ul>
