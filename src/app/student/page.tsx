@@ -20,11 +20,12 @@ import JumpRopeCameraMode from '@/components/JumpRopeCameraMode';
 import StudentActivityChart from '@/components/StudentActivityChart';
 import LevelGuideDialog from '@/components/LevelGuideDialog';
 import ClassRanking from '@/components/ClassRanking';
+import ClassmateWeeklyPlans from '@/components/ClassmateWeeklyPlans';
 import { useToast } from "@/hooks/use-toast";
 import { recommendStudentExercise, RecommendStudentExerciseOutput, RecommendStudentExerciseInput } from '@/ai/flows/recommend-student-exercise';
 import { generatePersonalizedWelcomeMessage, GeneratePersonalizedWelcomeMessageInput, GeneratePersonalizedWelcomeMessageOutput } from '@/ai/flows/generatePersonalizedWelcomeMessage';
 import { db } from '@/lib/firebase';
-import { collection, getDocs, doc, getDoc, setDoc, query, where, addDoc, updateDoc, onSnapshot } from 'firebase/firestore';
+import { collection, getDocs, doc, getDoc, setDoc, query, where, addDoc, updateDoc, onSnapshot, arrayUnion } from 'firebase/firestore';
 import { format, parseISO, isToday, startOfWeek, addDays, endOfMonth } from 'date-fns';
 import { ko } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
@@ -115,6 +116,7 @@ export default function StudentPage() {
   const [isActivityLogsLoading, setIsActivityLogsLoading] = useState(true);
   const [isLoadingExercises, setIsLoadingExercises] = useState(true);
   const [isLoadingClassData, setIsLoadingClassData] = useState(true);
+  const [isLoadingClassmates, setIsLoadingClassmates] = useState(true);
 
   const [goalDialogState, setGoalDialogState] = useState<{isOpen: boolean; date: Date | null}>({ isOpen: false, date: null });
   const [isLogFormOpen, setIsLogFormOpen] = useState(false);
@@ -128,6 +130,7 @@ export default function StudentPage() {
 
   const [studentActivityLogs, setStudentActivityLogs] = useState<RecordedExercise[]>([]);
   const [classActivityLogs, setClassActivityLogs] = useState<RecordedExercise[]>([]);
+  const [classmatesData, setClassmatesData] = useState<(Student & { dailyGoals: any; weeklyLikes: any; })[]>([]);
   const [recommendedExercise, setRecommendedExercise] = useState<RecommendStudentExerciseOutput | null>(null);
   const [isRecommendationLoading, setIsRecommendationLoading] = useState(false);
   const [dailyCompliment, setDailyCompliment] = useState<string>('');
@@ -471,6 +474,63 @@ export default function StudentPage() {
     }
   }, [selectedGrade, selectedClassNum, allStudents]);
 
+  // Fetch classmates data
+  useEffect(() => {
+    if (!currentStudent) {
+      setIsLoadingClassmates(false);
+      return;
+    };
+
+    const fetchClassmatesData = async () => {
+        setIsLoadingClassmates(true);
+        try {
+            const classmatesInSameClass = allStudents.filter(s => 
+                s.grade === currentStudent.grade && 
+                s.classNum === currentStudent.classNum
+            );
+            
+            if (classmatesInSameClass.length <= 1) {
+                setClassmatesData([]);
+                setIsLoadingClassmates(false);
+                return;
+            }
+
+            const dataPromises = classmatesInSameClass.map(async (classmate) => {
+                const goalsDocRef = doc(db, 'studentGoals', classmate.id);
+                const goalsDocSnap = await getDoc(goalsDocRef);
+                const goalsData = goalsDocSnap.exists() ? goalsDocSnap.data() : { dailyGoals: {}, weeklyLikes: {} };
+                
+                const processedGoals: Record<string, { goals: StudentGoal; skipped: Set<string> }> = {};
+                if (goalsData.dailyGoals) {
+                  for (const dateKey in goalsData.dailyGoals) {
+                    processedGoals[dateKey] = {
+                      goals: goalsData.dailyGoals[dateKey].goals || {},
+                      skipped: new Set(goalsData.dailyGoals[dateKey].skipped || []),
+                    };
+                  }
+                }
+
+                return {
+                    ...classmate,
+                    dailyGoals: processedGoals,
+                    weeklyLikes: goalsData.weeklyLikes || {}
+                };
+            });
+
+            const combinedData = await Promise.all(dataPromises);
+            setClassmatesData(combinedData);
+
+        } catch (error) {
+            console.error("Error fetching classmates data: ", error);
+            toast({ title: "오류", description: "친구들의 계획을 불러오는 데 실패했어요.", variant: "destructive" });
+        } finally {
+            setIsLoadingClassmates(false);
+        }
+    };
+    
+    fetchClassmatesData();
+  }, [currentStudent, allStudents, toast]);
+
   const handleStudentSelect = (studentId: string) => {
     setSelectedStudentId(studentId);
     const student = allStudents.find(s => s.id === studentId);
@@ -716,6 +776,41 @@ export default function StudentPage() {
       }
     }
     handleCloseCameraMode();
+  };
+
+  const handleLikePlan = async (targetStudentId: string) => {
+    if (!currentStudent) return;
+
+    const weekKey = format(startOfWeek(new Date(), { weekStartsOn: 0 }), 'yyyy-MM-dd');
+    const targetStudentRef = doc(db, "studentGoals", targetStudentId);
+
+    if (targetStudentId === currentStudent.id) return;
+    
+    try {
+        await updateDoc(targetStudentRef, {
+            [`weeklyLikes.${weekKey}`]: arrayUnion(currentStudent.id)
+        });
+
+        setClassmatesData(prevData => {
+            return prevData.map(student => {
+                if (student.id === targetStudentId) {
+                    const updatedLikes = student.weeklyLikes || {};
+                    const weekLikes = updatedLikes[weekKey] || [];
+                    if (!weekLikes.includes(currentStudent.id)) {
+                        updatedLikes[weekKey] = [...weekLikes, currentStudent.id];
+                    }
+                    return { ...student, weeklyLikes: updatedLikes };
+                }
+                return student;
+            });
+        });
+
+        toast({ title: "좋아요!", description: "친구의 계획을 응원했어요! 👍" });
+
+    } catch (error) {
+        console.error("Error liking plan: ", error);
+        toast({ title: "오류", description: "좋아요 처리에 실패했습니다.", variant: "destructive" });
+    }
   };
 
   const xpProgress = useMemo(() => {
@@ -1312,6 +1407,23 @@ export default function StudentPage() {
             )
         )}
 
+        {isLoadingClassmates && (
+          <div className="flex justify-center items-center h-40">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              <span className="ml-2">친구들 계획 불러오는 중...</span>
+          </div>
+        )}
+        {currentStudent && classmatesData.length > 0 && !isLoadingClassmates && (
+            <ClassmateWeeklyPlans
+                classmatesData={classmatesData}
+                currentStudentId={currentStudent.id}
+                availableExercises={availableExercises}
+                onLikePlan={handleLikePlan}
+                isLoading={isLoadingClassmates}
+            />
+        )}
+
+
         <div className="mt-8">
             <Button variant="outline" size="lg" onClick={handleLogout} className="rounded-lg py-3 px-6 text-lg w-full">
               <LogOut className="mr-2 h-6 w-6" />
@@ -1377,3 +1489,4 @@ export default function StudentPage() {
     </div>
   );
 }
+
