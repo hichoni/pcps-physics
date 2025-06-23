@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dumbbell, Target, History, PlusCircle, LogOut, UserCheck, Loader2, AlertTriangle, KeyRound, Edit3, Camera, Info, Activity as ActivityIconLucide, CheckSquare, CalendarDays, Edit, CheckCircle, Trophy } from 'lucide-react';
+import { Dumbbell, Target, History, PlusCircle, LogOut, UserCheck, Loader2, AlertTriangle, KeyRound, Edit3, Camera, Info, Activity as ActivityIconLucide, CheckSquare, CalendarDays, Edit, CheckCircle, Trophy, RotateCcw } from 'lucide-react';
 import type { Student, RecordedExercise, Gender, StudentGoal, CustomExercise as CustomExerciseType, Exercise as ExerciseType, LevelInfo, DailyGoalEntry } from '@/lib/types';
 import { EXERCISES_SEED_DATA } from '@/data/mockData';
 import SetStudentGoalsDialog from '@/components/SetStudentGoalsDialog';
@@ -247,7 +247,8 @@ export default function StudentPage() {
         currentLevelName: levelInfo.name,
         totalXp: student.totalXp || 0,
         currentLevelMaxXp: levelInfo.maxXp, 
-        baseTeacherMessagePart: baseMessage
+        baseTeacherMessagePart: baseMessage,
+        randomSeed: Math.random(),
       };
       const result: GeneratePersonalizedWelcomeMessageOutput = await generatePersonalizedWelcomeMessage(input);
       setAiPersonalizedWelcome(result.welcomeMessage);
@@ -919,10 +920,14 @@ export default function StudentPage() {
                     </CardTitle>
                 </CardHeader>
                 <CardContent className="flex-grow flex flex-col justify-between">
-                    <div>
-                        <p className="text-base sm:text-lg text-muted-foreground mb-6 text-center lg:text-left whitespace-pre-wrap">
-                            {isAiWelcomeLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : renderWelcomeMessage(aiPersonalizedWelcome)}
+                    <div className="flex items-start gap-2">
+                        <p className="flex-grow text-base sm:text-lg text-muted-foreground mb-6 text-center lg:text-left whitespace-pre-wrap">
+                            {isAiWelcomeLoading ? <Loader2 className="h-5 w-5 animate-spin mx-auto" /> : renderWelcomeMessage(aiPersonalizedWelcome)}
                         </p>
+                        <Button variant="ghost" size="icon" onClick={() => currentStudent && currentLevelInfo && fetchAiPersonalizedWelcome(currentStudent, currentLevelInfo, teacherBaseWelcomeMessage)} disabled={isAiWelcomeLoading} className="shrink-0">
+                            <RotateCcw className="h-5 w-5" />
+                            <span className="sr-only">새로운 환영 메시지 생성</span>
+                        </Button>
                     </div>
 
                     {currentLevelInfo && (

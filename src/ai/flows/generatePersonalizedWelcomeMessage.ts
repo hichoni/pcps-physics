@@ -16,6 +16,7 @@ const GeneratePersonalizedWelcomeMessageInputSchema = z.object({
   totalXp: z.number().describe("The student's current total XP (experience points)."),
   currentLevelMaxXp: z.number().describe("The XP threshold for the student's current level to reach the next. Can be Infinity if it's the max level."),
   baseTeacherMessagePart: z.string().describe("A base message provided by the teacher, e.g., '오늘도 즐겁게 운동하고 건강해져요! 어떤 활동을 계획하고 있나요?'"),
+  randomSeed: z.number().describe('A random number to ensure message variation.'),
 });
 export type GeneratePersonalizedWelcomeMessageInput = z.infer<typeof GeneratePersonalizedWelcomeMessageInputSchema>;
 
@@ -36,6 +37,7 @@ const prompt = ai.definePrompt({
 Your task is to generate a personalized welcome and motivational message.
 The message MUST be in Korean and include fun, age-appropriate emojis.
 Crucially, you MUST wrap the student's level name in <level> tags. For example: <level>체력 꿈나무</level>.
+**Important**: Vary your phrasing and emoji usage slightly each time you generate a message to keep it interesting and fresh. Do not repeat the exact same sentences or emoji combinations from the examples. Be creative!
 
 Student Information:
 - Name: {{{studentName}}}
