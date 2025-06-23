@@ -15,6 +15,7 @@ import { cn } from '@/lib/utils';
 import { getIconByName } from '@/lib/iconMap';
 import { format, startOfWeek, addDays, isToday } from 'date-fns';
 import { ko } from 'date-fns/locale';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 type ClassmateData = Student & {
   dailyGoals: Record<string, { goals: StudentGoal; skipped: Set<string> }>;
@@ -81,7 +82,7 @@ const ClassmateWeeklyPlans: React.FC<ClassmateWeeklyPlansProps> = ({
               친구들 주간 계획 보기
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-4xl p-0">
+          <DialogContent className="max-w-6xl p-0">
             <DialogHeader className="p-6 pb-4">
               <DialogTitle className="text-2xl font-headline">우리반 친구들 주간 계획</DialogTitle>
               <DialogDescription>
@@ -94,7 +95,7 @@ const ClassmateWeeklyPlans: React.FC<ClassmateWeeklyPlansProps> = ({
                   <TableRow>
                     <TableHead className="w-[200px] sticky left-0 bg-card z-10 font-semibold">친구</TableHead>
                     {weekDates.map(date => (
-                      <TableHead key={date.toISOString()} className={cn("text-center min-w-[120px]", isToday(date) && "text-primary font-bold")}>
+                      <TableHead key={date.toISOString()} className={cn("text-center min-w-[140px]", isToday(date) && "text-primary font-bold")}>
                         {format(date, 'M/d (E)', { locale: ko })}
                       </TableHead>
                     ))}
@@ -173,14 +174,23 @@ const ClassmateWeeklyPlans: React.FC<ClassmateWeeklyPlansProps> = ({
 
                           return (
                             <TableCell key={dateKey} className="group-hover:bg-muted/50">
-                              <ul className="space-y-1.5 text-xs">
-                                {goalItems.map(item => (
-                                  <li key={item.key} className="flex items-center gap-1.5" title={`${item.name}: ${item.value}${item.unit}`}>
-                                     <item.Icon className="h-4 w-4 shrink-0 text-muted-foreground" />
-                                     <span className="font-semibold whitespace-nowrap">{`${item.value}${item.unit}`}</span>
-                                  </li>
-                                ))}
-                              </ul>
+                               <TooltipProvider>
+                                <ul className="space-y-1.5 text-xs">
+                                  {goalItems.map(item => (
+                                    <Tooltip key={item.key}>
+                                        <TooltipTrigger asChild>
+                                            <li className="flex items-center gap-1.5 cursor-default">
+                                                <item.Icon className="h-4 w-4 shrink-0 text-muted-foreground" />
+                                                <span className="font-semibold whitespace-nowrap">{`${item.value}${item.unit}`}</span>
+                                            </li>
+                                        </TooltipTrigger>
+                                        <TooltipContent>
+                                            <p>{item.name}</p>
+                                        </TooltipContent>
+                                    </Tooltip>
+                                  ))}
+                                </ul>
+                              </TooltipProvider>
                             </TableCell>
                           );
                         })}
