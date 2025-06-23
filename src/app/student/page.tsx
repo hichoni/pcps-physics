@@ -202,6 +202,21 @@ export default function StudentPage() {
   }, [fetchLoginOptions]);
 
   useEffect(() => {
+    // Try to log in from localStorage on initial load
+    if (isLoadingLoginOptions) return; // Wait for students to be loaded
+    const storedStudentId = localStorage.getItem('currentStudentId');
+    if (storedStudentId && allStudents.length > 0 && !currentStudent) {
+        const studentToLogin = allStudents.find(s => s.id === storedStudentId);
+        if (studentToLogin) {
+            setCurrentStudent(studentToLogin);
+        } else {
+            // Clear invalid ID
+            localStorage.removeItem('currentStudentId');
+        }
+    }
+  }, [allStudents, isLoadingLoginOptions, currentStudent]);
+
+  useEffect(() => {
     if (!currentStudent) {
         setAvailableExercises([]);
         setIsLoadingExercises(false);
@@ -558,6 +573,7 @@ export default function StudentPage() {
       return;
     }
     if (enteredPin === studentForPinCheck.pin) {
+      localStorage.setItem('currentStudentId', studentForPinCheck.id);
       setCurrentStudent(studentForPinCheck);
       setLoginError(null);
       setStudentForPinCheck(null);
@@ -607,6 +623,7 @@ export default function StudentPage() {
 
 
   const handleLogout = () => {
+    localStorage.removeItem('currentStudentId');
     setCurrentStudent(null);
     setSelectedGrade('');
     setSelectedClassNum('');
