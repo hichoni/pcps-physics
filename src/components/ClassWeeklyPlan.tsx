@@ -98,21 +98,26 @@ const ClassWeeklyPlan: React.FC<ClassWeeklyPlanProps> = ({ studentsInClass, allS
 
                   const { goals, skipped } = studentGoalsForDay;
                   
-                  const goalItems = Object.entries(goals)
-                    .filter(([exId]) => !skipped.has(exId))
-                    .flatMap(([exId, goal]) => {
-                      const exercise = availableExercises.find(ex => ex.id === exId);
-                      if (!exercise) return [];
+                  const goalItems = availableExercises
+                    .filter(exercise => !skipped.has(exercise.id))
+                    .flatMap(exercise => {
+                      const goal = goals[exercise.id];
+                      if (!goal) return [];
+                      
                       const IconComp = getIconByName(exercise.iconName);
                       const items: {key: string, text: string, Icon: React.ElementType}[] = [];
-                      if (goal.count && exercise.countUnit) {
-                        items.push({ key: `${exId}-count`, text: `${exercise.koreanName}: ${goal.count}${exercise.countUnit}`, Icon: IconComp });
-                      }
-                      if (goal.time && exercise.timeUnit) {
-                        items.push({ key: `${exId}-time`, text: `${exercise.koreanName}: ${goal.time}${exercise.timeUnit}`, Icon: IconComp });
-                      }
-                      if (goal.steps && exercise.stepsUnit) {
-                        items.push({ key: `${exId}-steps`, text: `${exercise.koreanName}: ${goal.steps}${exercise.stepsUnit}`, Icon: IconComp });
+
+                      if (exercise.category === 'count_time') {
+                        if (goal.count && exercise.countUnit) {
+                          items.push({ key: `${exercise.id}-count`, text: `${exercise.koreanName}: ${goal.count}${exercise.countUnit}`, Icon: IconComp });
+                        }
+                        if (goal.time && exercise.timeUnit) {
+                          items.push({ key: `${exercise.id}-time`, text: `${exercise.koreanName}: ${goal.time}${exercise.timeUnit}`, Icon: IconComp });
+                        }
+                      } else if (exercise.category === 'steps_distance') {
+                        if (goal.steps && exercise.stepsUnit) {
+                          items.push({ key: `${exercise.id}-steps`, text: `${exercise.koreanName}: ${goal.steps}${exercise.stepsUnit}`, Icon: IconComp });
+                        }
                       }
                       return items;
                     });
