@@ -25,7 +25,7 @@ import { useToast } from "@/hooks/use-toast";
 import { recommendStudentExercise, RecommendStudentExerciseOutput, RecommendStudentExerciseInput } from '@/ai/flows/recommend-student-exercise';
 import { generatePersonalizedWelcomeMessage, GeneratePersonalizedWelcomeMessageInput, GeneratePersonalizedWelcomeMessageOutput } from '@/ai/flows/generatePersonalizedWelcomeMessage';
 import { db } from '@/lib/firebase';
-import { collection, getDocs, doc, getDoc, setDoc, query, where, addDoc, updateDoc, onSnapshot, arrayUnion, arrayRemove } from 'firebase/firestore';
+import { collection, getDocs, doc, getDoc, setDoc, query, where, addDoc, updateDoc, onSnapshot, arrayUnion, arrayRemove, runTransaction, increment } from 'firebase/firestore';
 import { format, parseISO, isToday, startOfWeek, addDays, endOfMonth } from 'date-fns';
 import { ko } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
@@ -781,45 +781,69 @@ export default function StudentPage() {
 
   const handleLikePlan = async (targetStudentId: string) => {
     if (isLiking || !currentStudent || targetStudentId === currentStudent.id) return;
-
+  
     setIsLiking(targetStudentId);
-
+  
     const weekKey = format(startOfWeek(new Date(), { weekStartsOn: 0 }), 'yyyy-MM-dd');
-    const targetStudentRef = doc(db, "studentGoals", targetStudentId);
-    
+    const targetStudentGoalsRef = doc(db, "studentGoals", targetStudentId);
+    const targetStudentRef = doc(db, "students", targetStudentId);
     const targetStudentData = classmatesData.find(s => s.id === targetStudentId);
-    const currentLikes = targetStudentData?.weeklyLikes?.[weekKey] || [];
-    const isLiked = currentLikes.includes(currentStudent.id);
-
+  
     try {
-        await updateDoc(targetStudentRef, {
-            [`weeklyLikes.${weekKey}`]: isLiked ? arrayRemove(currentStudent.id) : arrayUnion(currentStudent.id)
+      let isUnlikeAction = false;
+  
+      await runTransaction(db, async (transaction) => {
+        const studentGoalsDoc = await transaction.get(targetStudentGoalsRef);
+        const weeklyLikes = studentGoalsDoc.data()?.weeklyLikes?.[weekKey] || [];
+        const isLikedInDb = weeklyLikes.includes(currentStudent!.id);
+        isUnlikeAction = isLikedInDb;
+  
+        if (!studentGoalsDoc.exists()) {
+          transaction.set(targetStudentGoalsRef, {
+            weeklyLikes: { [weekKey]: [currentStudent!.id] }
+          });
+        } else {
+          transaction.update(targetStudentGoalsRef, {
+            [`weeklyLikes.${weekKey}`]: isLikedInDb ? arrayRemove(currentStudent!.id) : arrayUnion(currentStudent!.id)
+          });
+        }
+  
+        transaction.update(targetStudentRef, {
+          totalXp: increment(isLikedInDb ? -5 : 5)
         });
-        
-        setClassmatesData(prevData => {
-            return prevData.map(student => {
-                if (student.id === targetStudentId) {
-                    const updatedLikes = { ...(student.weeklyLikes || {}) };
-                    const weekLikes = updatedLikes[weekKey] || [];
-                    
-                    if (isLiked) {
-                        updatedLikes[weekKey] = weekLikes.filter((id: string) => id !== currentStudent.id);
-                    } else {
-                        updatedLikes[weekKey] = [...weekLikes, currentStudent.id];
-                    }
-                    return { ...student, weeklyLikes: updatedLikes };
-                }
-                return student;
-            });
+      });
+  
+      setClassmatesData(prevData => {
+        return prevData.map(student => {
+          if (student.id === targetStudentId) {
+            const updatedLikes = { ...(student.weeklyLikes || {}) };
+            const weekLikes = updatedLikes[weekKey] || [];
+            const isLikedInState = weekLikes.includes(currentStudent.id);
+            const newTotalXp = (student.totalXp || 0) + (isLikedInState ? -5 : 5);
+  
+            if (isLikedInState) {
+              updatedLikes[weekKey] = weekLikes.filter((id: string) => id !== currentStudent.id);
+            } else {
+              updatedLikes[weekKey] = [...weekLikes, currentStudent.id];
+            }
+            return { ...student, weeklyLikes: updatedLikes, totalXp: newTotalXp };
+          }
+          return student;
         });
-
-        toast({ title: isLiked ? "좋아요 취소" : "좋아요!", description: isLiked ? "응원을 취소했어요." : "친구의 계획을 응원했어요! 👍" });
-
+      });
+  
+      toast({
+        title: isUnlikeAction ? "좋아요 취소" : "좋아요!",
+        description: isUnlikeAction
+          ? "응원을 취소했어요."
+          : `친구를 응원했어요! ${targetStudentData?.name} 학생이 5XP를 받았습니다. 👍`
+      });
+  
     } catch (error) {
-        console.error("Error toggling plan like: ", error);
-        toast({ title: "오류", description: "좋아요 처리에 실패했습니다.", variant: "destructive" });
+      console.error("Error toggling plan like: ", error);
+      toast({ title: "오류", description: "좋아요 처리에 실패했습니다.", variant: "destructive" });
     } finally {
-        setIsLiking(null);
+      setIsLiking(null);
     }
   };
 

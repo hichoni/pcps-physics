@@ -5,7 +5,7 @@ import type { Student } from '@/lib/types';
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Trash2, KeyRound, Eye, EyeOff } from 'lucide-react';
+import { Trash2, KeyRound, Eye, EyeOff, Gem } from 'lucide-react';
 import { AVATAR_OPTIONS } from '@/data/avatarOptions';
 import { cn } from '@/lib/utils';
 import { getIconByName } from '@/lib/iconMap';
@@ -48,11 +48,17 @@ const StudentCard: React.FC<StudentCardProps> = ({ student, onDeleteStudent, onM
             <CardDescription className="text-xs text-muted-foreground">
               {student.grade}학년 {student.classNum}반 {student.studentNumber}번 ({student.gender === 'male' ? '남' : '여'})
             </CardDescription>
-            <div className="text-xs text-muted-foreground mt-0.5 flex items-center">
-              PIN: {showPin ? student.pin : '••••'}
-              <Button variant="ghost" size="icon" onClick={() => setShowPin(!showPin)} className="h-5 w-5 ml-1 p-0">
-                {showPin ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
-              </Button>
+            <div className="flex items-center gap-4">
+              <div className="text-xs text-muted-foreground mt-0.5 flex items-center">
+                  PIN: {showPin ? student.pin : '••••'}
+                  <Button variant="ghost" size="icon" onClick={() => setShowPin(!showPin)} className="h-5 w-5 ml-1 p-0">
+                      {showPin ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
+                  </Button>
+              </div>
+              <div className="text-xs text-amber-600 dark:text-amber-400 mt-0.5 flex items-center font-semibold">
+                  <Gem className="h-3 w-3 mr-1" />
+                  XP: {(student.totalXp || 0).toLocaleString()}
+              </div>
             </div>
           </div>
         </CardHeader>
