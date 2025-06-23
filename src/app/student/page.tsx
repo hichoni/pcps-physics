@@ -1054,9 +1054,24 @@ export default function StudentPage() {
       <main className="flex-grow container mx-auto p-4 sm:p-6 lg:p-8 space-y-8">
         <div
           key={mainContentKey}
-          className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-stretch"
+          className="space-y-6"
         >
-            <Card className="shadow-lg rounded-xl flex flex-col lg:col-span-3">
+            <Card className="shadow-lg rounded-xl">
+                <CardHeader>
+                    <CardTitle className="text-2xl sm:text-3xl font-bold font-headline text-primary">
+                        📣 선생님의 한마디
+                    </CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <blockquote className="p-4 bg-secondary/20 dark:bg-slate-800/30 border-l-4 border-primary rounded-r-lg">
+                        <p className="text-base sm:text-lg text-foreground/90 italic">
+                            "{teacherBaseWelcomeMessage}"
+                        </p>
+                    </blockquote>
+                </CardContent>
+            </Card>
+            
+            <Card className="shadow-lg rounded-xl flex flex-col">
                 <CardHeader className="pb-4">
                     <CardTitle className="text-2xl sm:text-3xl font-bold font-headline text-primary text-center lg:text-left">
                       나의 활동 공간
@@ -1064,16 +1079,7 @@ export default function StudentPage() {
                 </CardHeader>
                 <CardContent className="flex-grow flex flex-col justify-between">
                     <div className="mb-6">
-                        <p className="text-lg sm:text-xl font-semibold text-primary text-center lg:text-left mb-2">
-                            📣 선생님의 한마디
-                        </p>
-                        <blockquote className="p-4 bg-secondary/20 dark:bg-slate-800/30 border-l-4 border-primary rounded-r-lg">
-                            <p className="text-base sm:text-lg text-foreground/90 italic">
-                                "{teacherBaseWelcomeMessage}"
-                            </p>
-                        </blockquote>
-                        
-                        <div className="mt-6 text-center lg:text-left">
+                        <div className="text-center lg:text-left">
                             <p className="text-base sm:text-lg text-muted-foreground whitespace-pre-wrap">
                                 {isAiWelcomeLoading ? <Loader2 className="h-5 w-5 animate-spin mx-auto lg:mx-0" /> : renderWelcomeMessage(aiPersonalizedWelcome)}
                             </p>
