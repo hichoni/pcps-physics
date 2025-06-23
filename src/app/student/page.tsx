@@ -150,6 +150,7 @@ export default function StudentPage() {
   const todayKey = useMemo(() => format(new Date(), 'yyyy-MM-dd'), []);
 
   const [activityChartTimeFrame, setActivityChartTimeFrame] = useState<'today' | 'week' | 'month'>('today');
+  const [isLiking, setIsLiking] = useState<string | null>(null);
 
   const { toast } = useToast();
 
@@ -779,7 +780,9 @@ export default function StudentPage() {
   };
 
   const handleLikePlan = async (targetStudentId: string) => {
-    if (!currentStudent || targetStudentId === currentStudent.id) return;
+    if (isLiking || !currentStudent || targetStudentId === currentStudent.id) return;
+
+    setIsLiking(targetStudentId);
 
     const weekKey = format(startOfWeek(new Date(), { weekStartsOn: 0 }), 'yyyy-MM-dd');
     const targetStudentRef = doc(db, "studentGoals", targetStudentId);
@@ -796,7 +799,7 @@ export default function StudentPage() {
         setClassmatesData(prevData => {
             return prevData.map(student => {
                 if (student.id === targetStudentId) {
-                    const updatedLikes = student.weeklyLikes || {};
+                    const updatedLikes = { ...(student.weeklyLikes || {}) };
                     const weekLikes = updatedLikes[weekKey] || [];
                     
                     if (isLiked) {
@@ -815,6 +818,8 @@ export default function StudentPage() {
     } catch (error) {
         console.error("Error toggling plan like: ", error);
         toast({ title: "오류", description: "좋아요 처리에 실패했습니다.", variant: "destructive" });
+    } finally {
+        setIsLiking(null);
     }
   };
 
@@ -1425,6 +1430,7 @@ export default function StudentPage() {
                 availableExercises={availableExercises}
                 onLikePlan={handleLikePlan}
                 isLoading={isLoadingClassmates}
+                likingStudentId={isLiking}
             />
         )}
 
@@ -1494,4 +1500,3 @@ export default function StudentPage() {
     </div>
   );
 }
-

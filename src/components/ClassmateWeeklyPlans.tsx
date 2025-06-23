@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Heart, Users, Waves, Eye } from 'lucide-react';
+import { Heart, Users, Waves, Eye, Loader2 } from 'lucide-react';
 import { AVATAR_OPTIONS } from '@/data/avatarOptions';
 import { cn } from '@/lib/utils';
 import { getIconByName } from '@/lib/iconMap';
@@ -28,6 +28,7 @@ interface ClassmateWeeklyPlansProps {
   availableExercises: ExerciseType[];
   onLikePlan: (targetStudentId: string) => void;
   isLoading: boolean;
+  likingStudentId: string | null;
 }
 
 const getInitials = (name: string) => {
@@ -44,7 +45,8 @@ const ClassmateWeeklyPlans: React.FC<ClassmateWeeklyPlansProps> = ({
   currentStudentId,
   availableExercises,
   onLikePlan,
-  isLoading
+  isLoading,
+  likingStudentId,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const weekKey = useMemo(() => format(startOfWeek(new Date(), { weekStartsOn: 0 }), 'yyyy-MM-dd'), []);
@@ -117,8 +119,18 @@ const ClassmateWeeklyPlans: React.FC<ClassmateWeeklyPlansProps> = ({
                             </Avatar>
                             <div className="flex-1">
                                 <p className="font-semibold">{classmate.name}</p>
-                                <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); onLikePlan(classmate.id); }} className="h-auto p-1 -ml-1 text-xs text-muted-foreground">
-                                    <Heart className={cn("h-4 w-4 mr-1", hasLiked && "fill-red-500 text-red-500")} />
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={(e) => { e.stopPropagation(); onLikePlan(classmate.id); }}
+                                  className="h-auto p-1 -ml-1 text-xs text-muted-foreground"
+                                  disabled={likingStudentId === classmate.id}
+                                >
+                                    {likingStudentId === classmate.id ? (
+                                        <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                                    ) : (
+                                        <Heart className={cn("h-4 w-4 mr-1", hasLiked && "fill-red-500 text-red-500")} />
+                                    )}
                                     {likeCount > 0 ? likeCount : ''}
                                 </Button>
                             </div>
