@@ -114,7 +114,7 @@ const ManageCustomExerciseDialog: React.FC<ManageCustomExerciseDialogProps> = ({
     }
   };
   
-  const availableIconNames = Object.keys(iconMap).sort();
+  const availableIcons = Object.entries(iconMap).sort(([a], [b]) => a.localeCompare(b));
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose(); }}>
@@ -141,8 +141,13 @@ const ManageCustomExerciseDialog: React.FC<ManageCustomExerciseDialogProps> = ({
                   <SelectValue placeholder="아이콘을 선택하세요" />
                 </SelectTrigger>
                 <SelectContent>
-                  {availableIconNames.map(name => (
-                    <SelectItem key={name} value={name}>{name}</SelectItem>
+                  {availableIcons.map(([name, IconComponent]) => (
+                    <SelectItem key={name} value={name}>
+                        <div className="flex items-center gap-2">
+                            <IconComponent className="h-4 w-4" />
+                            <span>{name}</span>
+                        </div>
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
