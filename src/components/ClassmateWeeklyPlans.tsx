@@ -117,7 +117,7 @@ const ClassmateWeeklyPlans: React.FC<ClassmateWeeklyPlansProps> = ({
                             </Avatar>
                             <div className="flex-1">
                                 <p className="font-semibold">{classmate.name}</p>
-                                <Button variant="ghost" size="sm" onClick={() => onLikePlan(classmate.id)} className="h-auto p-1 -ml-1 text-xs text-muted-foreground">
+                                <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); onLikePlan(classmate.id); }} className="h-auto p-1 -ml-1 text-xs text-muted-foreground">
                                     <Heart className={cn("h-4 w-4 mr-1", hasLiked && "fill-red-500 text-red-500")} />
                                     {likeCount > 0 ? likeCount : ''}
                                 </Button>
