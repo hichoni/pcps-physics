@@ -118,9 +118,8 @@ export default function TeacherPage() {
       const studentsCollectionRef = collection(db, "students");
       const studentsSnapshot = await getDocs(studentsCollectionRef);
       const studentsList = studentsSnapshot.docs.map(sDoc => {
-        const data = sDoc.data() as any; // Use any to handle old `class` field
+        const data = sDoc.data() as any;
         
-        // Handle data migration from old format ("3학년 1반") to new format
         if (data.class && !data.grade) {
             const classString = data.class;
             const gradeMatch = classString.match(/(\d+)학년/);
@@ -129,7 +128,7 @@ export default function TeacherPage() {
                 data.grade = gradeMatch[1];
                 data.classNum = classNumMatch[1];
             }
-            delete data.class; // Remove old field
+            delete data.class;
         }
 
         return { id: sDoc.id, ...data } as Student
@@ -292,7 +291,11 @@ export default function TeacherPage() {
 
   const exercisesForCurrentGrade = useMemo(() => {
     if (!selectedGrade || isLoadingCustomExercises) return [];
-    return allExercisesByGrade[selectedGrade] || [];
+    const gradeExercises = allExercisesByGrade[selectedGrade];
+    if (!gradeExercises || gradeExercises.length === 0) {
+      return EXERCISES_SEED_DATA;
+    }
+    return gradeExercises;
   }, [allExercisesByGrade, selectedGrade, isLoadingCustomExercises]);
 
 
@@ -383,14 +386,25 @@ export default function TeacherPage() {
         const gradeMatch = className.match(/(\d+)학년/);
         const grade = gradeMatch ? gradeMatch[1] : '';
       
-        const classNumMatch = className.match(/(\d+)반/);
-        const classNum = classNumMatch ? classNumMatch[1] : '';
-        
         setSelectedClass(className);
         setSelectedGrade(grade);
-        setStudentsInClass(students.filter(student => student.grade === grade && student.classNum === classNum).sort((a, b) => Number(a.studentNumber) - Number(b.studentNumber)));
     }
   };
+  
+  useEffect(() => {
+      const getStudentsForClass = () => {
+          if (selectedClass) {
+              const gradeMatch = selectedClass.match(/(\d+)학년/);
+              const grade = gradeMatch ? gradeMatch[1] : '';
+              const classNumMatch = selectedClass.match(/(\d+)반/);
+              const classNum = classNumMatch ? classNumMatch[1] : '';
+              return students.filter(student => student.grade === grade && student.classNum === classNum);
+          }
+          return students;
+      };
+      
+      setStudentsInClass(getStudentsForClass().sort((a,b) => Number(a.studentNumber) - Number(b.studentNumber)));
+  }, [students, selectedClass]);
 
   const handleAddStudent = async (newStudentData: Omit<Student, 'id' | 'avatarSeed'>) => {
     try {
@@ -425,7 +439,7 @@ export default function TeacherPage() {
 
       studentsToAdd.forEach(studentData => {
         const studentWithAvatar = { ...studentData, avatarSeed: '' };
-        const newDocRef = doc(studentsCollectionRef); // Create a new doc reference with an auto-generated ID
+        const newDocRef = doc(studentsCollectionRef); 
         batch.set(newDocRef, studentWithAvatar);
         
         const newStudent = { ...studentWithAvatar, id: newDocRef.id };
@@ -445,7 +459,7 @@ export default function TeacherPage() {
     } catch (error) {
       console.error("Error batch adding students: ", error);
       toast({ title: "오류", description: "학생 일괄 추가에 실패했습니다.", variant: "destructive"});
-      throw error; // re-throw to be caught by the dialog
+      throw error; 
     }
   };
 
@@ -481,7 +495,7 @@ export default function TeacherPage() {
         const updatedClassNames = Array.from(new Set(remainingStudents.map(s => `${s.grade}학년 ${s.classNum}반`))).sort();
         setDynamicClasses(updatedClassNames);
         if(selectedClass && !updatedClassNames.includes(selectedClass)){
-          setSelectedClass(undefined); // If the deleted student was the last in a class, deselect it
+          setSelectedClass(undefined);
         }
 
         toast({ title: "성공", description: `${studentToDelete.name} 학생 정보가 삭제되었습니다.` });
@@ -589,7 +603,6 @@ export default function TeacherPage() {
         return;
     }
     
-    // Clean up any properties that are undefined.
     Object.keys(exerciseData).forEach(key => {
       if (exerciseData[key as keyof typeof exerciseData] === undefined) {
         delete exerciseData[key as keyof typeof exerciseData];
@@ -598,17 +611,21 @@ export default function TeacherPage() {
 
     try {
         const exercisesDocRef = doc(db, EXERCISES_BY_GRADE_DOC_PATH);
-        const currentGradeExercises = allExercisesByGrade[selectedGrade] || [];
+        const baseExercises = exercisesForCurrentGrade;
         
         let updatedExercises: CustomExerciseType[];
 
-        if ('id' in exerciseData) { // Edit mode
-            updatedExercises = currentGradeExercises.map(ex => 
-                ex.id === exerciseData.id ? { ...ex, ...exerciseData } : ex
-            );
+        if ('id' in exerciseData) {
+            const exerciseIndex = baseExercises.findIndex(ex => ex.id === exerciseData.id);
+            if (exerciseIndex > -1) {
+                updatedExercises = [...baseExercises];
+                updatedExercises[exerciseIndex] = { ...updatedExercises[exerciseIndex], ...exerciseData as CustomExerciseType };
+            } else {
+                updatedExercises = [...baseExercises, exerciseData as CustomExerciseType];
+            }
             toast({ title: "성공", description: `운동 "${exerciseData.koreanName}"이(가) 수정되었습니다.` });
-        } else { // Add mode
-            if (currentGradeExercises.length >= 6) {
+        } else {
+            if (baseExercises.length >= 6) {
                 toast({ title: "제한 초과", description: "운동은 최대 6개까지만 추가할 수 있습니다.", variant: "destructive" });
                 return;
             }
@@ -616,7 +633,7 @@ export default function TeacherPage() {
                 id: uuidv4(),
                 ...exerciseData
             } as CustomExerciseType;
-            updatedExercises = [...currentGradeExercises, newExercise];
+            updatedExercises = [...baseExercises, newExercise];
             toast({ title: "성공", description: `운동 "${newExercise.koreanName}"이(가) 추가되었습니다.` });
         }
         
@@ -657,8 +674,8 @@ export default function TeacherPage() {
     if (exerciseToDelete && selectedGrade) {
         try {
             const exercisesDocRef = doc(db, EXERCISES_BY_GRADE_DOC_PATH);
-            const currentGradeExercises = allExercisesByGrade[selectedGrade] || [];
-            const updatedExercises = currentGradeExercises.filter(ex => ex.id !== exerciseToDelete.id);
+            const baseExercises = exercisesForCurrentGrade;
+            const updatedExercises = baseExercises.filter(ex => ex.id !== exerciseToDelete.id);
             await updateDoc(exercisesDocRef, { [selectedGrade]: updatedExercises });
             toast({ title: "성공", description: `운동 "${exerciseToDelete.koreanName}"이(가) 삭제되었습니다.` });
         } catch (error) {
@@ -709,27 +726,6 @@ export default function TeacherPage() {
 
   const memoizedAiSuggestionBox = useMemo(() => <AiSuggestionBox recordedExercises={recordedExercises} />, [recordedExercises]);
 
-  useEffect(() => {
-    // This effect ensures that when students data is loaded,
-    // the initial state of studentsInClass is set correctly,
-    // and when a class is selected, it filters correctly.
-    const getStudentsForClass = () => {
-        if (selectedClass) {
-            const gradeMatch = selectedClass.match(/(\d+)학년/);
-            const grade = gradeMatch ? gradeMatch[1] : '';
-            const classNumMatch = selectedClass.match(/(\d+)반/);
-            const classNum = classNumMatch ? classNumMatch[1] : '';
-            return students.filter(student => student.grade === grade && student.classNum === classNum);
-        }
-        return students;
-    };
-    
-    setStudentsInClass(getStudentsForClass().sort((a,b) => {
-        const classCompare = (`${a.grade}학년 ${a.classNum}반`).localeCompare(`${b.grade}학년 ${b.classNum}반`);
-        if (classCompare !== 0) return classCompare;
-        return Number(a.studentNumber) - Number(b.studentNumber);
-    }));
-  }, [students, selectedClass]);
 
   const isLoading = isLoadingStudents || isLoadingLogs || isLoadingCompliments || isLoadingRecommendations || isLoadingWelcomeMessage || isLoadingCustomExercises || isLoadingStudentGoals;
 
@@ -1109,6 +1105,12 @@ export default function TeacherPage() {
                     <p className="text-lg">{selectedClass} 학급에 등록된 학생이 없습니다.</p>
                     <p className="text-sm">먼저 '학생 목록' 탭에서 학생을 추가해주세요.</p>
                   </div>
+                ) : exercisesForCurrentGrade.length === 0 ? (
+                  <div className="min-h-[200px] flex flex-col items-center justify-center text-muted-foreground bg-secondary/10 rounded-lg p-4 text-center">
+                    <Settings2 className="h-12 w-12 mb-4 text-primary" />
+                    <p className="text-lg">설정된 운동 목록이 없습니다.</p>
+                    <p className="text-sm">먼저 '운동 관리' 탭에서 운동을 설정하거나 초기화해주세요.</p>
+                  </div>
                 ) : (
                   <ClassSummaryStats
                     selectedClass={selectedClass}
@@ -1134,15 +1136,15 @@ export default function TeacherPage() {
               <div className="flex flex-wrap gap-4 justify-between items-center mb-6">
                 <h2 id="exercise-management-heading" className="text-xl font-semibold font-headline flex items-center">
                   <Settings2 className="mr-3 h-6 w-6 text-primary" />
-                  {selectedGrade}학년 운동 목록 관리 (최대 6개)
+                  {selectedGrade ? `${selectedGrade}학년 운동 목록 관리 (최대 6개)` : '먼저 학급을 선택해주세요'}
                 </h2>
                 <div className="flex gap-2">
-                    <Button onClick={openAddExerciseDialog} className="rounded-lg" disabled={exercisesForCurrentGrade.length >= 6}>
+                    <Button onClick={openAddExerciseDialog} className="rounded-lg" disabled={!selectedGrade || exercisesForCurrentGrade.length >= 6}>
                       <PlusCircle className="mr-2 h-5 w-5" /> 새 운동 추가
                     </Button>
                     <AlertDialog>
                       <AlertDialogTrigger asChild>
-                        <Button variant="outline" className="rounded-lg">
+                        <Button variant="outline" className="rounded-lg" disabled={!selectedGrade}>
                           <RotateCcw className="mr-2 h-5 w-5" /> 기본값으로 초기화
                         </Button>
                       </AlertDialogTrigger>
@@ -1163,10 +1165,8 @@ export default function TeacherPage() {
               </div>
               {isLoadingCustomExercises ? (
                  <div className="flex justify-center py-4"><Loader2 className="h-6 w-6 animate-spin text-primary" /> 운동 목록 로딩 중...</div>
-              ) : exercisesForCurrentGrade.length === 0 ? (
-                <div className="text-center py-6">
-                    <p className="text-muted-foreground mb-3">{selectedGrade}학년에 설정된 운동이 없습니다. 새 운동을 추가하거나 기본값으로 목록을 만드세요.</p>
-                </div>
+              ) : !selectedGrade ? (
+                  <div className="text-center py-6 text-muted-foreground">운동을 관리할 학급을 먼저 선택해주세요.</div>
               ) : (
                 <div className="space-y-4">
                   {exercisesForCurrentGrade.map((ex) => {
