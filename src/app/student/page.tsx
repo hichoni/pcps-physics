@@ -761,7 +761,7 @@ export default function StudentPage() {
         setIsChangeAvatarDialogOpen(false);
       } catch (error) {
         console.error("Error updating avatar:", error);
-        toast({ title: "오류", description: "아바타 변경에 실패했습니다.", variant: "destructive" });
+        toast({ title: "오류", description: "아바타 변경에 실패했습니다. 다시 시도해주세요.", variant: "destructive" });
       }
     }
   };
@@ -1387,51 +1387,6 @@ export default function StudentPage() {
                 );
               })}
             </div>
-          </CardContent>
-        </Card>
-
-        <Card className="shadow-md hover:shadow-lg transition-shadow rounded-xl">
-          <CardHeader>
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
-              <div className="flex items-center">
-                <History className="mr-3 h-7 w-7 text-destructive" />
-                <div>
-                    <CardTitle className="font-headline text-xl">나의 활동 내역</CardTitle>
-                    <CardDescription>선택한 기간의 운동 기록을 확인하고, 목표 달성도도 살펴봐요.</CardDescription>
-                </div>
-              </div>
-              <div className="flex gap-2 self-start sm:self-center shrink-0">
-                {(['today', 'week', 'month'] as const).map((frame) => (
-                  <Button
-                    key={frame}
-                    variant={activityChartTimeFrame === frame ? 'default' : 'outline'}
-                    size="sm"
-                    onClick={() => setActivityChartTimeFrame(frame)}
-                    className="rounded-md px-3 py-1.5 text-xs sm:px-4 sm:py-2 sm:text-sm"
-                  >
-                    {frame === 'today' && '오늘'}
-                    {frame === 'week' && '주간'}
-                    {frame === 'month' && '월간'}
-                  </Button>
-                ))}
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-4">
-           {isActivityLogsLoading || isLoadingExercises ? <Loader2 className="h-6 w-6 animate-spin text-primary mx-auto my-4" /> :
-            availableExercises.length === 0 ?
-              <p className="text-sm text-muted-foreground text-center py-2">운동 목록이 설정되지 않았습니다.</p> :
-              (currentStudent &&
-                <StudentActivityChart
-                  logs={studentActivityLogs}
-                  selectedStudent={currentStudent}
-                  students={allStudents.filter(s => s.id === currentStudent.id)}
-                  availableExercises={availableExercises}
-                  timeFrame={activityChartTimeFrame}
-                  studentGoals={todaysGoals}
-                />
-              )
-            }
           </CardContent>
         </Card>
 
