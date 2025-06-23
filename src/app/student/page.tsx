@@ -41,7 +41,7 @@ const DEFAULT_POSITIVE_ADJECTIVES_KR = [
 const COMPLIMENTS_DOC_PATH = "appConfig/complimentsDoc";
 const STUDENT_WELCOME_MESSAGE_DOC_PATH = "appConfig/studentWelcomeMessageDoc";
 const DEFAULT_STUDENT_WELCOME_MESSAGE = "오늘도 즐겁게 운동하고 건강해져요! 어떤 활동을 계획하고 있나요?";
-const CUSTOM_EXERCISES_DOC_PATH = "appConfig/customExercisesDoc";
+const EXERCISES_BY_GRADE_DOC_PATH = "appConfig/exercisesByGrade";
 
 const LEVEL_TIERS: LevelInfo[] = [
   { level: 1, name: "움직새싹", icon: Leaf, minXp: 0, maxXp: 200, colorClass: "text-green-500 dark:text-green-400" },
@@ -198,25 +198,38 @@ export default function StudentPage() {
   }, [fetchLoginOptions]);
 
   useEffect(() => {
+    if (!currentStudent) {
+        setAvailableExercises([]);
+        setIsLoadingExercises(false);
+        return;
+    }
+    
     setIsLoadingExercises(true);
-    const exercisesDocRef = doc(db, CUSTOM_EXERCISES_DOC_PATH);
+    const exercisesDocRef = doc(db, EXERCISES_BY_GRADE_DOC_PATH);
     const unsubscribe = onSnapshot(exercisesDocRef, (docSnap) => {
-      if (docSnap.exists() && Array.isArray(docSnap.data()?.list) && docSnap.data().list.length > 0) {
-        const customExercisesFromDb = docSnap.data()?.list as CustomExerciseType[];
-        setAvailableExercises(customExercisesFromDb.map(convertCustomToInternalExercise));
-      } else {
-        // Fallback to seed data if Firestore is empty for students
-        setAvailableExercises(EXERCISES_SEED_DATA.map(convertCustomToInternalExercise));
-      }
-      setIsLoadingExercises(false);
+        const grade = currentStudent.grade;
+        let exercisesForGrade: CustomExerciseType[] = [];
+
+        if (docSnap.exists() && docSnap.data()?.[grade] && Array.isArray(docSnap.data()?.[grade])) {
+            exercisesForGrade = docSnap.data()?.[grade] as CustomExerciseType[];
+        }
+
+        if (exercisesForGrade.length > 0) {
+            setAvailableExercises(exercisesForGrade.map(convertCustomToInternalExercise));
+        } else {
+            // Fallback to seed data if Firestore is empty for this grade
+            setAvailableExercises(EXERCISES_SEED_DATA.map(convertCustomToInternalExercise));
+        }
+        setIsLoadingExercises(false);
     }, (error) => {
-      console.error("Error fetching custom exercises:", error);
-      toast({ title: "오류", description: "운동 목록 로딩에 실패했습니다. 기본 목록을 사용합니다.", variant: "destructive" });
-      setAvailableExercises(EXERCISES_SEED_DATA.map(convertCustomToInternalExercise));
-      setIsLoadingExercises(false);
+        console.error(`Error fetching exercises for grade ${currentStudent.grade}:`, error);
+        toast({ title: "오류", description: "운동 목록 로딩에 실패했습니다. 기본 목록을 사용합니다.", variant: "destructive" });
+        setAvailableExercises(EXERCISES_SEED_DATA.map(convertCustomToInternalExercise));
+        setIsLoadingExercises(false);
     });
+
     return () => unsubscribe();
-  }, [toast]);
+  }, [currentStudent, toast]);
 
   const currentLevelInfo = useMemo(() => {
     return calculateLevelInfo(currentStudent?.totalXp);

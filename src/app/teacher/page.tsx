@@ -48,9 +48,9 @@ const COMPLIMENTS_DOC_PATH = "appConfig/complimentsDoc";
 const RECOMMENDATIONS_DOC_PATH = "appConfig/exerciseRecommendationsDoc";
 const STUDENT_WELCOME_MESSAGE_DOC_PATH = "appConfig/studentWelcomeMessageDoc";
 const DEFAULT_STUDENT_WELCOME_MSG = "오늘도 즐겁게 운동하고 건강해져요! 어떤 활동을 계획하고 있나요?";
-const CUSTOM_EXERCISES_DOC_PATH = "appConfig/customExercisesDoc";
+const EXERCISES_BY_GRADE_DOC_PATH = "appConfig/exercisesByGrade";
 const TEACHER_PIN = "0408";
-const GRADES = ["1학년", "2학년", "3학년", "4학년", "5학년", "6학년", "기타"];
+const GRADES = ["1", "2", "3", "4", "5", "6", "기타"];
 
 
 export default function TeacherPage() {
@@ -69,7 +69,7 @@ export default function TeacherPage() {
   const [exerciseRecommendations, setExerciseRecommendations] = useState<TeacherExerciseRecommendation[]>([]);
   const [studentWelcomeMessage, setStudentWelcomeMessage] = useState<string>(DEFAULT_STUDENT_WELCOME_MSG);
   const [studentWelcomeMessageInput, setStudentWelcomeMessageInput] = useState<string>('');
-  const [customExercises, setCustomExercises] = useState<CustomExerciseType[]>([]);
+  const [allExercisesByGrade, setAllExercisesByGrade] = useState<Record<string, CustomExerciseType[]>>({});
   const [allStudentGoals, setAllStudentGoals] = useState<Record<string, StudentGoal>>({});
 
   const [isLoadingStudents, setIsLoadingStudents] = useState(true);
@@ -284,31 +284,34 @@ export default function TeacherPage() {
   const fetchCustomExercises = useCallback(async () => {
     setIsLoadingCustomExercises(true);
     try {
-      const exercisesDocRef = doc(db, CUSTOM_EXERCISES_DOC_PATH);
+      const exercisesDocRef = doc(db, EXERCISES_BY_GRADE_DOC_PATH);
       const unsub = onSnapshot(exercisesDocRef, (docSnap) => {
-        if (docSnap.exists() && Array.isArray(docSnap.data()?.list) && docSnap.data().list.length > 0) {
-          setCustomExercises(docSnap.data()?.list as CustomExerciseType[]);
+        if (docSnap.exists()) {
+          setAllExercisesByGrade(docSnap.data() as Record<string, CustomExerciseType[]>);
         } else {
-          const seedDataCopy = EXERCISES_SEED_DATA.map(ex => ({...ex}));
-          setDoc(exercisesDocRef, { list: seedDataCopy });
-          setCustomExercises(seedDataCopy);
-          toast({ title: "알림", description: "운동 목록이 비어 있어 기본값으로 복구되었습니다."});
+          setDoc(exercisesDocRef, {});
+          setAllExercisesByGrade({});
         }
         setIsLoadingCustomExercises(false);
       }, (error) => {
          console.error("Error in custom exercises snapshot: ", error);
          toast({ title: "오류", description: "운동 목록 실시간 업데이트 중 오류 발생.", variant: "destructive"});
-         setCustomExercises(EXERCISES_SEED_DATA.map(ex => ({...ex})));
+         setAllExercisesByGrade({});
          setIsLoadingCustomExercises(false);
       });
       return unsub;
     } catch (error) {
       console.error("Error setting up custom exercises snapshot: ", error);
       toast({ title: "오류", description: "운동 목록을 불러오는 데 실패했습니다.", variant: "destructive"});
-      setCustomExercises(EXERCISES_SEED_DATA.map(ex => ({...ex})));
+      setAllExercisesByGrade({});
       setIsLoadingCustomExercises(false);
     }
   }, [toast]);
+
+  const exercisesForCurrentGrade = useMemo(() => {
+    if (!selectedGrade || isLoadingCustomExercises) return [];
+    return allExercisesByGrade[selectedGrade] || [];
+  }, [allExercisesByGrade, selectedGrade, isLoadingCustomExercises]);
 
 
   useEffect(() => {
@@ -542,34 +545,42 @@ export default function TeacherPage() {
     }
   };
 
-  const handleSaveCustomExercise = async (exerciseData: CustomExercise | Omit<CustomExercise, 'id'>) => {
+  const handleSaveCustomExercise = async (exerciseData: CustomExerciseType | Omit<CustomExerciseType, 'id'>) => {
+    if (!selectedGrade) {
+        toast({ title: "오류", description: "운동을 저장할 학년을 선택해주세요.", variant: "destructive"});
+        return;
+    }
     try {
-      const exercisesDocRef = doc(db, CUSTOM_EXERCISES_DOC_PATH);
-      
-      if ('id' in exerciseData) { // Edit mode
-        const updatedExercises = customExercises.map(ex => 
-          ex.id === exerciseData.id ? exerciseData : ex
-        );
-        await setDoc(exercisesDocRef, { list: updatedExercises });
-        toast({ title: "성공", description: `운동 "${exerciseData.koreanName}"이(가) 수정되었습니다.` });
-      } else { // Add mode
-        if (customExercises.length >= 6) {
-          toast({ title: "제한 초과", description: "운동은 최대 6개까지만 추가할 수 있습니다.", variant: "destructive" });
-          return;
+        const exercisesDocRef = doc(db, EXERCISES_BY_GRADE_DOC_PATH);
+        const currentGradeExercises = allExercisesByGrade[selectedGrade] || [];
+        
+        let updatedExercises: CustomExerciseType[];
+
+        if ('id' in exerciseData) { // Edit mode
+            updatedExercises = currentGradeExercises.map(ex => 
+                ex.id === exerciseData.id ? { ...ex, ...exerciseData } : ex
+            );
+            toast({ title: "성공", description: `운동 "${exerciseData.koreanName}"이(가) 수정되었습니다.` });
+        } else { // Add mode
+            if (currentGradeExercises.length >= 6) {
+                toast({ title: "제한 초과", description: "운동은 최대 6개까지만 추가할 수 있습니다.", variant: "destructive" });
+                return;
+            }
+            const newExercise: CustomExerciseType = {
+                id: uuidv4(),
+                ...exerciseData
+            };
+            updatedExercises = [...currentGradeExercises, newExercise];
+            toast({ title: "성공", description: `운동 "${newExercise.koreanName}"이(가) 추가되었습니다.` });
         }
-        const newExercise: CustomExerciseType = {
-          id: uuidv4(),
-          ...exerciseData
-        };
-        await updateDoc(exercisesDocRef, { list: arrayUnion(newExercise) });
-        toast({ title: "성공", description: `운동 "${newExercise.koreanName}"이(가) 추가되었습니다.` });
-      }
-      
-      setIsManageExerciseDialogOpen(false);
-      setExerciseToEdit(null);
+        
+        await updateDoc(exercisesDocRef, { [selectedGrade]: updatedExercises });
+        
+        setIsManageExerciseDialogOpen(false);
+        setExerciseToEdit(null);
     } catch (error) {
-      console.error("Error saving custom exercise: ", error);
-      toast({ title: "오류", description: "운동 저장에 실패했습니다.", variant: "destructive"});
+        console.error("Error saving custom exercise: ", error);
+        toast({ title: "오류", description: "운동 저장에 실패했습니다.", variant: "destructive"});
     }
   };
 
@@ -579,10 +590,14 @@ export default function TeacherPage() {
   };
   
   const resetExercisesToDefault = async () => {
+    if (!selectedGrade) {
+        toast({title: "오류", description: "초기화할 학년을 선택해주세요.", variant: "destructive"});
+        return;
+    }
     try {
-      const exercisesDocRef = doc(db, CUSTOM_EXERCISES_DOC_PATH);
-      await setDoc(exercisesDocRef, { list: EXERCISES_SEED_DATA });
-      toast({title: "성공", description: "운동 목록이 기본값으로 초기화되었습니다."});
+      const exercisesDocRef = doc(db, EXERCISES_BY_GRADE_DOC_PATH);
+      await updateDoc(exercisesDocRef, { [selectedGrade]: EXERCISES_SEED_DATA });
+      toast({title: "성공", description: `${selectedGrade}학년 운동 목록이 기본값으로 초기화되었습니다.`});
     } catch (error) {
       toast({title: "오류", description: "운동 목록 초기화에 실패했습니다.", variant: "destructive"});
     }
@@ -593,10 +608,12 @@ export default function TeacherPage() {
   };
 
   const confirmDeleteExercise = async () => {
-    if (exerciseToDelete) {
+    if (exerciseToDelete && selectedGrade) {
         try {
-            const exercisesDocRef = doc(db, CUSTOM_EXERCISES_DOC_PATH);
-            await updateDoc(exercisesDocRef, { list: arrayRemove(exerciseToDelete) });
+            const exercisesDocRef = doc(db, EXERCISES_BY_GRADE_DOC_PATH);
+            const currentGradeExercises = allExercisesByGrade[selectedGrade] || [];
+            const updatedExercises = currentGradeExercises.filter(ex => ex.id !== exerciseToDelete.id);
+            await updateDoc(exercisesDocRef, { [selectedGrade]: updatedExercises });
             toast({ title: "성공", description: `운동 "${exerciseToDelete.koreanName}"이(가) 삭제되었습니다.` });
         } catch (error) {
             console.error("Error deleting exercise: ", error);
@@ -671,7 +688,7 @@ export default function TeacherPage() {
                   </SelectTrigger>
                   <SelectContent>
                     {GRADES.map(grade => (
-                      <SelectItem key={grade} value={grade} className="text-base py-2">{grade}</SelectItem>
+                      <SelectItem key={grade} value={grade}>{grade}학년</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -855,7 +872,7 @@ export default function TeacherPage() {
                     <p className="text-lg">{selectedClass} 학급에 등록된 학생이 없습니다.</p>
                     <p className="text-sm">먼저 '학생 목록' 탭에서 학생을 추가해주세요.</p>
                   </div>
-                ) : customExercises.length === 0 ? (
+                ) : exercisesForCurrentGrade.length === 0 ? (
                   <div className="min-h-[200px] flex flex-col items-center justify-center text-muted-foreground bg-secondary/10 rounded-lg p-4 text-center">
                     <Settings2 className="h-12 w-12 mb-4 text-primary" />
                     <p className="text-lg">설정된 운동 목록이 없습니다.</p>
@@ -868,7 +885,7 @@ export default function TeacherPage() {
                         <TableRow>
                           <TableHead className="w-[60px] sticky left-0 bg-card z-10">번호</TableHead>
                           <TableHead className="w-[120px] sticky left-[60px] bg-card z-10">이름</TableHead>
-                          {customExercises.map(ex => (
+                          {exercisesForCurrentGrade.map(ex => (
                             <TableHead key={ex.id} className="text-center min-w-[120px] whitespace-nowrap">{ex.koreanName}</TableHead>
                           ))}
                         </TableRow>
@@ -878,7 +895,7 @@ export default function TeacherPage() {
                           <TableRow key={student.id}>
                             <TableCell className="sticky left-0 bg-card z-10">{student.studentNumber}</TableCell>
                             <TableCell className="sticky left-[60px] bg-card z-10">{student.name}</TableCell>
-                            {customExercises.map(exercise => {
+                            {exercisesForCurrentGrade.map(exercise => {
                               const studentLogsForExerciseSelectedDate = recordedExercises.filter(log =>
                                 log.studentId === student.id &&
                                 log.exerciseId === exercise.id &&
@@ -922,7 +939,7 @@ export default function TeacherPage() {
                                                : (achievedValue > 0 ? 100 : 0);
                               
                               const DisplayExerciseIcon = getIconByName(exercise.iconName);
-                              const exerciseColor = `hsl(var(--chart-${(customExercises.findIndex(ex => ex.id === exercise.id) % 5) + 1}))`;
+                              const exerciseColor = `hsl(var(--chart-${(exercisesForCurrentGrade.findIndex(ex => ex.id === exercise.id) % 5) + 1}))`;
 
 
                               if (achievedValue === 0 && (!hasGoal || (goalValue !== undefined && goalValue === 0))) {
@@ -1013,7 +1030,7 @@ export default function TeacherPage() {
                     selectedClass={selectedClass}
                     studentsInClass={studentsInClass}
                     recordedExercises={recordedExercises}
-                    customExercises={customExercises}
+                    customExercises={exercisesForCurrentGrade}
                     allStudentGoals={allStudentGoals}
                     selectedLogDate={selectedLogDate}
                   />
@@ -1033,10 +1050,10 @@ export default function TeacherPage() {
               <div className="flex flex-wrap gap-4 justify-between items-center mb-6">
                 <h2 id="exercise-management-heading" className="text-xl font-semibold font-headline flex items-center">
                   <Settings2 className="mr-3 h-6 w-6 text-primary" />
-                  학생 운동 목록 관리 (최대 6개)
+                  {selectedGrade}학년 운동 목록 관리 (최대 6개)
                 </h2>
                 <div className="flex gap-2">
-                    <Button onClick={openAddExerciseDialog} className="rounded-lg" disabled={customExercises.length >= 6}>
+                    <Button onClick={openAddExerciseDialog} className="rounded-lg" disabled={exercisesForCurrentGrade.length >= 6}>
                       <PlusCircle className="mr-2 h-5 w-5" /> 새 운동 추가
                     </Button>
                     <AlertDialog>
@@ -1062,13 +1079,13 @@ export default function TeacherPage() {
               </div>
               {isLoadingCustomExercises ? (
                  <div className="flex justify-center py-4"><Loader2 className="h-6 w-6 animate-spin text-primary" /> 운동 목록 로딩 중...</div>
-              ) : customExercises.length === 0 ? (
+              ) : exercisesForCurrentGrade.length === 0 ? (
                 <div className="text-center py-6">
-                    <p className="text-muted-foreground mb-3">운동 목록이 없습니다. 새 운동을 추가하거나 기본값으로 초기화해주세요.</p>
+                    <p className="text-muted-foreground mb-3">{selectedGrade}학년에 설정된 운동이 없습니다. 새 운동을 추가하거나 기본값으로 목록을 만드세요.</p>
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {customExercises.map((ex) => {
+                  {exercisesForCurrentGrade.map((ex) => {
                     const Icon = getIconByName(ex.iconName) || ActivityIcon;
                     return (
                        <Card key={ex.id} className="shadow-sm">
