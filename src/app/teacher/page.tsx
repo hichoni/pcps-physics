@@ -313,12 +313,12 @@ export default function TeacherPage() {
 
   useEffect(() => {
     if (selectedClass) {
-      setStudentsInClass(students.filter(student => `${student.grade}학년 ${student.classNum}반` === selectedClass).sort((a, b) => a.studentNumber - b.studentNumber));
+      setStudentsInClass(students.filter(student => `${student.grade}학년 ${student.classNum}반` === selectedClass).sort((a, b) => Number(a.studentNumber) - Number(b.studentNumber)));
     } else {
       setStudentsInClass(students.sort((a,b) => {
         const classCompare = (`${a.grade}학년 ${a.classNum}반`).localeCompare(`${b.grade}학년 ${b.classNum}반`);
         if (classCompare !== 0) return classCompare;
-        return a.studentNumber - b.studentNumber;
+        return Number(a.studentNumber) - Number(b.studentNumber);
       }));
     }
   }, [selectedClass, students]);
@@ -397,7 +397,7 @@ export default function TeacherPage() {
       const newStudent = { ...studentWithAvatar, id: docRef.id };
       
       const newClassName = `${newStudent.grade}학년 ${newStudent.classNum}반`;
-      setStudents(prev => [...prev, newStudent].sort((a, b) => (`${a.grade}학년 ${a.classNum}반`).localeCompare(`${b.grade}학년 ${b.classNum}반`) || a.studentNumber - b.studentNumber));
+      setStudents(prev => [...prev, newStudent].sort((a, b) => (`${a.grade}학년 ${a.classNum}반`).localeCompare(`${b.grade}학년 ${b.classNum}반`) || Number(a.studentNumber) - Number(b.studentNumber)));
       if (!dynamicClasses.includes(newClassName)) {
         setDynamicClasses(prev => [...prev, newClassName].sort());
       }
@@ -437,7 +437,7 @@ export default function TeacherPage() {
       
       await batch.commit();
 
-      setStudents(prev => [...prev, ...newStudents].sort((a,b) => (`${a.grade}학년 ${a.classNum}반`).localeCompare(`${b.grade}학년 ${b.classNum}반`) || a.studentNumber - b.studentNumber));
+      setStudents(prev => [...prev, ...newStudents].sort((a,b) => (`${a.grade}학년 ${a.classNum}반`).localeCompare(`${b.grade}학년 ${b.classNum}반`) || Number(a.studentNumber) - Number(b.studentNumber)));
       setDynamicClasses(Array.from(newClassNames).sort());
 
     } catch (error) {

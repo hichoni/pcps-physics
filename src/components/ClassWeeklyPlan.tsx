@@ -97,18 +97,7 @@ const ClassWeeklyPlan: React.FC<ClassWeeklyPlanProps> = ({ studentsInClass, allS
                   }
 
                   const { goals, skipped } = studentGoalsForDay;
-                  const isRestDay = availableExercises.every(ex => skipped.has(ex.id)) && Object.keys(goals).length === 0;
-
-                  if (isRestDay) {
-                    return (
-                      <TableCell key={dateKey} className="text-center text-blue-500">
-                        <div className="flex items-center justify-center gap-2">
-                           <Waves className="h-4 w-4" /> <span>휴식</span>
-                        </div>
-                      </TableCell>
-                    );
-                  }
-
+                  
                   const goalItems = Object.entries(goals)
                     .filter(([exId]) => !skipped.has(exId))
                     .flatMap(([exId, goal]) => {
@@ -129,7 +118,17 @@ const ClassWeeklyPlan: React.FC<ClassWeeklyPlanProps> = ({ studentsInClass, allS
                     });
                   
                   if (goalItems.length === 0) {
-                     return <TableCell key={dateKey} className="text-center text-muted-foreground/50">-</TableCell>;
+                    const isRestDay = availableExercises.length > 0 && availableExercises.every(ex => skipped.has(ex.id));
+                    if(isRestDay) {
+                      return (
+                        <TableCell key={dateKey} className="text-center text-blue-500">
+                          <div className="flex items-center justify-center gap-2">
+                            <Waves className="h-4 w-4" /> <span>휴식</span>
+                          </div>
+                        </TableCell>
+                      );
+                    }
+                    return <TableCell key={dateKey} className="text-center text-muted-foreground/50">-</TableCell>;
                   }
 
                   return (
