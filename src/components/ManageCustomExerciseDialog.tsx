@@ -87,34 +87,57 @@ const ManageCustomExerciseDialog: React.FC<ManageCustomExerciseDialogProps> = ({
       alert("운동 이름과 아이콘 이름은 필수입니다.");
       return;
     }
-    
-    let finalData: Omit<CustomExercise, 'id'> = {
-        ...exerciseData,
-        countUnit: selectedCategory === 'count_time' ? exerciseData.countUnit : undefined,
-        defaultCount: selectedCategory === 'count_time' ? exerciseData.defaultCount : undefined,
-        countStep: selectedCategory === 'count_time' ? exerciseData.countStep : undefined,
-        timeUnit: selectedCategory === 'count_time' ? exerciseData.timeUnit : undefined,
-        defaultTime: selectedCategory === 'count_time' ? exerciseData.defaultTime : undefined,
-        timeStep: selectedCategory === 'count_time' ? exerciseData.timeStep : undefined,
-        stepsUnit: selectedCategory === 'steps_distance' ? exerciseData.stepsUnit : undefined,
-        defaultSteps: selectedCategory === 'steps_distance' ? exerciseData.defaultSteps : undefined,
-        stepsStep: selectedCategory === 'steps_distance' ? exerciseData.stepsStep : undefined,
+  
+    // Start with a clean slate to avoid carrying over old properties
+    const dataToSave: Partial<CustomExercise> = {
+      id: exerciseToEdit?.id,
+      koreanName: exerciseData.koreanName,
+      iconName: exerciseData.iconName,
+      category: selectedCategory,
+      dataAiHint: exerciseData.dataAiHint,
     };
-    
-    // Make sure at least one metric is set for count_time
-    if (selectedCategory === 'count_time' && !finalData.countUnit && !finalData.timeUnit) {
+  
+    if (selectedCategory === 'count_time') {
+      if (exerciseData.countUnit) {
+        dataToSave.countUnit = exerciseData.countUnit;
+        dataToSave.defaultCount = exerciseData.defaultCount;
+        dataToSave.countStep = exerciseData.countStep;
+      }
+      if (exerciseData.timeUnit) {
+        dataToSave.timeUnit = exerciseData.timeUnit;
+        dataToSave.defaultTime = exerciseData.defaultTime;
+        dataToSave.timeStep = exerciseData.timeStep;
+      }
+      if (!dataToSave.countUnit && !dataToSave.timeUnit) {
         alert("횟수/시간 기반 운동은 '횟수 단위' 또는 '시간 단위' 중 하나 이상을 입력해야 합니다.");
         return;
+      }
+    } else if (selectedCategory === 'steps_distance') {
+      dataToSave.stepsUnit = exerciseData.stepsUnit;
+      dataToSave.defaultSteps = exerciseData.defaultSteps;
+      dataToSave.stepsStep = exerciseData.stepsStep;
     }
-
+  
+    // Clean up any properties that are undefined.
+    // This happens if a number input is cleared.
+    Object.keys(dataToSave).forEach(key => {
+      if (dataToSave[key as keyof typeof dataToSave] === undefined) {
+        delete dataToSave[key as keyof typeof dataToSave];
+      }
+    });
+  
     if (exerciseToEdit) {
-      onSave({ ...finalData, id: exerciseToEdit.id });
+      onSave(dataToSave as CustomExercise);
     } else {
-      onSave(finalData);
+      delete dataToSave.id;
+      onSave(dataToSave as Omit<CustomExercise, 'id'>);
     }
   };
   
   const availableIcons = Object.entries(iconMap).sort(([a], [b]) => a.localeCompare(b));
+  
+  const selectedIcon = availableIcons.find(([name]) => name === exerciseData.iconName);
+  const SelectedIconComponent = selectedIcon ? selectedIcon[1] : null;
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose(); }}>
@@ -138,7 +161,14 @@ const ManageCustomExerciseDialog: React.FC<ManageCustomExerciseDialogProps> = ({
               <Label htmlFor="iconName">아이콘 이름 (Lucide)</Label>
               <Select value={exerciseData.iconName} onValueChange={handleIconNameChange}>
                 <SelectTrigger id="iconName">
-                  <SelectValue placeholder="아이콘을 선택하세요" />
+                    <SelectValue placeholder="아이콘을 선택하세요">
+                       {SelectedIconComponent && (
+                         <div className="flex items-center gap-2">
+                           <SelectedIconComponent className="h-4 w-4" />
+                           <span>{exerciseData.iconName}</span>
+                         </div>
+                       )}
+                     </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {availableIcons.map(([name, IconComponent]) => (
