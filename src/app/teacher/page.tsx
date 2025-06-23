@@ -11,8 +11,9 @@ import BatchAddStudentsDialog from '@/components/BatchAddStudentsDialog';
 import ManageStudentPinDialog from '@/components/ManageStudentPinDialog';
 import ManageCustomExerciseDialog from '@/components/ManageCustomExerciseDialog';
 import ClassSummaryStats from '@/components/ClassSummaryStats'; 
+import ClassWeeklyPlan from '@/components/ClassWeeklyPlan';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import type { Student, RecordedExercise, CustomExercise as CustomExerciseType, Gender, TeacherExerciseRecommendation, StudentGoal, Exercise as ExerciseType } from '@/lib/types';
+import type { Student, RecordedExercise, CustomExercise as CustomExerciseType, Gender, TeacherExerciseRecommendation, StudentGoal, Exercise as ExerciseType, DailyGoalEntry } from '@/lib/types';
 import { EXERCISES_SEED_DATA } from '@/data/mockData';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -70,7 +71,7 @@ export default function TeacherPage() {
   const [studentWelcomeMessage, setStudentWelcomeMessage] = useState<string>(DEFAULT_STUDENT_WELCOME_MSG);
   const [studentWelcomeMessageInput, setStudentWelcomeMessageInput] = useState<string>('');
   const [allExercisesByGrade, setAllExercisesByGrade] = useState<Record<string, CustomExerciseType[]>>({});
-  const [allStudentGoals, setAllStudentGoals] = useState<Record<string, StudentGoal>>({});
+  const [allStudentDailyGoals, setAllStudentDailyGoals] = useState<Record<string, Record<string, { goals: StudentGoal; skipped: Set<string>; }>>>({});
 
   const [isLoadingStudents, setIsLoadingStudents] = useState(true);
   const [isLoadingLogs, setIsLoadingLogs] = useState(true);
@@ -171,25 +172,6 @@ export default function TeacherPage() {
       setIsLoadingLogs(false);
     }
   }, [toast]);
-
-  const fetchStudentGoalsData = useCallback(async () => {
-    setIsLoadingStudentGoals(true);
-    try {
-      const goalsCollectionRef = collection(db, "studentGoals");
-      const goalsSnapshot = await getDocs(goalsCollectionRef);
-      const goalsData: Record<string, StudentGoal> = {};
-      goalsSnapshot.forEach(docSnap => {
-        goalsData[docSnap.id] = (docSnap.data().goals || {}) as StudentGoal;
-      });
-      setAllStudentGoals(goalsData);
-    } catch (error) {
-      console.error("Error fetching student goals: ", error);
-      toast({ title: "오류", description: "학생 목표 정보를 불러오는 데 실패했습니다.", variant: "destructive" });
-    } finally {
-      setIsLoadingStudentGoals(false);
-    }
-  }, [toast]);
-
 
   const fetchCompliments = useCallback(async () => {
     setIsLoadingCompliments(true);
@@ -319,7 +301,6 @@ export default function TeacherPage() {
     if (isAuthenticated) {
       fetchStudents();
       fetchLogs();
-      fetchStudentGoalsData();
       fetchCompliments().then(unsub => unsub && unsubscribers.push(unsub));
       fetchExerciseRecommendations().then(unsub => unsub && unsubscribers.push(unsub));
       fetchStudentWelcomeMessage().then(unsub => unsub && unsubscribers.push(unsub));
@@ -328,7 +309,7 @@ export default function TeacherPage() {
     return () => {
       unsubscribers.forEach(unsub => unsub());
     };
-  }, [isAuthenticated, fetchStudents, fetchLogs, fetchStudentGoalsData, fetchCompliments, fetchExerciseRecommendations, fetchStudentWelcomeMessage, fetchCustomExercises]);
+  }, [isAuthenticated, fetchStudents, fetchLogs, fetchCompliments, fetchExerciseRecommendations, fetchStudentWelcomeMessage, fetchCustomExercises]);
 
   useEffect(() => {
     if (selectedClass) {
@@ -341,6 +322,65 @@ export default function TeacherPage() {
       }));
     }
   }, [selectedClass, students]);
+  
+  // Real-time listener for student goals in the selected class
+  useEffect(() => {
+    if (!isAuthenticated || !selectedClass) {
+        setAllStudentDailyGoals({});
+        setIsLoadingStudentGoals(false);
+        return;
+    }
+    
+    if (studentsInClass.length === 0) {
+        setAllStudentDailyGoals({});
+        setIsLoadingStudentGoals(false);
+        return;
+    }
+
+    setIsLoadingStudentGoals(true);
+
+    const unsubscribers = studentsInClass.map(student => {
+        const goalsDocRef = doc(db, 'studentGoals', student.id);
+        return onSnapshot(goalsDocRef, (docSnap) => {
+            const dailyGoalsFromDb = docSnap.exists() ? docSnap.data().dailyGoals || {} : {};
+            const processedGoals: Record<string, { goals: StudentGoal; skipped: Set<string> }> = {};
+            
+            for (const dateKey in dailyGoalsFromDb) {
+                processedGoals[dateKey] = {
+                    goals: dailyGoalsFromDb[dateKey].goals || {},
+                    skipped: new Set(dailyGoalsFromDb[dateKey].skipped || []),
+                };
+            }
+            
+            setAllStudentDailyGoals(prev => ({
+                ...prev,
+                [student.id]: processedGoals
+            }));
+        }, (error) => {
+            console.error(`Error listening to goals for student ${student.id}:`, error);
+        });
+    });
+
+    const studentIds = studentsInClass.map(s => s.id);
+    const goalPromises = studentIds.map(id => getDoc(doc(db, 'studentGoals', id)));
+    Promise.all(goalPromises)
+        .catch((err) => console.error("Error during initial goal fetch for loading state:", err))
+        .finally(() => setIsLoadingStudentGoals(false));
+
+    return () => {
+        unsubscribers.forEach(unsub => unsub());
+    };
+  }, [isAuthenticated, selectedClass, studentsInClass]);
+
+  const goalsForSelectedDate = useMemo(() => {
+    const dateKey = format(selectedLogDate, 'yyyy-MM-dd');
+    const goals: Record<string, StudentGoal> = {};
+    for (const student of studentsInClass) {
+        goals[student.id] = allStudentDailyGoals[student.id]?.[dateKey]?.goals || {};
+    }
+    return goals;
+  }, [allStudentDailyGoals, studentsInClass, selectedLogDate]);
+
 
   const handleClassChange = (className: string | 'all') => {
     if (className === 'all') {
@@ -364,7 +404,6 @@ export default function TeacherPage() {
       
       const studentGoalsDocRef = doc(db, "studentGoals", newStudent.id);
       await setDoc(studentGoalsDocRef, { dailyGoals: {} });
-      setAllStudentGoals(prev => ({...prev, [newStudent.id]: {}}));
 
       toast({ title: "성공", description: "학생이 추가되었습니다." });
     } catch (error) {
@@ -380,7 +419,6 @@ export default function TeacherPage() {
       const goalsCollectionRef = collection(db, "studentGoals");
 
       const newStudents: Student[] = [];
-      const newGoals: Record<string, StudentGoal> = {};
       const newClassNames = new Set(dynamicClasses);
 
       studentsToAdd.forEach(studentData => {
@@ -393,7 +431,6 @@ export default function TeacherPage() {
         
         const goalsDocRef = doc(goalsCollectionRef, newDocRef.id);
         batch.set(goalsDocRef, { dailyGoals: {} });
-        newGoals[newDocRef.id] = {};
         
         newClassNames.add(`${newStudent.grade}학년 ${newStudent.classNum}반`);
       });
@@ -401,7 +438,6 @@ export default function TeacherPage() {
       await batch.commit();
 
       setStudents(prev => [...prev, ...newStudents].sort((a,b) => (`${a.grade}학년 ${a.classNum}반`).localeCompare(`${b.grade}학년 ${b.classNum}반`) || a.studentNumber - b.studentNumber));
-      setAllStudentGoals(prev => ({...prev, ...newGoals}));
       setDynamicClasses(Array.from(newClassNames).sort());
 
     } catch (error) {
@@ -434,7 +470,7 @@ export default function TeacherPage() {
         const remainingStudents = students.filter(s => s.id !== studentToDelete.id);
         setStudents(remainingStudents);
         setRecordedExercises(prevLogs => prevLogs.filter(log => log.studentId !== studentToDelete.id));
-        setAllStudentGoals(prevGoals => {
+        setAllStudentDailyGoals(prevGoals => {
             const newGoals = {...prevGoals};
             delete newGoals[studentToDelete.id];
             return newGoals;
@@ -550,6 +586,14 @@ export default function TeacherPage() {
         toast({ title: "오류", description: "운동을 저장할 학년을 선택해주세요.", variant: "destructive"});
         return;
     }
+    
+    // Clean up any properties that are undefined.
+    Object.keys(exerciseData).forEach(key => {
+      if (exerciseData[key as keyof typeof exerciseData] === undefined) {
+        delete exerciseData[key as keyof typeof exerciseData];
+      }
+    });
+
     try {
         const exercisesDocRef = doc(db, EXERCISES_BY_GRADE_DOC_PATH);
         const currentGradeExercises = allExercisesByGrade[selectedGrade] || [];
@@ -569,7 +613,7 @@ export default function TeacherPage() {
             const newExercise: CustomExerciseType = {
                 id: uuidv4(),
                 ...exerciseData
-            };
+            } as CustomExerciseType;
             updatedExercises = [...currentGradeExercises, newExercise];
             toast({ title: "성공", description: `운동 "${newExercise.koreanName}"이(가) 추가되었습니다.` });
         }
@@ -746,12 +790,15 @@ export default function TeacherPage() {
         </section>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-9 h-auto rounded-lg p-1.5">
+          <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-10 h-auto rounded-lg p-1.5">
             <TabsTrigger value="students" className="py-3 text-base data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-md">
               <Users className="mr-2 h-5 w-5" /> 학생 목록
             </TabsTrigger>
             <TabsTrigger value="log" className="py-3 text-base data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-md">
               <ListChecks className="mr-2 h-5 w-5" /> 활동 기록
+            </TabsTrigger>
+             <TabsTrigger value="weeklyPlan" className="py-3 text-base data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-md">
+              <CalendarDays className="mr-2 h-5 w-5" /> 주간 계획
             </TabsTrigger>
              <TabsTrigger value="gallery" className="py-3 text-base data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-md">
               <ImageIconLucide className="mr-2 h-5 w-5" /> 사진 갤러리
@@ -902,7 +949,7 @@ export default function TeacherPage() {
                                 isSameDay(parseISO(log.date), selectedLogDate)
                               );
 
-                              const studentGoalForExercise = allStudentGoals[student.id]?.[exercise.id];
+                              const studentGoalForExercise = goalsForSelectedDate[student.id]?.[exercise.id];
 
                               let achievedValue = 0;
                               let goalValue: number | undefined = undefined;
@@ -993,6 +1040,19 @@ export default function TeacherPage() {
              </section>
           </TabsContent>
 
+          <TabsContent value="weeklyPlan" className="mt-6">
+            <section aria-labelledby="weekly-plan-heading">
+              <h2 id="weekly-plan-heading" className="sr-only">학급 주간 계획</h2>
+              <ClassWeeklyPlan 
+                studentsInClass={studentsInClass}
+                allStudentDailyGoals={allStudentDailyGoals}
+                availableExercises={exercisesForCurrentGrade}
+                isLoading={isLoadingStudentGoals}
+                selectedClass={selectedClass}
+              />
+            </section>
+          </TabsContent>
+
           <TabsContent value="gallery" className="mt-6">
             <section aria-labelledby="photo-gallery-heading" className="bg-card p-6 rounded-xl shadow-md">
               <h2 id="photo-gallery-heading" className="text-xl font-semibold mb-4 font-headline flex items-center">
@@ -1031,7 +1091,7 @@ export default function TeacherPage() {
                     studentsInClass={studentsInClass}
                     recordedExercises={recordedExercises}
                     customExercises={exercisesForCurrentGrade}
-                    allStudentGoals={allStudentGoals}
+                    allStudentGoals={goalsForSelectedDate}
                     selectedLogDate={selectedLogDate}
                   />
               )}
