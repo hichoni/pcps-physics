@@ -25,7 +25,7 @@ import { useToast } from "@/hooks/use-toast";
 import { recommendStudentExercise, RecommendStudentExerciseOutput, RecommendStudentExerciseInput } from '@/ai/flows/recommend-student-exercise';
 import { generatePersonalizedWelcomeMessage, GeneratePersonalizedWelcomeMessageInput, GeneratePersonalizedWelcomeMessageOutput } from '@/ai/flows/generatePersonalizedWelcomeMessage';
 import { db } from '@/lib/firebase';
-import { collection, getDocs, doc, getDoc, setDoc, query, where, addDoc, updateDoc, onSnapshot, arrayUnion } from 'firebase/firestore';
+import { collection, getDocs, doc, getDoc, setDoc, query, where, addDoc, updateDoc, onSnapshot, arrayUnion, arrayRemove } from 'firebase/firestore';
 import { format, parseISO, isToday, startOfWeek, addDays, endOfMonth } from 'date-fns';
 import { ko } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
@@ -743,7 +743,7 @@ export default function StudentPage() {
         setIsChangeAvatarDialogOpen(false);
       } catch (error) {
         console.error("Error updating avatar:", error);
-        toast({ title: "오류", description: "아바타 변경에 실패했습니다. 다시 시도해주세요.", variant: "destructive" });
+        toast({ title: "오류", description: "아바타 변경에 실패했습니다.", variant: "destructive" });
       }
     }
   };
@@ -779,24 +779,29 @@ export default function StudentPage() {
   };
 
   const handleLikePlan = async (targetStudentId: string) => {
-    if (!currentStudent) return;
+    if (!currentStudent || targetStudentId === currentStudent.id) return;
 
     const weekKey = format(startOfWeek(new Date(), { weekStartsOn: 0 }), 'yyyy-MM-dd');
     const targetStudentRef = doc(db, "studentGoals", targetStudentId);
-
-    if (targetStudentId === currentStudent.id) return;
     
+    const targetStudentData = classmatesData.find(s => s.id === targetStudentId);
+    const currentLikes = targetStudentData?.weeklyLikes?.[weekKey] || [];
+    const isLiked = currentLikes.includes(currentStudent.id);
+
     try {
         await updateDoc(targetStudentRef, {
-            [`weeklyLikes.${weekKey}`]: arrayUnion(currentStudent.id)
+            [`weeklyLikes.${weekKey}`]: isLiked ? arrayRemove(currentStudent.id) : arrayUnion(currentStudent.id)
         });
-
+        
         setClassmatesData(prevData => {
             return prevData.map(student => {
                 if (student.id === targetStudentId) {
                     const updatedLikes = student.weeklyLikes || {};
                     const weekLikes = updatedLikes[weekKey] || [];
-                    if (!weekLikes.includes(currentStudent.id)) {
+                    
+                    if (isLiked) {
+                        updatedLikes[weekKey] = weekLikes.filter((id: string) => id !== currentStudent.id);
+                    } else {
                         updatedLikes[weekKey] = [...weekLikes, currentStudent.id];
                     }
                     return { ...student, weeklyLikes: updatedLikes };
@@ -805,10 +810,10 @@ export default function StudentPage() {
             });
         });
 
-        toast({ title: "좋아요!", description: "친구의 계획을 응원했어요! 👍" });
+        toast({ title: isLiked ? "좋아요 취소" : "좋아요!", description: isLiked ? "응원을 취소했어요." : "친구의 계획을 응원했어요! 👍" });
 
     } catch (error) {
-        console.error("Error liking plan: ", error);
+        console.error("Error toggling plan like: ", error);
         toast({ title: "오류", description: "좋아요 처리에 실패했습니다.", variant: "destructive" });
     }
   };
