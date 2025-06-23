@@ -10,7 +10,7 @@ import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 
 // Public input schema for the flow
-export const SuggestNextExerciseInputSchema = z.object({
+const SuggestNextExerciseInputSchema = z.object({
   className: z.string().describe("분석할 학급의 이름 (예: '3학년 1반')."),
   students: z.array(z.object({
     id: z.string(),
@@ -33,7 +33,7 @@ const PromptInputSchema = z.object({
   analysisData: z.string().describe('A JSON string containing class activity data.'),
 });
 
-export const SuggestNextExerciseOutputSchema = z.object({
+const SuggestNextExerciseOutputSchema = z.object({
   suggestedExercise: z.string().describe('제안된 운동 또는 활동입니다.'),
   reasoning: z.string().describe('제안된 운동의 근거가 되는 데이터 분석 결과입니다.'),
 });
