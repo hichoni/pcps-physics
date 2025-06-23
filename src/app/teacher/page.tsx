@@ -311,17 +311,6 @@ export default function TeacherPage() {
     };
   }, [isAuthenticated, fetchStudents, fetchLogs, fetchCompliments, fetchExerciseRecommendations, fetchStudentWelcomeMessage, fetchCustomExercises]);
   
-  useEffect(() => {
-    // Set initial studentsInClass on load (all students)
-    if (!selectedClass) {
-        setStudentsInClass(students.sort((a,b) => {
-            const classCompare = (`${a.grade}학년 ${a.classNum}반`).localeCompare(`${b.grade}학년 ${b.classNum}반`);
-            if (classCompare !== 0) return classCompare;
-            return Number(a.studentNumber) - Number(b.studentNumber);
-        }));
-    }
-  }, [students, selectedClass]);
-  
   // Real-time listener for student goals in the selected class
   useEffect(() => {
     if (!isAuthenticated || !selectedClass) {
@@ -391,11 +380,15 @@ export default function TeacherPage() {
         return Number(a.studentNumber) - Number(b.studentNumber);
       }));
     } else {
-      setSelectedClass(className);
-      const gradeMatch = className.match(/(\d+)학년/);
-      const grade = (gradeMatch && gradeMatch[1]) ? gradeMatch[1] : '';
-      setSelectedGrade(grade);
-      setStudentsInClass(students.filter(student => `${student.grade}학년 ${student.classNum}반` === className).sort((a, b) => Number(a.studentNumber) - Number(b.studentNumber)));
+        const gradeMatch = className.match(/(\d+)학년/);
+        const grade = gradeMatch ? gradeMatch[1] : '';
+      
+        const classNumMatch = className.match(/(\d+)반/);
+        const classNum = classNumMatch ? classNumMatch[1] : '';
+        
+        setSelectedClass(className);
+        setSelectedGrade(grade);
+        setStudentsInClass(students.filter(student => student.grade === grade && student.classNum === classNum).sort((a, b) => Number(a.studentNumber) - Number(b.studentNumber)));
     }
   };
 
@@ -590,7 +583,7 @@ export default function TeacherPage() {
     }
   };
 
-  const handleSaveCustomExercise = async (exerciseData: CustomExerciseType | Omit<CustomExerciseType, 'id'>) => {
+  const handleSaveCustomExercise = async (exerciseData: CustomExercise | Omit<CustomExercise, 'id'>) => {
     if (!selectedGrade) {
         toast({ title: "오류", description: "운동을 저장할 학년을 선택해주세요.", variant: "destructive"});
         return;
@@ -715,6 +708,28 @@ export default function TeacherPage() {
   const isNextDayDisabled = isToday(selectedLogDate) || selectedLogDate > new Date();
 
   const memoizedAiSuggestionBox = useMemo(() => <AiSuggestionBox recordedExercises={recordedExercises} />, [recordedExercises]);
+
+  useEffect(() => {
+    // This effect ensures that when students data is loaded,
+    // the initial state of studentsInClass is set correctly,
+    // and when a class is selected, it filters correctly.
+    const getStudentsForClass = () => {
+        if (selectedClass) {
+            const gradeMatch = selectedClass.match(/(\d+)학년/);
+            const grade = gradeMatch ? gradeMatch[1] : '';
+            const classNumMatch = selectedClass.match(/(\d+)반/);
+            const classNum = classNumMatch ? classNumMatch[1] : '';
+            return students.filter(student => student.grade === grade && student.classNum === classNum);
+        }
+        return students;
+    };
+    
+    setStudentsInClass(getStudentsForClass().sort((a,b) => {
+        const classCompare = (`${a.grade}학년 ${a.classNum}반`).localeCompare(`${b.grade}학년 ${b.classNum}반`);
+        if (classCompare !== 0) return classCompare;
+        return Number(a.studentNumber) - Number(b.studentNumber);
+    }));
+  }, [students, selectedClass]);
 
   const isLoading = isLoadingStudents || isLoadingLogs || isLoadingCompliments || isLoadingRecommendations || isLoadingWelcomeMessage || isLoadingCustomExercises || isLoadingStudentGoals;
 

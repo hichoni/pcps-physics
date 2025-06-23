@@ -2,7 +2,7 @@
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { Users, ListChecks, Award, Target, AlertCircle, Activity as ActivityIcon } from 'lucide-react';
+import { Users, ListChecks, Award, Target, AlertCircle, Activity as ActivityIcon, Settings2 } from 'lucide-react';
 import type { Student, RecordedExercise, CustomExercise as CustomExerciseType, StudentGoal, ClassName } from '@/lib/types';
 import { format, isSameDay, parseISO } from 'date-fns';
 import { ko } from 'date-fns/locale';
@@ -51,6 +51,21 @@ const ClassSummaryStats: React.FC<ClassSummaryStatsProps> = ({
     );
   }
   
+  if (customExercises.length === 0) {
+    return (
+      <Card className="shadow-lg rounded-xl">
+        <CardHeader>
+          <CardTitle className="font-headline">{selectedClass} 요약</CardTitle>
+        </CardHeader>
+        <CardContent className="h-[200px] flex flex-col items-center justify-center text-center text-muted-foreground">
+          <Settings2 className="h-10 w-10 mb-2 text-primary" />
+          <p className="font-semibold">이 학년에는 설정된 운동이 없습니다.</p>
+          <p className="text-sm">'운동 관리' 탭에서 운동을 추가해주세요.</p>
+        </CardContent>
+      </Card>
+    );
+  }
+
   const logsForDateAndClass = recordedExercises.filter(log =>
     log.className === selectedClass && isSameDay(parseISO(log.date), selectedLogDate)
   );
