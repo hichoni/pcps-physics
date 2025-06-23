@@ -15,7 +15,7 @@ const GeneratePersonalizedWelcomeMessageInputSchema = z.object({
   currentLevelName: z.string().describe("The student's current fitness level name (e.g., '움직새싹', '체력 꿈나무')."),
   totalXp: z.number().describe("The student's current total XP (experience points)."),
   currentLevelMaxXp: z.number().describe("The XP threshold for the student's current level to reach the next. Can be Infinity if it's the max level."),
-  baseTeacherMessagePart: z.string().describe("A base message provided by the teacher, e.g., '오늘도 즐겁게 운동하고 건강해져요! 어떤 활동을 계획하고 있나요?'"),
+  // baseTeacherMessagePart is removed as it's no longer combined by the AI.
 });
 export type GeneratePersonalizedWelcomeMessageInput = z.infer<typeof GeneratePersonalizedWelcomeMessageInputSchema>;
 
@@ -43,12 +43,10 @@ Student Information:
 - Current Level: {{{currentLevelName}}}
 - Current XP: {{{totalXp}}}
 - XP needed for next level (this is the upper bound of their current level, Infinity if max level): {{{currentLevelMaxXp}}}
-- Base message from teacher: "{{{baseTeacherMessagePart}}}"
 
 Message Structure:
 1. Greet the student: "{{{studentName}}}님, 안녕하세요! 👋"
-2. Incorporate the teacher's base message: "{{{baseTeacherMessagePart}}}" (Make it flow naturally after the greeting).
-3. Add a personalized motivational sentence based on their level progress:
+2. Add a personalized motivational sentence based on their level progress:
     - If \`currentLevelMaxXp\` is Infinity (they are max level): Congratulate them on being "{{{currentLevelName}}}" and encourage continued healthy habits. Example: "최고 등급인 <level>{{{currentLevelName}}}</level>이시군요! 정말 대단해요! 👑 앞으로도 꾸준히 건강을 잘 챙기는 어린이가 되어요! ✨"
     - Else (not max level):
         - Calculate points needed: \`pointsToNext = currentLevelMaxXp - totalXp\`.
@@ -58,13 +56,14 @@ Message Structure:
 
 Keep the overall tone very positive, enthusiastic, and age-appropriate for an elementary school student.
 The final output should be a single JSON object matching the output schema, containing one field "welcomeMessage".
-Example for a student named '슬기' at '체력 꿈나무' (450XP, next level at 600XP), teacher base message "오늘도 신나게 운동해볼까요?":
+
+Example for a student named '슬기' at '체력 꿈나무' (450XP, next level at 600XP):
 {
-  "welcomeMessage": "슬기님, 안녕하세요! 👋 오늘도 신나게 운동해볼까요? 현재 <level>체력 꿈나무</level> 등급이시군요! 매일 운동 목표를 꾸준히 달성하고 XP를 모아서 다음 레벨에도 도전해보세요! 할 수 있어요! 💪"
+  "welcomeMessage": "슬기님, 안녕하세요! 👋 현재 <level>체력 꿈나무</level> 등급이시군요! 매일 운동 목표를 꾸준히 달성하고 XP를 모아서 다음 레벨에도 도전해보세요! 할 수 있어요! 💪"
 }
-Example for a student named '민준' at '전설의 운동왕' (2000XP, max level), teacher base message "오늘 운동 계획은 뭐예요?":
+Example for a student named '민준' at '전설의 운동왕' (2000XP, max level):
 {
-  "welcomeMessage": "민준님, 안녕하세요! 👋 오늘 운동 계획은 뭐예요? 최고 등급인 <level>전설의 운동왕</level>이시군요! 정말 대단해요! 👑 앞으로도 꾸준히 건강을 잘 챙기는 어린이가 되어요! ✨"
+  "welcomeMessage": "민준님, 안녕하세요! 👋 최고 등급인 <level>전설의 운동왕</level>이시군요! 정말 대단해요! 👑 앞으로도 꾸준히 건강을 잘 챙기는 어린이가 되어요! ✨"
 }
 `,
 });

@@ -237,8 +237,7 @@ export default function StudentPage() {
 
   const fetchAiPersonalizedWelcome = useCallback(async (
     student: Student, 
-    levelInfo: LevelInfo, 
-    baseMessage: string
+    levelInfo: LevelInfo
   ) => {
     setIsAiWelcomeLoading(true);
     try {
@@ -246,14 +245,13 @@ export default function StudentPage() {
         studentName: student.name,
         currentLevelName: levelInfo.name,
         totalXp: student.totalXp || 0,
-        currentLevelMaxXp: levelInfo.maxXp, 
-        baseTeacherMessagePart: baseMessage,
+        currentLevelMaxXp: levelInfo.maxXp,
       };
       const result: GeneratePersonalizedWelcomeMessageOutput = await generatePersonalizedWelcomeMessage(input);
       setAiPersonalizedWelcome(result.welcomeMessage);
     } catch (error) {
       console.error("AI 개인 맞춤 환영 메시지 생성 오류:", error);
-      setAiPersonalizedWelcome(`${student.name}님, 안녕하세요! ${baseMessage}`); // Fallback
+      setAiPersonalizedWelcome(`${student.name}님, 안녕하세요! 👋`); // Fallback
     } finally {
       setIsAiWelcomeLoading(false);
     }
@@ -405,7 +403,7 @@ export default function StudentPage() {
                               ? welcomeMsgDocSnap.data()!.text 
                               : DEFAULT_STUDENT_WELCOME_MESSAGE;
         setTeacherBaseWelcomeMessage(baseWelcome);
-        fetchAiPersonalizedWelcome(currentStudent, currentLevelInfo, baseWelcome);
+        fetchAiPersonalizedWelcome(currentStudent, currentLevelInfo);
 
         const complimentsDocRef = doc(db, COMPLIMENTS_DOC_PATH);
         const complimentsDocSnap = await getDoc(complimentsDocRef);
@@ -645,9 +643,9 @@ export default function StudentPage() {
           const newLevelInfoAfterUpdate = calculateLevelInfo(newTotalXp);
           if (newLevelInfoAfterUpdate.level > currentLevelInfo.level) {
             toast({ title: "🎉 레벨 업! 🎉", description: `축하합니다! ${newLevelInfoAfterUpdate.name}(으)로 레벨 업!`, duration: 7000 });
-            fetchAiPersonalizedWelcome(updatedStudent, newLevelInfoAfterUpdate, teacherBaseWelcomeMessage);
+            fetchAiPersonalizedWelcome(updatedStudent, newLevelInfoAfterUpdate);
           } else {
-            fetchAiPersonalizedWelcome(updatedStudent, newLevelInfoAfterUpdate, teacherBaseWelcomeMessage);
+            fetchAiPersonalizedWelcome(updatedStudent, newLevelInfoAfterUpdate);
           }
         }
       }
@@ -919,9 +917,22 @@ export default function StudentPage() {
                     </CardTitle>
                 </CardHeader>
                 <CardContent className="flex-grow flex flex-col justify-between">
-                    <p className="text-base sm:text-lg text-muted-foreground mb-6 text-center lg:text-left whitespace-pre-wrap">
-                        {isAiWelcomeLoading ? <Loader2 className="h-5 w-5 animate-spin mx-auto" /> : renderWelcomeMessage(aiPersonalizedWelcome)}
-                    </p>
+                    <div className="mb-6">
+                        <p className="text-lg sm:text-xl font-semibold text-primary text-center lg:text-left mb-2">
+                            📣 선생님의 한마디
+                        </p>
+                        <blockquote className="p-4 bg-secondary/20 dark:bg-slate-800/30 border-l-4 border-primary rounded-r-lg">
+                            <p className="text-base sm:text-lg text-foreground/90 italic">
+                                "{teacherBaseWelcomeMessage}"
+                            </p>
+                        </blockquote>
+                        
+                        <div className="mt-6 text-center lg:text-left">
+                            <p className="text-base sm:text-lg text-muted-foreground whitespace-pre-wrap">
+                                {isAiWelcomeLoading ? <Loader2 className="h-5 w-5 animate-spin mx-auto lg:mx-0" /> : renderWelcomeMessage(aiPersonalizedWelcome)}
+                            </p>
+                        </div>
+                    </div>
 
                     {currentLevelInfo && (
                       <div
