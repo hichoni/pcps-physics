@@ -596,40 +596,33 @@ export default function TeacherPage() {
         return;
     }
     
-    Object.keys(exerciseData).forEach(key => {
-      if (exerciseData[key as keyof typeof exerciseData] === undefined) {
-        delete exerciseData[key as keyof typeof exerciseData];
+    const dataWithId = 'id' in exerciseData ? exerciseData : { ...exerciseData, id: uuidv4() };
+    const baseExercises = allExercisesByGrade[selectedGrade] || [];
+    const isEditing = 'id' in exerciseData && baseExercises.some(ex => ex.id === exerciseData.id);
+
+    const dataToSave: Partial<CustomExercise> = { ...dataWithId };
+    
+    Object.keys(dataToSave).forEach(key => {
+      if (dataToSave[key as keyof typeof dataToSave] === undefined) {
+        delete dataToSave[key as keyof typeof dataToSave];
       }
     });
 
     try {
         const exercisesDocRef = doc(db, EXERCISES_BY_GRADE_DOC_PATH);
-        const docSnap = await getDoc(exercisesDocRef);
-        const currentExercisesByGrade = docSnap.exists() ? docSnap.data() as Record<string, CustomExerciseType[]> : {};
         
         let updatedExercises: CustomExerciseType[];
-        const baseExercises = currentExercisesByGrade[selectedGrade] || [];
 
-        if ('id' in exerciseData) {
-            const exerciseIndex = baseExercises.findIndex(ex => ex.id === exerciseData.id);
-            if (exerciseIndex > -1) {
-                updatedExercises = [...baseExercises];
-                updatedExercises[exerciseIndex] = { ...updatedExercises[exerciseIndex], ...exerciseData as CustomExerciseType };
-            } else {
-                updatedExercises = [...baseExercises, exerciseData as CustomExerciseType];
-            }
-            toast({ title: "성공", description: `운동 "${exerciseData.koreanName}"이(가) 수정되었습니다.` });
+        if (isEditing) {
+            updatedExercises = baseExercises.map(ex => ex.id === dataWithId.id ? { ...ex, ...dataToSave } as CustomExerciseType : ex);
+            toast({ title: "성공", description: `운동 "${dataWithId.koreanName}"이(가) 수정되었습니다.` });
         } else {
-            if (baseExercises.length >= 6) {
+             if (baseExercises.length >= 6) {
                 toast({ title: "제한 초과", description: "운동은 최대 6개까지만 추가할 수 있습니다.", variant: "destructive" });
                 return;
             }
-            const newExercise: CustomExerciseType = {
-                id: uuidv4(),
-                ...exerciseData
-            } as CustomExerciseType;
-            updatedExercises = [...baseExercises, newExercise];
-            toast({ title: "성공", description: `운동 "${newExercise.koreanName}"이(가) 추가되었습니다.` });
+            updatedExercises = [...baseExercises, dataToSave as CustomExerciseType];
+            toast({ title: "성공", description: `운동 "${dataToSave.koreanName}"이(가) 추가되었습니다.` });
         }
         
         await updateDoc(exercisesDocRef, { [selectedGrade]: updatedExercises });
@@ -727,7 +720,10 @@ export default function TeacherPage() {
 
   const isNextDayDisabled = isToday(selectedLogDate) || selectedLogDate > new Date();
 
-  const memoizedAiSuggestionBox = useMemo(() => <AiSuggestionBox recordedExercises={recordedExercises} />, [recordedExercises]);
+  const logsForClass = useMemo(() => {
+    if (!selectedClass) return [];
+    return recordedExercises.filter(log => log.className === selectedClass);
+  }, [selectedClass, recordedExercises]);
 
 
   const isLoading = isLoadingStudents || isLoadingLogs || isLoadingCompliments || isLoadingRecommendations || isLoadingWelcomeMessage || isLoadingCustomExercises || isLoadingStudentGoals;
@@ -1131,7 +1127,12 @@ export default function TeacherPage() {
           <TabsContent value="ai" className="mt-6">
              <section aria-labelledby="ai-suggestion-heading">
                 <h2 id="ai-suggestion-heading" className="sr-only">AI 운동 제안</h2>
-                {memoizedAiSuggestionBox}
+                <AiSuggestionBox
+                    studentsInClass={studentsInClass}
+                    logsForClass={logsForClass}
+                    availableExercises={exercisesForCurrentGrade}
+                    selectedClass={selectedClass}
+                />
               </section>
           </TabsContent>
 
