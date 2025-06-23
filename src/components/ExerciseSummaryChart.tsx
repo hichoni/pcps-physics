@@ -35,36 +35,38 @@ const ExerciseSummaryChart: React.FC<ExerciseSummaryChartProps> = ({ recordedExe
     let primaryUnit = '';
     let valueCount = 0; 
 
-    if (exercise.id === 'squat' || exercise.id === 'jump_rope') {
-      const totalCount = logsForExercise.reduce((sum, log) => {
-        if (log.countValue !== undefined && log.countValue > 0) {
-          valueCount++;
-          return sum + log.countValue;
+    if (exercise.category === 'count_time') {
+        if(exercise.countUnit) {
+            const totalCount = logsForExercise.reduce((sum, log) => {
+                if (log.countValue !== undefined && log.countValue > 0) {
+                    valueCount++;
+                    return sum + log.countValue;
+                }
+                return sum;
+            }, 0);
+            primaryValue = valueCount > 0 ? parseFloat((totalCount / valueCount).toFixed(1)) : 0;
+            primaryUnit = exercise.countUnit || '회';
+        } else if (exercise.timeUnit) {
+            const totalTime = logsForExercise.reduce((sum, log) => {
+                if (log.timeValue !== undefined && log.timeValue > 0) {
+                    valueCount++;
+                    return sum + log.timeValue;
+                }
+                return sum;
+            }, 0);
+            primaryValue = valueCount > 0 ? parseFloat((totalTime / valueCount).toFixed(1)) : 0;
+            primaryUnit = exercise.timeUnit || '초';
         }
-        return sum;
-      }, 0);
-      primaryValue = valueCount > 0 ? parseFloat((totalCount / valueCount).toFixed(1)) : 0;
-      primaryUnit = exercise.countUnit || '회';
-    } else if (exercise.id === 'plank') {
-      const totalTime = logsForExercise.reduce((sum, log) => {
-        if (log.timeValue !== undefined && log.timeValue > 0) {
-          valueCount++;
-          return sum + log.timeValue;
-        }
-        return sum;
-      }, 0);
-      primaryValue = valueCount > 0 ? parseFloat((totalTime / valueCount).toFixed(1)) : 0;
-      primaryUnit = exercise.timeUnit || '초';
-    } else if (exercise.id === 'walk_run') {
-      const totalDistance = logsForExercise.reduce((sum, log) => {
-        if (log.distanceValue !== undefined && log.distanceValue > 0) {
-          valueCount++;
-          return sum + log.distanceValue;
-        }
-        return sum;
-      }, 0);
-      primaryValue = valueCount > 0 ? parseFloat((totalDistance / valueCount).toFixed(1)) : 0;
-      primaryUnit = exercise.distanceUnit || 'm';
+    } else if (exercise.category === 'steps_distance') {
+        const totalSteps = logsForExercise.reduce((sum, log) => {
+            if (log.stepsValue !== undefined && log.stepsValue > 0) {
+                valueCount++;
+                return sum + log.stepsValue;
+            }
+            return sum;
+        }, 0);
+        primaryValue = valueCount > 0 ? parseFloat((totalSteps / valueCount).toFixed(1)) : 0;
+        primaryUnit = exercise.stepsUnit || '걸음';
     }
     
     return {

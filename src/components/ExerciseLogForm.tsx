@@ -55,17 +55,25 @@ const ExerciseLogForm: React.FC<ExerciseLogFormProps> = ({
   
   const getInitialLogValue = (exercise: Exercise | null): number => {
     if (!exercise) return 0;
-    if (exercise.id === 'squat' || exercise.id === 'jump_rope') return exercise.defaultCount ?? 0;
-    if (exercise.id === 'plank') return exercise.defaultTime ?? 0;
-    if (exercise.id === 'walk_run') return exercise.defaultSteps ?? 0;
+    if (exercise.category === 'count_time') {
+      if (exercise.countUnit) return exercise.defaultCount ?? 0;
+      if (exercise.timeUnit) return exercise.defaultTime ?? 0;
+    }
+    if (exercise.category === 'steps_distance') {
+      return exercise.defaultSteps ?? 0;
+    }
     return 0;
   };
   
   const getStepValue = (exercise: Exercise | null): number => {
     if (!exercise) return 1;
-    if (exercise.id === 'squat' || exercise.id === 'jump_rope') return exercise.countStep ?? 1;
-    if (exercise.id === 'plank') return exercise.timeStep ?? 1;
-    if (exercise.id === 'walk_run') return exercise.stepsStep ?? 1;
+    if (exercise.category === 'count_time') {
+      if (exercise.countUnit) return exercise.countStep ?? 1;
+      if (exercise.timeUnit) return exercise.timeStep ?? 1;
+    }
+    if (exercise.category === 'steps_distance') {
+      return exercise.stepsStep ?? 1;
+    }
     return 1;
   };
 
@@ -104,11 +112,10 @@ const ExerciseLogForm: React.FC<ExerciseLogFormProps> = ({
       className: `${student.grade}학년 ${student.classNum}반`,
     };
 
-    if (selectedExercise.id === 'squat' || selectedExercise.id === 'jump_rope') {
-      logEntry.countValue = logValue;
-    } else if (selectedExercise.id === 'plank') {
-      logEntry.timeValue = logValue;
-    } else if (selectedExercise.id === 'walk_run') {
+    if (selectedExercise.category === 'count_time') {
+        if(selectedExercise.countUnit) logEntry.countValue = logValue;
+        if(selectedExercise.timeUnit) logEntry.timeValue = logValue;
+    } else if (selectedExercise.category === 'steps_distance') {
       logEntry.stepsValue = logValue;
     }
 
@@ -126,16 +133,18 @@ const ExerciseLogForm: React.FC<ExerciseLogFormProps> = ({
   let totalLoggedTodayDisplay = "";
   let currentUnit = "";
   if (selectedExercise) {
-    if (selectedExercise.id === 'squat' || selectedExercise.id === 'jump_rope') {
-        const totalCount = exercisesLoggedTodayForStudent.reduce((sum, rec) => sum + (rec.countValue || 0), 0);
-        currentUnit = selectedExercise.countUnit || "";
-        if (totalCount > 0) totalLoggedTodayDisplay = `오늘 총 ${selectedExercise.koreanName} 기록: ${totalCount}${currentUnit}`;
-    } else if (selectedExercise.id === 'plank') {
-        const totalTime = exercisesLoggedTodayForStudent.reduce((sum, rec) => sum + (rec.timeValue || 0), 0);
-        currentUnit = selectedExercise.timeUnit || "";
-        if (totalTime > 0) totalLoggedTodayDisplay = `오늘 총 ${selectedExercise.koreanName} 기록: ${totalTime}${currentUnit}`;
-    } else if (selectedExercise.id === 'walk_run') {
-        const totalSteps = exercisesLoggedTodayForStudent.reduce((sum, rec) => sum + (log.stepsValue || 0), 0);
+    if (selectedExercise.category === 'count_time') {
+        if(selectedExercise.countUnit) {
+            const totalCount = exercisesLoggedTodayForStudent.reduce((sum, rec) => sum + (rec.countValue || 0), 0);
+            currentUnit = selectedExercise.countUnit || "";
+            if (totalCount > 0) totalLoggedTodayDisplay = `오늘 총 ${selectedExercise.koreanName} 기록: ${totalCount}${currentUnit}`;
+        } else if (selectedExercise.timeUnit) {
+            const totalTime = exercisesLoggedTodayForStudent.reduce((sum, rec) => sum + (rec.timeValue || 0), 0);
+            currentUnit = selectedExercise.timeUnit || "";
+            if (totalTime > 0) totalLoggedTodayDisplay = `오늘 총 ${selectedExercise.koreanName} 기록: ${totalTime}${currentUnit}`;
+        }
+    } else if (selectedExercise.category === 'steps_distance') {
+        const totalSteps = exercisesLoggedTodayForStudent.reduce((sum, rec) => sum + (rec.stepsValue || 0), 0);
         currentUnit = selectedExercise.stepsUnit || "";
         if (totalSteps > 0) totalLoggedTodayDisplay = `오늘 총 ${selectedExercise.koreanName} 기록: ${totalSteps}${currentUnit}`;
     }

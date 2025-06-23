@@ -175,16 +175,20 @@ const UploadProofShotDialog: React.FC<UploadProofShotDialogProps> = ({
                         let valueDisplay = "";
                         const exerciseInfo = availableExercises.find(ex => ex.id === log.exerciseId);
                         if (exerciseInfo) {
-                            if (exerciseInfo.id === 'squat' || exerciseInfo.id === 'jump_rope') {
-                                valueDisplay = `${log.countValue || 0}${exerciseInfo.countUnit || ''}`;
-                            } else if (exerciseInfo.id === 'plank') {
-                                valueDisplay = `${log.timeValue || 0}${exerciseInfo.timeUnit || ''}`;
-                            } else if (exerciseInfo.id === 'walk_run') {
-                                valueDisplay = `${log.distanceValue || 0}${exerciseInfo.distanceUnit || ''}`;
+                            if (exerciseInfo.category === 'count_time') {
+                                if (exerciseInfo.countUnit) {
+                                    valueDisplay = `${log.countValue || 0}${exerciseInfo.countUnit}`;
+                                } else if (exerciseInfo.timeUnit) {
+                                    valueDisplay = `${log.timeValue || 0}${exerciseInfo.timeUnit}`;
+                                }
+                            } else if (exerciseInfo.category === 'steps_distance') {
+                                valueDisplay = `${log.stepsValue || 0}${exerciseInfo.stepsUnit || ''}`;
                             }
                         }
+                        
                         valueDisplay = valueDisplay.trim();
-                        if (!valueDisplay || valueDisplay === "0" + (exerciseInfo?.countUnit || exerciseInfo?.timeUnit || exerciseInfo?.distanceUnit || "")) valueDisplay = "기록됨";
+                        if (!valueDisplay || /^[0-9]*0[a-zA-Z가-힣]*/.test(valueDisplay)) valueDisplay = "기록됨";
+
 
                         return (
                             <SelectItem key={log.id} value={log.id} className="text-base py-2">
@@ -239,5 +243,3 @@ const UploadProofShotDialog: React.FC<UploadProofShotDialogProps> = ({
 };
 
 export default UploadProofShotDialog;
-
-    
