@@ -387,6 +387,10 @@ export default function TeacherPage() {
       setSelectedClass(undefined);
     } else {
       setSelectedClass(className);
+      const gradeMatch = className.match(/(\d+)학년/);
+      if (gradeMatch && gradeMatch[1]) {
+        setSelectedGrade(gradeMatch[1]);
+      }
     }
   };
 
