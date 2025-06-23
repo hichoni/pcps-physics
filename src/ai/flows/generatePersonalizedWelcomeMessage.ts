@@ -16,7 +16,6 @@ const GeneratePersonalizedWelcomeMessageInputSchema = z.object({
   totalXp: z.number().describe("The student's current total XP (experience points)."),
   currentLevelMaxXp: z.number().describe("The XP threshold for the student's current level to reach the next. Can be Infinity if it's the max level."),
   baseTeacherMessagePart: z.string().describe("A base message provided by the teacher, e.g., '오늘도 즐겁게 운동하고 건강해져요! 어떤 활동을 계획하고 있나요?'"),
-  randomSeed: z.number().describe('A random number to ensure message variation.'),
 });
 export type GeneratePersonalizedWelcomeMessageInput = z.infer<typeof GeneratePersonalizedWelcomeMessageInputSchema>;
 

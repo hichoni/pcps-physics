@@ -37,6 +37,7 @@ import { getIconByName } from '@/lib/iconMap';
 import { cn } from '@/lib/utils';
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { generateBaseWelcomeMessage, type GenerateBaseWelcomeMessageOutput } from '@/ai/flows/generate-base-welcome-message';
 
 
 const DEFAULT_COMPLIMENTS_LIST = [
@@ -102,6 +103,7 @@ export default function TeacherPage() {
   const [selectedLogDate, setSelectedLogDate] = useState<Date>(new Date());
   
   const [selectedStudentForPlan, setSelectedStudentForPlan] = useState<Student | null>(null);
+  const [isGeneratingMessage, setIsGeneratingMessage] = useState(false);
 
 
   const handlePinSubmit = (e: React.FormEvent) => {
@@ -376,9 +378,6 @@ export default function TeacherPage() {
   }, [allStudentDailyGoals, studentsInClass, selectedLogDate]);
 
   const handleClassChange = (className: string | 'all') => {
-    const gradeMatch = className.match(/(\d+)학년/);
-    const newGrade = gradeMatch ? gradeMatch[1] : '';
-  
     if (className === 'all') {
       setSelectedClass(undefined);
       setSelectedGrade('');
@@ -388,7 +387,9 @@ export default function TeacherPage() {
         return Number(a.studentNumber) - Number(b.studentNumber);
       }));
     } else {
+        const gradeMatch = className.match(/(\d+)학년/);
         const classNumMatch = className.match(/(\d+)반/);
+        const newGrade = gradeMatch ? gradeMatch[1] : '';
         const classNum = classNumMatch ? classNumMatch[1] : '';
         setSelectedClass(className);
         setSelectedGrade(newGrade);
@@ -587,6 +588,20 @@ export default function TeacherPage() {
     } catch (error) {
       console.error("Error saving student welcome message:", error);
       toast({ title: "오류", description: "학생 환영 메시지 저장에 실패했습니다.", variant: "destructive" });
+    }
+  };
+
+  const handleGenerateWelcomeMessage = async () => {
+    setIsGeneratingMessage(true);
+    try {
+        const result: GenerateBaseWelcomeMessageOutput = await generateBaseWelcomeMessage();
+        setStudentWelcomeMessageInput(result.message);
+        toast({ title: "AI 메시지 생성!", description: "새로운 환영 메시지가 생성되었습니다." });
+    } catch (error) {
+        console.error("Error generating welcome message:", error);
+        toast({ title: "오류", description: "AI 메시지 생성에 실패했습니다.", variant: "destructive" });
+    } finally {
+        setIsGeneratingMessage(false);
     }
   };
 
@@ -1248,9 +1263,15 @@ export default function TeacherPage() {
                       이 메시지는 학생 앱의 메인 화면 상단에 표시됩니다.
                     </p>
                   </div>
-                  <Button onClick={handleSaveStudentWelcomeMessage} className="rounded-lg py-3">
-                    <MessageSquarePlus className="mr-2 h-5 w-5" /> 메시지 저장
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button onClick={handleSaveStudentWelcomeMessage} className="rounded-lg py-3 flex-grow">
+                      <MessageSquarePlus className="mr-2 h-5 w-5" /> 메시지 저장
+                    </Button>
+                    <Button onClick={handleGenerateWelcomeMessage} variant="outline" className="rounded-lg py-3" disabled={isGeneratingMessage}>
+                      {isGeneratingMessage ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <Wand2 className="mr-2 h-5 w-5" />}
+                      AI로 생성
+                    </Button>
+                  </div>
                 </div>
               )}
             </section>

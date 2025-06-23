@@ -248,7 +248,6 @@ export default function StudentPage() {
         totalXp: student.totalXp || 0,
         currentLevelMaxXp: levelInfo.maxXp, 
         baseTeacherMessagePart: baseMessage,
-        randomSeed: Math.random(),
       };
       const result: GeneratePersonalizedWelcomeMessageOutput = await generatePersonalizedWelcomeMessage(input);
       setAiPersonalizedWelcome(result.welcomeMessage);
@@ -920,15 +919,9 @@ export default function StudentPage() {
                     </CardTitle>
                 </CardHeader>
                 <CardContent className="flex-grow flex flex-col justify-between">
-                    <div className="flex items-start gap-2">
-                        <p className="flex-grow text-base sm:text-lg text-muted-foreground mb-6 text-center lg:text-left whitespace-pre-wrap">
-                            {isAiWelcomeLoading ? <Loader2 className="h-5 w-5 animate-spin mx-auto" /> : renderWelcomeMessage(aiPersonalizedWelcome)}
-                        </p>
-                        <Button variant="ghost" size="icon" onClick={() => currentStudent && currentLevelInfo && fetchAiPersonalizedWelcome(currentStudent, currentLevelInfo, teacherBaseWelcomeMessage)} disabled={isAiWelcomeLoading} className="shrink-0">
-                            <RotateCcw className="h-5 w-5" />
-                            <span className="sr-only">새로운 환영 메시지 생성</span>
-                        </Button>
-                    </div>
+                    <p className="text-base sm:text-lg text-muted-foreground mb-6 text-center lg:text-left whitespace-pre-wrap">
+                        {isAiWelcomeLoading ? <Loader2 className="h-5 w-5 animate-spin mx-auto" /> : renderWelcomeMessage(aiPersonalizedWelcome)}
+                    </p>
 
                     {currentLevelInfo && (
                       <div
