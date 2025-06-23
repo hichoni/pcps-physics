@@ -17,9 +17,10 @@ interface ClassWeeklyPlanProps {
   availableExercises: CustomExerciseType[];
   isLoading: boolean;
   selectedClass: string | undefined;
+  onViewStudentPlan: (student: Student) => void;
 }
 
-const ClassWeeklyPlan: React.FC<ClassWeeklyPlanProps> = ({ studentsInClass, allStudentDailyGoals, availableExercises, isLoading, selectedClass }) => {
+const ClassWeeklyPlan: React.FC<ClassWeeklyPlanProps> = ({ studentsInClass, allStudentDailyGoals, availableExercises, isLoading, selectedClass, onViewStudentPlan }) => {
   const weekDates = useMemo(() => {
     const start = startOfWeek(new Date(), { weekStartsOn: 0 }); // Sunday
     return Array.from({ length: 7 }).map((_, i) => addDays(start, i));
@@ -85,7 +86,7 @@ const ClassWeeklyPlan: React.FC<ClassWeeklyPlanProps> = ({ studentsInClass, allS
     <Card>
       <CardHeader>
         <CardTitle className="font-headline flex items-center"><CalendarDays className="mr-2 h-6 w-6"/>{selectedClass} 주간 계획</CardTitle>
-        <CardDescription>학생들이 설정한 이번 주 운동 목표입니다. 실시간으로 업데이트됩니다.</CardDescription>
+        <CardDescription>학생들이 설정한 이번 주 운동 목표입니다. 학생 이름을 클릭하여 크게 볼 수 있습니다.</CardDescription>
       </CardHeader>
       <CardContent className="overflow-x-auto">
         <Table>
@@ -101,39 +102,24 @@ const ClassWeeklyPlan: React.FC<ClassWeeklyPlanProps> = ({ studentsInClass, allS
           </TableHeader>
           <TableBody>
             {studentsInClass.map(student => (
-              <TableRow key={student.id}>
+              <TableRow 
+                key={student.id} 
+                className="cursor-pointer" 
+                onClick={() => onViewStudentPlan(student)}
+              >
                 <TableCell className="sticky left-0 bg-card z-10 font-medium">{student.studentNumber}번 {student.name}</TableCell>
                 {weekDates.map(date => {
                   const dateKey = format(date, 'yyyy-MM-dd');
-                  const studentGoalsForDay = allStudentDailyGoals[student.id]?.[dateKey];
+                  const dayGoals = allStudentDailyGoals[student.id]?.[dateKey];
                   
-                  if (!studentGoalsForDay) {
+                  if (!dayGoals) {
                     return <TableCell key={dateKey} className="text-center text-muted-foreground/50">-</TableCell>;
-                  }
-
-                  const { goals, skipped } = studentGoalsForDay;
-                  
-                  const hasAnyGoal = availableExercises.some(ex => {
-                    const goal = goals[ex.id];
-                    return goal && Object.values(goal).some(val => val && val > 0);
-                  });
-
-                  const isRestDay = availableExercises.length > 0 && availableExercises.every(ex => skipped.has(ex.id)) && !hasAnyGoal;
-
-                  if (isRestDay) {
-                    return (
-                        <TableCell key={dateKey} className="text-center text-blue-500">
-                          <div className="flex items-center justify-center gap-2">
-                            <Waves className="h-4 w-4" /> <span>휴식</span>
-                          </div>
-                        </TableCell>
-                    );
                   }
                   
                   const goalItems = availableExercises
-                    .filter(exercise => !skipped.has(exercise.id))
+                    .filter(exercise => !dayGoals.skipped.has(exercise.id))
                     .flatMap(exercise => {
-                      const goal = goals[exercise.id];
+                      const goal = dayGoals.goals[exercise.id];
                       if (!goal) return [];
                       
                       const IconComp = getIconByName(exercise.iconName);
@@ -153,6 +139,18 @@ const ClassWeeklyPlan: React.FC<ClassWeeklyPlanProps> = ({ studentsInClass, allS
                       }
                       return items;
                     });
+                  
+                  const isRestDay = availableExercises.length > 0 && availableExercises.every(ex => dayGoals.skipped.has(ex.id)) && goalItems.length === 0;
+
+                  if (isRestDay) {
+                    return (
+                        <TableCell key={dateKey} className="text-center text-blue-500">
+                          <div className="flex items-center justify-center gap-2">
+                            <Waves className="h-4 w-4" /> <span>휴식</span>
+                          </div>
+                        </TableCell>
+                    );
+                  }
                   
                   if (goalItems.length === 0) {
                     return <TableCell key={dateKey} className="text-center text-muted-foreground/50">-</TableCell>;

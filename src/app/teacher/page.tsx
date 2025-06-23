@@ -12,6 +12,7 @@ import ManageStudentPinDialog from '@/components/ManageStudentPinDialog';
 import ManageCustomExerciseDialog from '@/components/ManageCustomExerciseDialog';
 import ClassSummaryStats from '@/components/ClassSummaryStats'; 
 import ClassWeeklyPlan from '@/components/ClassWeeklyPlan';
+import StudentWeeklyPlanDialog from '@/components/StudentWeeklyPlanDialog'; // 새로 추가
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import type { Student, RecordedExercise, CustomExercise as CustomExerciseType, Gender, TeacherExerciseRecommendation, StudentGoal, Exercise as ExerciseType, DailyGoalEntry } from '@/lib/types';
 import { EXERCISES_SEED_DATA } from '@/data/mockData';
@@ -99,6 +100,8 @@ export default function TeacherPage() {
   const [studentForPinManage, setStudentForPinManage] = useState<Student | null>(null);
 
   const [selectedLogDate, setSelectedLogDate] = useState<Date>(new Date());
+  
+  const [selectedStudentForPlan, setSelectedStudentForPlan] = useState<Student | null>(null);
 
 
   const handlePinSubmit = (e: React.FormEvent) => {
@@ -372,8 +375,10 @@ export default function TeacherPage() {
     return goals;
   }, [allStudentDailyGoals, studentsInClass, selectedLogDate]);
 
-
   const handleClassChange = (className: string | 'all') => {
+    const gradeMatch = className.match(/(\d+)학년/);
+    const newGrade = gradeMatch ? gradeMatch[1] : '';
+  
     if (className === 'all') {
       setSelectedClass(undefined);
       setSelectedGrade('');
@@ -383,28 +388,16 @@ export default function TeacherPage() {
         return Number(a.studentNumber) - Number(b.studentNumber);
       }));
     } else {
-        const gradeMatch = className.match(/(\d+)학년/);
-        const grade = gradeMatch ? gradeMatch[1] : '';
-      
+        const classNumMatch = className.match(/(\d+)반/);
+        const classNum = classNumMatch ? classNumMatch[1] : '';
         setSelectedClass(className);
-        setSelectedGrade(grade);
+        setSelectedGrade(newGrade);
+        setStudentsInClass(
+            students.filter(s => s.grade === newGrade && s.classNum === classNum)
+                    .sort((a, b) => Number(a.studentNumber) - Number(b.studentNumber))
+        );
     }
   };
-  
-  useEffect(() => {
-      const getStudentsForClass = () => {
-          if (selectedClass) {
-              const gradeMatch = selectedClass.match(/(\d+)학년/);
-              const grade = gradeMatch ? gradeMatch[1] : '';
-              const classNumMatch = selectedClass.match(/(\d+)반/);
-              const classNum = classNumMatch ? classNumMatch[1] : '';
-              return students.filter(student => student.grade === grade && student.classNum === classNum);
-          }
-          return students;
-      };
-      
-      setStudentsInClass(getStudentsForClass().sort((a,b) => Number(a.studentNumber) - Number(b.studentNumber)));
-  }, [students, selectedClass]);
 
   const handleAddStudent = async (newStudentData: Omit<Student, 'id' | 'avatarSeed'>) => {
     try {
@@ -597,7 +590,7 @@ export default function TeacherPage() {
     }
   };
 
-  const handleSaveCustomExercise = async (exerciseData: CustomExercise | Omit<CustomExercise, 'id'>) => {
+  const handleSaveCustomExercise = async (exerciseData: CustomExerciseType | Omit<CustomExerciseType, 'id'>) => {
     if (!selectedGrade) {
         toast({ title: "오류", description: "운동을 저장할 학년을 선택해주세요.", variant: "destructive"});
         return;
@@ -611,9 +604,11 @@ export default function TeacherPage() {
 
     try {
         const exercisesDocRef = doc(db, EXERCISES_BY_GRADE_DOC_PATH);
-        const baseExercises = exercisesForCurrentGrade;
+        const docSnap = await getDoc(exercisesDocRef);
+        const currentExercisesByGrade = docSnap.exists() ? docSnap.data() as Record<string, CustomExerciseType[]> : {};
         
         let updatedExercises: CustomExerciseType[];
+        const baseExercises = currentExercisesByGrade[selectedGrade] || [];
 
         if ('id' in exerciseData) {
             const exerciseIndex = baseExercises.findIndex(ex => ex.id === exerciseData.id);
@@ -720,6 +715,14 @@ export default function TeacherPage() {
 
   const handleNextDay = () => {
     setSelectedLogDate(prevDate => addDays(prevDate, 1));
+  };
+  
+  const handleViewStudentPlan = (student: Student) => {
+    setSelectedStudentForPlan(student);
+  };
+  
+  const handleCloseStudentPlanDialog = () => {
+      setSelectedStudentForPlan(null);
   };
 
   const isNextDayDisabled = isToday(selectedLogDate) || selectedLogDate > new Date();
@@ -1069,6 +1072,7 @@ export default function TeacherPage() {
                 availableExercises={exercisesForCurrentGrade}
                 isLoading={isLoadingStudentGoals}
                 selectedClass={selectedClass}
+                onViewStudentPlan={handleViewStudentPlan}
               />
             </section>
           </TabsContent>
@@ -1403,6 +1407,16 @@ export default function TeacherPage() {
           onSave={handleSaveCustomExercise}
           exerciseToEdit={exerciseToEdit}
         />
+        
+        {selectedStudentForPlan && (
+            <StudentWeeklyPlanDialog
+                isOpen={!!selectedStudentForPlan}
+                onClose={handleCloseStudentPlanDialog}
+                student={selectedStudentForPlan}
+                studentWeeklyGoals={allStudentDailyGoals[selectedStudentForPlan.id] || {}}
+                availableExercises={exercisesForCurrentGrade}
+            />
+        )}
 
         {studentToDelete && (
             <AlertDialog open={!!studentToDelete} onOpenChange={(isOpen) => !isOpen && setStudentToDelete(null)}>
