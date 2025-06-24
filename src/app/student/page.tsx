@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
@@ -1165,6 +1164,16 @@ export default function StudentPage() {
       }
   };
 
+  const mySecretFriendData = useMemo(() => {
+    if (!mySecretFriend) return null;
+    return classmatesData.find(c => c.id === mySecretFriend.id);
+  }, [mySecretFriend, classmatesData]);
+
+  const secretFriendTodaysGoals = useMemo(() => {
+    if (!mySecretFriendData) return {};
+    return mySecretFriendData.dailyGoals?.[todayKey]?.goals || {};
+  }, [mySecretFriendData, todayKey]);
+
   if (isLoadingLoginOptions || isLoadingExercises) {
     return <div className="flex justify-center items-center min-h-screen"><Loader2 className="h-8 w-8 animate-spin text-primary" /> {isLoadingLoginOptions ? '학생 정보' : '운동 목록'} 로딩 중...</div>;
   }
@@ -1776,6 +1785,8 @@ export default function StudentPage() {
                 onSendMessage={handleSendMessage}
                 onCompleteMission={handleCompleteMission}
                 currentStudentName={currentStudent.name}
+                secretFriendTodaysGoals={secretFriendTodaysGoals}
+                availableExercises={availableExercises}
             />
         )}
 

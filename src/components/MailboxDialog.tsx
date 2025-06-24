@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState } from 'react';
@@ -9,12 +8,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { Mail, Send, CheckCircle, Gift, MessageSquare, AlertCircle, Loader2 } from 'lucide-react';
-import type { MailboxMessage } from '@/lib/types';
+import type { MailboxMessage, StudentGoal, Exercise as ExerciseType } from '@/lib/types';
 import { formatDistanceToNow } from 'date-fns';
 import { ko } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { ScrollArea } from './ui/scroll-area';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { getIconByName } from '@/lib/iconMap';
 
 interface MailboxDialogProps {
   isOpen: boolean;
@@ -24,6 +24,8 @@ interface MailboxDialogProps {
   currentStudentName: string;
   onSendMessage: (type: 'cheer' | 'mission', content: string) => Promise<void>;
   onCompleteMission: (messageId: string) => Promise<void>;
+  secretFriendTodaysGoals?: StudentGoal;
+  availableExercises?: ExerciseType[];
 }
 
 const MailboxDialog: React.FC<MailboxDialogProps> = ({
@@ -34,6 +36,8 @@ const MailboxDialog: React.FC<MailboxDialogProps> = ({
   currentStudentName,
   onSendMessage,
   onCompleteMission,
+  secretFriendTodaysGoals = {},
+  availableExercises = [],
 }) => {
   const [activeTab, setActiveTab] = useState('inbox');
   const [newMessage, setNewMessage] = useState('');
@@ -48,6 +52,8 @@ const MailboxDialog: React.FC<MailboxDialogProps> = ({
     setIsSending(false);
     setActiveTab('inbox'); // Switch back to inbox after sending
   };
+  
+  const hasGoals = secretFriendTodaysGoals && Object.keys(secretFriendTodaysGoals).length > 0;
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -119,10 +125,58 @@ const MailboxDialog: React.FC<MailboxDialogProps> = ({
                 <Label htmlFor="mission">미션주기</Label>
               </div>
             </RadioGroup>
+
+            {messageType === 'mission' && (
+                <div className="space-y-2">
+                    <Label>미션 제안하기</Label>
+                    <div className="p-3 border rounded-lg bg-secondary/30 space-y-2 max-h-32 overflow-y-auto">
+                        {hasGoals ? (
+                            Object.entries(secretFriendTodaysGoals).map(([exerciseId, goal]) => {
+                                const exercise = availableExercises.find(ex => ex.id === exerciseId);
+                                if (!exercise) return null;
+                                const Icon = getIconByName(exercise.iconName);
+
+                                const renderGoal = (field: 'count' | 'time' | 'steps', unit: string | undefined) => {
+                                    const goalValue = goal[field];
+                                    if (!unit || !goalValue) return null;
+                                    
+                                    const suggestionAmount = field === 'time' ? 10 : (field === 'steps' ? 50 : 5);
+                                    const suggestionMessage = `비밀친구야! 오늘 ${exercise.koreanName} 목표에 ${suggestionAmount}${unit}만 더 추가해서 도전해보는 건 어때? 너라면 할 수 있어! 화이팅! 🎉`;
+
+                                    return (
+                                        <div key={`${exercise.id}-${field}`} className="flex items-center justify-between text-sm">
+                                            <span className="flex items-center gap-1.5">
+                                                <Icon className="h-4 w-4 text-muted-foreground" />
+                                                {exercise.koreanName}: {goalValue}{unit}
+                                            </span>
+                                            <Button size="sm" variant="outline" className="h-7 px-2" onClick={() => setNewMessage(suggestionMessage)}>
+                                                미션 제안
+                                            </Button>
+                                        </div>
+                                    )
+                                }
+
+                                return (
+                                    <React.Fragment key={exerciseId}>
+                                        {renderGoal('count', exercise.countUnit)}
+                                        {renderGoal('time', exercise.timeUnit)}
+                                        {renderGoal('steps', exercise.stepsUnit)}
+                                    </React.Fragment>
+                                )
+                            })
+                        ) : (
+                            <p className="text-sm text-center text-muted-foreground py-2">
+                                비밀친구가 아직 오늘의 운동 목표를 설정하지 않았어요.
+                            </p>
+                        )}
+                    </div>
+                </div>
+            )}
+
             <Textarea
               value={newMessage}
               onChange={(e) => setNewMessage(e.target.value)}
-              placeholder={messageType === 'cheer' ? '따뜻한 응원의 메시지를 보내보세요!' : '재미있는 운동 미션을 제안해보세요!'}
+              placeholder={messageType === 'cheer' ? '따뜻한 응원의 메시지를 보내보세요!' : '친구의 목표를 기반으로 미션을 제안하거나, 자유롭게 미션을 만들어주세요!'}
               rows={5}
             />
             <Alert variant="default" className="mt-2">
