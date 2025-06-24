@@ -21,7 +21,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Users, BarChart2, Lightbulb, ListChecks, UserPlus, Trash2, Sparkles, MessageSquarePlus, MessageSquareX, Loader2, Wand2, KeyRound, LogIn, Image as ImageIconLucide, Edit, Settings2, School, PlusCircle, Edit3, AlertCircle, TrendingUp, CalendarDays, ChevronLeft, ChevronRight, Activity as ActivityIcon, Construction, RotateCcw, FileUp, Link as LinkIcon, Download, Megaphone, FileVideo, Globe } from 'lucide-react';
+import { Users, BarChart2, Lightbulb, ListChecks, UserPlus, Trash2, Sparkles, MessageSquarePlus, MessageSquareX, Loader2, Wand2, KeyRound, LogIn, Image as ImageIconLucide, Edit, Settings2, School, PlusCircle, Edit3, AlertCircle, TrendingUp, CalendarDays, ChevronLeft, ChevronRight, Activity as ActivityIcon, Construction, RotateCcw, FileUp, Link as LinkIcon, Download, Megaphone, FileVideo, Globe, Save } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle as UICardTitle, CardDescription as UICardDescription } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -284,7 +284,7 @@ export default function TeacherPage() {
         setRecordedExercises(logsList);
         setIsLoadingLogs(false);
     }, (error) => {
-        console.error("Error fetching logs snapshot:", error);
+        console.error("Error fetching logs snapshot: ", error);
         toast({ title: "오류", description: "운동 기록을 실시간으로 불러오는 데 실패했습니다.", variant: "destructive" });
         setIsLoadingLogs(false);
     });
