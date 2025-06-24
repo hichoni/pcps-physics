@@ -317,6 +317,36 @@ export default function TeacherPage() {
 
     return () => unsubscribe();
   }, [isAuthenticated, toast]);
+  
+  // New useEffect to manage studentsInClass reactively
+  useEffect(() => {
+    if (isLoadingStudents) return;
+
+    let filteredStudents: Student[];
+
+    if (!selectedClass) {
+      // "All students" view
+      filteredStudents = [...students];
+    } else {
+      const gradeMatch = selectedClass.match(/(\d+)학년/);
+      const classNumMatch = selectedClass.match(/(\d+)반/);
+      const grade = gradeMatch ? gradeMatch[1] : '';
+      const classNum = classNumMatch ? classNumMatch[1] : '';
+      filteredStudents = students.filter(s => s.grade === grade && s.classNum === classNum);
+    }
+
+    // Sort the result
+    filteredStudents.sort((a, b) => {
+      if (!selectedClass) {
+        const classCompare = (`${a.grade}학년 ${a.classNum}반`).localeCompare(`${b.grade}학년 ${b.classNum}반`);
+        if (classCompare !== 0) return classCompare;
+      }
+      return Number(a.studentNumber) - Number(b.studentNumber);
+    });
+
+    setStudentsInClass(filteredStudents);
+  }, [students, selectedClass, isLoadingStudents]);
+
 
   useEffect(() => {
     let unsubscribers: (() => void)[] = [];
@@ -393,22 +423,11 @@ export default function TeacherPage() {
     if (className === 'all') {
       setSelectedClass(undefined);
       setSelectedGrade('');
-      setStudentsInClass(students.sort((a, b) => {
-        const classCompare = (`${a.grade}학년 ${a.classNum}반`).localeCompare(`${b.grade}학년 ${b.classNum}반`);
-        if (classCompare !== 0) return classCompare;
-        return Number(a.studentNumber) - Number(b.studentNumber);
-      }));
     } else {
         const gradeMatch = className.match(/(\d+)학년/);
-        const classNumMatch = className.match(/(\d+)반/);
         const newGrade = gradeMatch ? gradeMatch[1] : '';
-        const classNum = classNumMatch ? classNumMatch[1] : '';
         setSelectedClass(className);
         setSelectedGrade(newGrade);
-        setStudentsInClass(
-            students.filter(s => s.grade === newGrade && s.classNum === classNum)
-                    .sort((a, b) => Number(a.studentNumber) - Number(b.studentNumber))
-        );
     }
   };
 
