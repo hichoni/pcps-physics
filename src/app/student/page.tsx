@@ -9,8 +9,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dumbbell, Target, History, PlusCircle, LogOut, UserCheck, Loader2, AlertTriangle, KeyRound, Edit3, Camera, Info, Activity as ActivityIconLucide, CheckSquare, CalendarDays, Edit, CheckCircle, Trophy, RotateCcw } from 'lucide-react';
-import type { Student, RecordedExercise, Gender, StudentGoal, CustomExercise as CustomExerciseType, Exercise as ExerciseType, LevelInfo, DailyGoalEntry } from '@/lib/types';
+import { Dumbbell, Target, History, PlusCircle, LogOut, UserCheck, Loader2, AlertTriangle, KeyRound, Edit3, Camera, Info, Activity as ActivityIconLucide, CheckSquare, CalendarDays, Edit, CheckCircle, Trophy, RotateCcw, Link as LinkIcon, Download } from 'lucide-react';
+import type { Student, RecordedExercise, Gender, StudentGoal, CustomExercise as CustomExerciseType, Exercise as ExerciseType, LevelInfo, DailyGoalEntry, TeacherMessage } from '@/lib/types';
 import { EXERCISES_SEED_DATA } from '@/data/mockData';
 import SetStudentGoalsDialog from '@/components/SetStudentGoalsDialog';
 import ExerciseLogForm from '@/components/ExerciseLogForm';
@@ -40,8 +40,6 @@ const DEFAULT_POSITIVE_ADJECTIVES_KR = [
   "멋진", "희망찬", "빛나는", "슬기로운", "명랑한", "따뜻한 마음을 가진"
 ];
 const COMPLIMENTS_DOC_PATH = "appConfig/complimentsDoc";
-const STUDENT_WELCOME_MESSAGE_DOC_PATH = "appConfig/studentWelcomeMessageDoc";
-const DEFAULT_STUDENT_WELCOME_MESSAGE = "오늘도 즐겁게 운동하고 건강해져요! 어떤 활동을 계획하고 있나요?";
 const EXERCISES_BY_GRADE_DOC_PATH = "appConfig/exercisesByGrade";
 
 const LEVEL_TIERS: LevelInfo[] = [
@@ -117,6 +115,7 @@ export default function StudentPage() {
   const [isLoadingExercises, setIsLoadingExercises] = useState(true);
   const [isLoadingClassData, setIsLoadingClassData] = useState(true);
   const [isLoadingClassmates, setIsLoadingClassmates] = useState(true);
+  const [isLoadingNotice, setIsLoadingNotice] = useState(true);
 
   const [goalDialogState, setGoalDialogState] = useState<{isOpen: boolean; date: Date | null}>({ isOpen: false, date: null });
   const [logFormState, setLogFormState] = useState<{isOpen: boolean; initialExerciseId?: string}>({ isOpen: false });
@@ -135,7 +134,7 @@ export default function StudentPage() {
   const [isRecommendationLoading, setIsRecommendationLoading] = useState(false);
   const [dailyCompliment, setDailyCompliment] = useState<string>('');
   
-  const [teacherBaseWelcomeMessage, setTeacherBaseWelcomeMessage] = useState<string>(DEFAULT_STUDENT_WELCOME_MESSAGE);
+  const [teacherNotice, setTeacherNotice] = useState<TeacherMessage | null>(null);
   const [aiPersonalizedWelcome, setAiPersonalizedWelcome] = useState<string>('');
   const [isAiWelcomeLoading, setIsAiWelcomeLoading] = useState(true);
 
@@ -416,12 +415,6 @@ export default function StudentPage() {
 
     const fetchWelcomeData = async () => {
         setIsAiWelcomeLoading(true);
-        const welcomeMsgDocRef = doc(db, STUDENT_WELCOME_MESSAGE_DOC_PATH);
-        const welcomeMsgDocSnap = await getDoc(welcomeMsgDocRef);
-        const baseWelcome = (welcomeMsgDocSnap.exists() && welcomeMsgDocSnap.data()?.text) 
-                              ? welcomeMsgDocSnap.data()!.text 
-                              : DEFAULT_STUDENT_WELCOME_MESSAGE;
-        setTeacherBaseWelcomeMessage(baseWelcome);
         fetchAiPersonalizedWelcome(currentStudent, currentLevelInfo);
 
         const complimentsDocRef = doc(db, COMPLIMENTS_DOC_PATH);
@@ -437,6 +430,41 @@ export default function StudentPage() {
 
     fetchWelcomeData();
   }, [currentStudent, currentLevelInfo, fetchAiPersonalizedWelcome]);
+
+
+  // Real-time listener for teacher notices
+  useEffect(() => {
+      if (!currentStudent) {
+          setTeacherNotice(null);
+          return;
+      }
+
+      let classNoticeData: TeacherMessage | null = null;
+
+      const classNoticeRef = doc(db, 'teacherMessages', `${currentStudent.grade}_${currentStudent.classNum}`);
+      const gradeNoticeRef = doc(db, 'teacherMessages', `${currentStudent.grade}_all`);
+
+      const unsubClass = onSnapshot(classNoticeRef, (docSnap) => {
+          classNoticeData = docSnap.exists() ? { id: docSnap.id, ...docSnap.data() } as TeacherMessage : null;
+          // If class-specific notice exists, it takes precedence immediately.
+          if (classNoticeData) {
+              setTeacherNotice(classNoticeData);
+          }
+      });
+
+      const unsubGrade = onSnapshot(gradeNoticeRef, (docSnap) => {
+          const gradeNoticeData = docSnap.exists() ? { id: docSnap.id, ...docSnap.data() } as TeacherMessage : null;
+          // Set grade-wide notice ONLY if no class-specific notice exists.
+          if (!classNoticeData) {
+              setTeacherNotice(gradeNoticeData);
+          }
+      });
+
+      return () => {
+          unsubClass();
+          unsubGrade();
+      };
+  }, [currentStudent]);
 
 
   // Effect for AI recommendation, runs when goals change
@@ -934,6 +962,63 @@ export default function StudentPage() {
     });
   };
 
+  const getYouTubeEmbedUrl = (url: string) => {
+    const youtubeRegex = /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?)\/|\S*?[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})/;
+    const match = url.match(youtubeRegex);
+    return match ? `https://www.youtube.com/embed/${match[1]}` : null;
+  };
+  
+  const renderAttachment = (attachment: TeacherMessage['attachment']) => {
+      if (!attachment) return null;
+  
+      switch (attachment.type) {
+          case 'youtube':
+              const embedUrl = getYouTubeEmbedUrl(attachment.url);
+              if (embedUrl) {
+                  return (
+                      <div className="mt-4 aspect-video">
+                          <iframe
+                              width="100%"
+                              height="100%"
+                              src={embedUrl}
+                              title="YouTube video player"
+                              frameBorder="0"
+                              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                              allowFullScreen
+                              className="rounded-lg"
+                          ></iframe>
+                      </div>
+                  );
+              }
+              // Fallback to a regular link if URL is not a valid YouTube link
+              return (
+                  <Button asChild variant="link" className="mt-2">
+                      <a href={attachment.url} target="_blank" rel="noopener noreferrer">
+                          <LinkIcon className="mr-2 h-4 w-4" /> 영상 보기
+                      </a>
+                  </Button>
+              );
+          case 'url':
+              return (
+                  <Button asChild variant="outline" className="mt-4 w-full">
+                      <a href={attachment.url} target="_blank" rel="noopener noreferrer">
+                          <LinkIcon className="mr-2 h-4 w-4" /> 링크 열기
+                      </a>
+                  </Button>
+              );
+          case 'file':
+              return (
+                  <Button asChild variant="outline" className="mt-4 w-full">
+                      <a href={attachment.url} target="_blank" rel="noopener noreferrer" download={attachment.fileName}>
+                          <Download className="mr-2 h-4 w-4" /> {attachment.fileName || '파일 다운로드'}
+                      </a>
+                  </Button>
+              );
+          default:
+              return null;
+      }
+  };
+
   if (isLoadingLoginOptions || isLoadingExercises) {
     return <div className="flex justify-center items-center min-h-screen"><Loader2 className="h-8 w-8 animate-spin text-primary" /> {isLoadingLoginOptions ? '학생 정보' : '운동 목록'} 로딩 중...</div>;
   }
@@ -1077,20 +1162,32 @@ export default function StudentPage() {
           key={mainContentKey}
           className="space-y-6"
         >
-            <Card className="shadow-lg rounded-xl">
-                <CardHeader>
-                    <CardTitle className="text-2xl sm:text-3xl font-bold font-headline text-primary">
-                        📣 선생님의 한마디
-                    </CardTitle>
-                </CardHeader>
-                <CardContent>
-                    <blockquote className="p-4 bg-secondary/20 dark:bg-slate-800/30 border-l-4 border-primary rounded-r-lg">
-                        <p className="text-base sm:text-lg text-foreground/90 italic">
-                            "{teacherBaseWelcomeMessage}"
-                        </p>
-                    </blockquote>
-                </CardContent>
-            </Card>
+            {isLoadingNotice ? (
+                <Card className="shadow-lg rounded-xl flex items-center justify-center min-h-[10rem]">
+                    <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                    <span className="ml-2">선생님 공지 확인 중...</span>
+                </Card>
+            ) : teacherNotice && (
+                <Card className="shadow-lg rounded-xl">
+                    <CardHeader>
+                        <CardTitle className="text-2xl sm:text-3xl font-bold font-headline text-primary">
+                            📣 선생님의 공지
+                        </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <blockquote className="p-4 bg-secondary/20 dark:bg-slate-800/30 border-l-4 border-primary rounded-r-lg">
+                            <p className="text-base sm:text-lg text-foreground/90 whitespace-pre-wrap">
+                                {teacherNotice.message}
+                            </p>
+                        </blockquote>
+                        {teacherNotice.attachment && (
+                            <div className="mt-4">
+                                {renderAttachment(teacherNotice.attachment)}
+                            </div>
+                        )}
+                    </CardContent>
+                </Card>
+            )}
             
             <Card className="shadow-lg rounded-xl flex flex-col">
                 <CardHeader className="pb-4">

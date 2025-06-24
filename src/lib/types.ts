@@ -127,3 +127,17 @@ export interface LevelInfo {
   maxXp: number;
   colorClass: string;
 }
+
+export interface TeacherMessage {
+  id: string;
+  grade: string;
+  classNum: string; // "all" for entire grade
+  message: string;
+  attachment?: {
+    type: 'file' | 'url' | 'youtube';
+    url: string;
+    fileName?: string;
+    fileSize?: number;
+  };
+  createdAt: any; // Can be Firestore Timestamp
+}

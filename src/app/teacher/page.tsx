@@ -14,31 +14,31 @@ import ClassSummaryStats from '@/components/ClassSummaryStats';
 import ClassWeeklyPlan from '@/components/ClassWeeklyPlan';
 import StudentWeeklyPlanDialog from '@/components/StudentWeeklyPlanDialog'; // 새로 추가
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import type { Student, RecordedExercise, CustomExercise as CustomExerciseType, Gender, TeacherExerciseRecommendation, StudentGoal, Exercise as ExerciseType, DailyGoalEntry } from '@/lib/types';
+import type { Student, RecordedExercise, CustomExercise as CustomExerciseType, Gender, TeacherExerciseRecommendation, StudentGoal, Exercise as ExerciseType, DailyGoalEntry, TeacherMessage } from '@/lib/types';
 import { EXERCISES_SEED_DATA } from '@/data/mockData';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Users, BarChart2, Lightbulb, ListChecks, UserPlus, Trash2, Sparkles, MessageSquarePlus, MessageSquareX, Loader2, Wand2, KeyRound, LogIn, Image as ImageIconLucide, Edit, Settings2, School, PlusCircle, Edit3, AlertCircle, TrendingUp, CalendarDays, ChevronLeft, ChevronRight, Activity as ActivityIcon, Construction, RotateCcw, FileUp } from 'lucide-react';
+import { Users, BarChart2, Lightbulb, ListChecks, UserPlus, Trash2, Sparkles, MessageSquarePlus, MessageSquareX, Loader2, Wand2, KeyRound, LogIn, Image as ImageIconLucide, Edit, Settings2, School, PlusCircle, Edit3, AlertCircle, TrendingUp, CalendarDays, ChevronLeft, ChevronRight, Activity as ActivityIcon, Construction, RotateCcw, FileUp, Link as LinkIcon, Download, Megaphone, FileVideo, Globe } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle as UICardTitle, CardDescription as UICardDescription } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { format, parseISO, isSameDay, subDays, addDays, isToday } from 'date-fns';
 import { ko } from 'date-fns/locale';
 import { useToast } from "@/hooks/use-toast";
-import { db } from '@/lib/firebase';
+import { db, storage } from '@/lib/firebase';
 import { v4 as uuidv4 } from 'uuid';
 import {
   collection, getDocs, addDoc, deleteDoc, doc, writeBatch, query, where, setDoc, getDoc, updateDoc, arrayUnion, arrayRemove, onSnapshot
 } from 'firebase/firestore';
+import { ref as storageRef, uploadBytesResumable, getDownloadURL, deleteObject } from "firebase/storage";
 import { getIconByName } from '@/lib/iconMap';
 import { cn } from '@/lib/utils';
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { generateBaseWelcomeMessage, type GenerateBaseWelcomeMessageOutput } from '@/ai/flows/generate-base-welcome-message';
-
 
 const DEFAULT_COMPLIMENTS_LIST = [
   "별처럼 빛나는", "항상 긍정적인", "꿈을 향해 달리는", "세상을 밝히는",
@@ -49,8 +49,6 @@ const DEFAULT_COMPLIMENTS_LIST = [
 
 const COMPLIMENTS_DOC_PATH = "appConfig/complimentsDoc";
 const RECOMMENDATIONS_DOC_PATH = "appConfig/exerciseRecommendationsDoc";
-const STUDENT_WELCOME_MESSAGE_DOC_PATH = "appConfig/studentWelcomeMessageDoc";
-const DEFAULT_STUDENT_WELCOME_MSG = "오늘도 즐겁게 운동하고 건강해져요! 어떤 활동을 계획하고 있나요?";
 const EXERCISES_BY_GRADE_DOC_PATH = "appConfig/exercisesByGrade";
 const TEACHER_PIN = "0408";
 const GRADES = ["1", "2", "3", "4", "5", "6", "기타"];
@@ -70,8 +68,6 @@ export default function TeacherPage() {
   const [recordedExercises, setRecordedExercises] = useState<RecordedExercise[]>([]);
   const [compliments, setCompliments] = useState<string[]>(DEFAULT_COMPLIMENTS_LIST);
   const [exerciseRecommendations, setExerciseRecommendations] = useState<TeacherExerciseRecommendation[]>([]);
-  const [studentWelcomeMessage, setStudentWelcomeMessage] = useState<string>(DEFAULT_STUDENT_WELCOME_MSG);
-  const [studentWelcomeMessageInput, setStudentWelcomeMessageInput] = useState<string>('');
   const [allExercisesByGrade, setAllExercisesByGrade] = useState<Record<string, CustomExerciseType[]>>({});
   const [allStudentDailyGoals, setAllStudentDailyGoals] = useState<Record<string, Record<string, { goals: StudentGoal; skipped: Set<string>; }>>>({});
 
@@ -79,7 +75,6 @@ export default function TeacherPage() {
   const [isLoadingLogs, setIsLoadingLogs] = useState(true);
   const [isLoadingCompliments, setIsLoadingCompliments] = useState(true);
   const [isLoadingRecommendations, setIsLoadingRecommendations] = useState(true);
-  const [isLoadingWelcomeMessage, setIsLoadingWelcomeMessage] = useState(true);
   const [isLoadingCustomExercises, setIsLoadingCustomExercises] = useState(true);
   const [isLoadingStudentGoals, setIsLoadingStudentGoals] = useState(true);
 
@@ -103,7 +98,18 @@ export default function TeacherPage() {
   const [selectedLogDate, setSelectedLogDate] = useState<Date>(new Date());
   
   const [selectedStudentForPlan, setSelectedStudentForPlan] = useState<Student | null>(null);
-  const [isGeneratingMessage, setIsGeneratingMessage] = useState(false);
+  
+  // State for new Notice Management
+  const [noticeGrade, setNoticeGrade] = useState<string>('');
+  const [classNumsForGrade, setClassNumsForGrade] = useState<string[]>([]);
+  const [noticeClass, setNoticeClass] = useState<string>('all');
+  const [noticeMessage, setNoticeMessage] = useState('');
+  const [attachmentType, setAttachmentType] = useState<'none' | 'url' | 'youtube' | 'file'>('none');
+  const [attachmentUrl, setAttachmentUrl] = useState('');
+  const [attachmentFile, setAttachmentFile] = useState<File | null>(null);
+  const [currentNotice, setCurrentNotice] = useState<TeacherMessage | null>(null);
+  const [isNoticeLoading, setIsNoticeLoading] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
 
 
   const handlePinSubmit = (e: React.FormEvent) => {
@@ -172,38 +178,6 @@ export default function TeacherPage() {
       toast({ title: "오류", description: "추천 운동/팁 목록을 불러오는 데 실패했습니다.", variant: "destructive"});
       setExerciseRecommendations([]);
       setIsLoadingRecommendations(false);
-    }
-  }, [toast]);
-
-  const fetchStudentWelcomeMessage = useCallback(async () => {
-    setIsLoadingWelcomeMessage(true);
-    try {
-      const welcomeMsgDocRef = doc(db, STUDENT_WELCOME_MESSAGE_DOC_PATH);
-      const unsub = onSnapshot(welcomeMsgDocRef, (docSnap) => {
-        if (docSnap.exists() && docSnap.data()?.text) {
-          const message = docSnap.data()?.text;
-          setStudentWelcomeMessage(message);
-          setStudentWelcomeMessageInput(message);
-        } else {
-          setStudentWelcomeMessage(DEFAULT_STUDENT_WELCOME_MSG);
-          setStudentWelcomeMessageInput(DEFAULT_STUDENT_WELCOME_MSG);
-          setDoc(welcomeMsgDocRef, { text: DEFAULT_STUDENT_WELCOME_MSG });
-        }
-        setIsLoadingWelcomeMessage(false);
-      }, (error) => {
-        console.error("Error in welcome message snapshot: ", error);
-        toast({ title: "오류", description: "학생 환영 메시지 실시간 업데이트 중 오류 발생.", variant: "destructive" });
-        setStudentWelcomeMessage(DEFAULT_STUDENT_WELCOME_MSG);
-        setStudentWelcomeMessageInput(DEFAULT_STUDENT_WELCOME_MSG);
-        setIsLoadingWelcomeMessage(false);
-      });
-      return unsub;
-    } catch (error) {
-      console.error("Error setting up welcome message snapshot:", error);
-      toast({ title: "오류", description: "학생 환영 메시지를 불러오는 데 실패했습니다.", variant: "destructive" });
-      setStudentWelcomeMessage(DEFAULT_STUDENT_WELCOME_MSG);
-      setStudentWelcomeMessageInput(DEFAULT_STUDENT_WELCOME_MSG);
-      setIsLoadingWelcomeMessage(false);
     }
   }, [toast]);
 
@@ -353,13 +327,12 @@ export default function TeacherPage() {
     if (isAuthenticated) {
       fetchCompliments().then(unsub => unsub && unsubscribers.push(unsub));
       fetchExerciseRecommendations().then(unsub => unsub && unsubscribers.push(unsub));
-      fetchStudentWelcomeMessage().then(unsub => unsub && unsubscribers.push(unsub));
       fetchCustomExercises().then(unsub => unsub && unsubscribers.push(unsub));
     }
     return () => {
       unsubscribers.forEach(unsub => unsub());
     };
-  }, [isAuthenticated, fetchCompliments, fetchExerciseRecommendations, fetchStudentWelcomeMessage, fetchCustomExercises]);
+  }, [isAuthenticated, fetchCompliments, fetchExerciseRecommendations, fetchCustomExercises]);
   
   // Real-time listener for student goals in the selected class
   useEffect(() => {
@@ -409,6 +382,58 @@ export default function TeacherPage() {
         unsubscribers.forEach(unsub => unsub());
     };
   }, [isAuthenticated, selectedClass, studentsInClass]);
+  
+  // Effect for notice management form
+  useEffect(() => {
+      if (noticeGrade) {
+          const nums = Array.from(new Set(students.filter(s => s.grade === noticeGrade).map(s => s.classNum)));
+          setClassNumsForGrade(nums.sort((a, b) => Number(a) - Number(b)));
+      } else {
+          setClassNumsForGrade([]);
+      }
+      setNoticeClass('all'); // Reset class selection
+  }, [noticeGrade, students]);
+  
+  // Fetch current notice when target changes
+  useEffect(() => {
+      if (!noticeGrade) {
+          setCurrentNotice(null);
+          setNoticeMessage('');
+          setAttachmentType('none');
+          setAttachmentUrl('');
+          setAttachmentFile(null);
+          return;
+      }
+  
+      const fetchNotice = async () => {
+          setIsNoticeLoading(true);
+          const docId = `${noticeGrade}_${noticeClass}`;
+          const noticeDocRef = doc(db, "teacherMessages", docId);
+          try {
+              const docSnap = await getDoc(noticeDocRef);
+              if (docSnap.exists()) {
+                  const data = docSnap.data() as Omit<TeacherMessage, 'id'>;
+                  setCurrentNotice({ id: docSnap.id, ...data });
+                  setNoticeMessage(data.message);
+                  setAttachmentType(data.attachment?.type || 'none');
+                  setAttachmentUrl(data.attachment?.type !== 'file' ? data.attachment?.url || '' : '');
+              } else {
+                  setCurrentNotice(null);
+                  setNoticeMessage('');
+                  setAttachmentType('none');
+                  setAttachmentUrl('');
+              }
+          } catch (error) {
+              console.error("Error fetching notice: ", error);
+              toast({ title: "오류", description: "공지 정보를 불러오는 데 실패했습니다.", variant: "destructive" });
+          } finally {
+              setIsNoticeLoading(false);
+              setAttachmentFile(null); // Clear file input on target change
+          }
+      };
+  
+      fetchNotice();
+  }, [noticeGrade, noticeClass, toast]);
 
   const goalsForSelectedDate = useMemo(() => {
     const dateKey = format(selectedLogDate, 'yyyy-MM-dd');
@@ -605,36 +630,99 @@ export default function TeacherPage() {
       toast({ title: "오류", description: "추천 운동/팁 삭제에 실패했습니다.", variant: "destructive"});
     }
   };
-
-  const handleSaveStudentWelcomeMessage = async () => {
-    const messageToSave = studentWelcomeMessageInput.trim();
-    if (messageToSave === '') {
-      toast({ title: "오류", description: "환영 메시지를 입력해주세요.", variant: "destructive" });
-      return;
+  
+  const handleSaveNotice = async () => {
+    if (!noticeGrade) {
+        toast({ title: "학년 미선택", description: "공지를 등록할 학년을 선택해주세요.", variant: "destructive" });
+        return;
     }
-    try {
-      const welcomeMsgDocRef = doc(db, STUDENT_WELCOME_MESSAGE_DOC_PATH);
-      await setDoc(welcomeMsgDocRef, { text: messageToSave });
-      toast({ title: "성공", description: "학생 환영 메시지가 저장되었습니다." });
-    } catch (error) {
-      console.error("Error saving student welcome message:", error);
-      toast({ title: "오류", description: "학생 환영 메시지 저장에 실패했습니다.", variant: "destructive" });
+    if (!noticeMessage.trim()) {
+        toast({ title: "내용 없음", description: "공지 내용을 입력해주세요.", variant: "destructive" });
+        return;
     }
-  };
 
-  const handleGenerateWelcomeMessage = async () => {
-    setIsGeneratingMessage(true);
+    setIsUploading(true);
+    const docId = `${noticeGrade}_${noticeClass}`;
+    const noticeDocRef = doc(db, "teacherMessages", docId);
+    let fileUrl = '';
+    let fileName = '';
+    let fileSize = 0;
+
     try {
-        const result: GenerateBaseWelcomeMessageOutput = await generateBaseWelcomeMessage();
-        setStudentWelcomeMessageInput(result.message);
-        toast({ title: "AI 메시지 생성!", description: "새로운 환영 메시지가 생성되었습니다." });
+        // 1. If there's a new file, upload it
+        if (attachmentType === 'file' && attachmentFile) {
+            const filePath = `notices/${noticeGrade}/${noticeClass}/${Date.now()}_${attachmentFile.name}`;
+            const fileStorageRef = storageRef(storage, filePath);
+            const uploadTask = await uploadBytesResumable(fileStorageRef, attachmentFile);
+            fileUrl = await getDownloadURL(uploadTask.ref);
+            fileName = attachmentFile.name;
+            fileSize = attachmentFile.size;
+        }
+
+        // 2. Prepare data for Firestore
+        const noticeData: Partial<TeacherMessage> = {
+            grade: noticeGrade,
+            classNum: noticeClass,
+            message: noticeMessage,
+            createdAt: new Date(),
+        };
+
+        if (attachmentType !== 'none') {
+            noticeData.attachment = {
+                type: attachmentType,
+                url: attachmentType === 'file' ? fileUrl : attachmentUrl,
+                ...(attachmentType === 'file' && { fileName, fileSize }),
+            };
+        } else {
+            noticeData.attachment = undefined;
+        }
+
+        // 3. If there was an old file and we are replacing it or removing it, delete the old file
+        if (currentNotice?.attachment?.type === 'file' && (attachmentType !== 'file' || attachmentFile)) {
+            const oldFileRef = storageRef(storage, currentNotice.attachment.url);
+            await deleteObject(oldFileRef).catch(err => console.warn("Old file deletion failed, it might not exist:", err));
+        }
+        
+        // 4. Save to Firestore
+        await setDoc(noticeDocRef, noticeData);
+        
+        toast({ title: "성공", description: "공지가 성공적으로 저장되었습니다." });
+        setAttachmentFile(null); // Clear file after successful upload
+
     } catch (error) {
-        console.error("Error generating welcome message:", error);
-        toast({ title: "오류", description: "AI 메시지 생성에 실패했습니다.", variant: "destructive" });
+        console.error("Error saving notice: ", error);
+        toast({ title: "저장 실패", description: "공지 저장 중 오류가 발생했습니다.", variant: "destructive" });
     } finally {
-        setIsGeneratingMessage(false);
+        setIsUploading(false);
     }
-  };
+};
+
+const handleClearNotice = async () => {
+    if (!currentNotice) return;
+
+    setIsUploading(true);
+    try {
+        // Delete file from storage if it exists
+        if (currentNotice.attachment?.type === 'file') {
+            const fileRef = storageRef(storage, currentNotice.attachment.url);
+            await deleteObject(fileRef);
+        }
+        // Delete document from Firestore
+        const noticeDocRef = doc(db, "teacherMessages", currentNotice.id);
+        await deleteDoc(noticeDocRef);
+        
+        toast({ title: "삭제 완료", description: "공지가 삭제되었습니다." });
+        setCurrentNotice(null);
+        setNoticeMessage('');
+        setAttachmentType('none');
+        setAttachmentUrl('');
+    } catch (error) {
+        console.error("Error clearing notice: ", error);
+        toast({ title: "삭제 실패", description: "공지 삭제 중 오류가 발생했습니다.", variant: "destructive" });
+    } finally {
+        setIsUploading(false);
+    }
+};
 
   const handleSaveCustomExercise = async (exerciseData: CustomExerciseType | Omit<CustomExerciseType, 'id'>) => {
     if (!selectedGrade) {
@@ -772,7 +860,7 @@ export default function TeacherPage() {
   }, [selectedClass, recordedExercises]);
 
 
-  const isLoading = isLoadingStudents || isLoadingLogs || isLoadingCompliments || isLoadingRecommendations || isLoadingWelcomeMessage || isLoadingCustomExercises || isLoadingStudentGoals;
+  const isLoading = isLoadingStudents || isLoadingLogs || isLoadingCompliments || isLoadingRecommendations || isLoadingCustomExercises || isLoadingStudentGoals;
 
   if (!isAuthenticated) {
     return (
@@ -874,11 +962,11 @@ export default function TeacherPage() {
             <TabsTrigger value="ai" className="py-3 text-base data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-md">
               <Lightbulb className="mr-2 h-5 w-5" /> AI 코치
             </TabsTrigger>
+             <TabsTrigger value="noticeManagement" className="py-3 text-base data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-md">
+              <Megaphone className="mr-2 h-5 w-5" /> 공지/자료
+            </TabsTrigger>
             <TabsTrigger value="exerciseManagement" className="py-3 text-base data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-md">
               <Settings2 className="mr-2 h-5 w-5" /> 운동 관리
-            </TabsTrigger>
-            <TabsTrigger value="welcomeMessage" className="py-3 text-base data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-md">
-              <Edit3 className="mr-2 h-5 w-5" /> 환영 메시지
             </TabsTrigger>
             <TabsTrigger value="compliments" className="py-3 text-base data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-md">
               <Sparkles className="mr-2 h-5 w-5" /> 칭찬 문구
@@ -1181,6 +1269,94 @@ export default function TeacherPage() {
                 />
               </section>
           </TabsContent>
+          
+          <TabsContent value="noticeManagement" className="mt-6">
+            <section aria-labelledby="notice-management-heading" className="bg-card p-6 rounded-xl shadow-md">
+              <h2 id="notice-management-heading" className="text-xl font-semibold mb-4 font-headline flex items-center">
+                  <Megaphone className="mr-3 h-6 w-6 text-primary" />
+                  공지 및 학습자료 관리
+              </h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Left side: Target Selection */}
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="notice-grade">대상 학년</Label>
+                    <Select value={noticeGrade} onValueChange={setNoticeGrade}>
+                      <SelectTrigger id="notice-grade"><SelectValue placeholder="학년 선택" /></SelectTrigger>
+                      <SelectContent>
+                        {GRADES.map(g => <SelectItem key={g} value={g}>{g}학년</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="notice-class">대상 반</Label>
+                    <Select value={noticeClass} onValueChange={setNoticeClass} disabled={!noticeGrade}>
+                      <SelectTrigger id="notice-class"><SelectValue placeholder="반 선택" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">전체</SelectItem>
+                        {classNumsForGrade.map(c => <SelectItem key={c} value={c}>{c}반</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                 {/* Right side: Notice Content */}
+                <div className="space-y-4">
+                  {isNoticeLoading ? <div className="h-full flex items-center justify-center"><Loader2 className="animate-spin" /></div> : (
+                  <>
+                  <div className="space-y-2">
+                    <Label htmlFor="notice-message">공지 내용</Label>
+                    <Textarea id="notice-message" value={noticeMessage} onChange={e => setNoticeMessage(e.target.value)} placeholder="학생들에게 보여줄 메시지를 입력하세요..." rows={5}/>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>첨부 파일/링크 종류</Label>
+                     <RadioGroup value={attachmentType} onValueChange={(v: any) => setAttachmentType(v)} className="flex items-center space-x-4">
+                        <div className="flex items-center space-x-2"><RadioGroupItem value="none" id="none" /><Label htmlFor="none">없음</Label></div>
+                        <div className="flex items-center space-x-2"><RadioGroupItem value="url" id="url" /><Label htmlFor="url">URL</Label></div>
+                        <div className="flex items-center space-x-2"><RadioGroupItem value="youtube" id="youtube" /><Label htmlFor="youtube">YouTube</Label></div>
+                        <div className="flex items-center space-x-2"><RadioGroupItem value="file" id="file" /><Label htmlFor="file">파일</Label></div>
+                    </RadioGroup>
+                  </div>
+                    {(attachmentType === 'url' || attachmentType === 'youtube') && (
+                       <Input type="text" placeholder={attachmentType === 'youtube' ? "YouTube 영상 URL 붙여넣기" : "https://..."} value={attachmentUrl} onChange={e => setAttachmentUrl(e.target.value)} />
+                    )}
+                    {attachmentType === 'file' && (
+                        <div>
+                          <Input type="file" onChange={e => setAttachmentFile(e.target.files ? e.target.files[0] : null)} />
+                          {currentNotice?.attachment?.type === 'file' && !attachmentFile && (
+                            <p className="text-xs text-muted-foreground mt-1">현재 파일: <a href={currentNotice.attachment.url} target="_blank" rel="noopener noreferrer" className="underline">{currentNotice.attachment.fileName}</a></p>
+                          )}
+                           <p className="text-xs text-muted-foreground mt-1">파일은 5MB 미만으로 업로드해주세요.</p>
+                        </div>
+                    )}
+                    <div className="flex gap-2">
+                      <Button onClick={handleSaveNotice} disabled={isUploading || !noticeGrade} className="flex-1">
+                        {isUploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                        {isUploading ? "저장 중..." : "저장하기"}
+                      </Button>
+                      {currentNotice && (
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                             <Button variant="destructive" disabled={isUploading}><Trash2 className="mr-2 h-4 w-4" />삭제</Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                             <AlertDialogHeader>
+                              <AlertDialogTitle>공지를 삭제하시겠습니까?</AlertDialogTitle>
+                              <AlertDialogDescription>이 작업은 되돌릴 수 없으며, 첨부된 파일도 함께 영구적으로 삭제됩니다.</AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>취소</AlertDialogCancel>
+                              <AlertDialogAction onClick={handleClearNotice}>삭제</AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      )}
+                    </div>
+                  </>
+                  )}
+                </div>
+              </div>
+            </section>
+          </TabsContent>
 
           <TabsContent value="exerciseManagement" className="mt-6">
             <section aria-labelledby="exercise-management-heading" className="bg-card p-6 rounded-xl shadow-md">
@@ -1269,45 +1445,7 @@ export default function TeacherPage() {
               )}
             </section>
           </TabsContent>
-
-          <TabsContent value="welcomeMessage" className="mt-6">
-            <section aria-labelledby="welcome-message-management-heading" className="bg-card p-6 rounded-xl shadow-md">
-              <h2 id="welcome-message-management-heading" className="text-xl font-semibold mb-6 font-headline flex items-center">
-                <Edit3 className="mr-2 h-6 w-6 text-primary" />
-                학생 환영 메시지 관리
-              </h2>
-              {isLoadingWelcomeMessage ? (
-                <div className="flex justify-center py-4"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>
-              ) : (
-                <div className="space-y-4">
-                  <div>
-                    <Label htmlFor="studentWelcomeMessageInput" className="text-base">환영 메시지 내용</Label>
-                    <Textarea
-                      id="studentWelcomeMessageInput"
-                      value={studentWelcomeMessageInput}
-                      onChange={(e) => setStudentWelcomeMessageInput(e.target.value)}
-                      placeholder="예: 오늘도 신나게 운동해볼까요?"
-                      className="min-h-[100px] rounded-lg text-base mt-1"
-                      rows={4}
-                    />
-                    <p className="text-xs text-muted-foreground mt-1">
-                      이 메시지는 학생 앱의 메인 화면 상단에 표시됩니다.
-                    </p>
-                  </div>
-                  <div className="flex gap-2">
-                    <Button onClick={handleSaveStudentWelcomeMessage} className="rounded-lg py-3 flex-grow">
-                      <MessageSquarePlus className="mr-2 h-5 w-5" /> 메시지 저장
-                    </Button>
-                    <Button onClick={handleGenerateWelcomeMessage} variant="outline" className="rounded-lg py-3" disabled={isGeneratingMessage}>
-                      {isGeneratingMessage ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <Wand2 className="mr-2 h-5 w-5" />}
-                      AI로 생성
-                    </Button>
-                  </div>
-                </div>
-              )}
-            </section>
-          </TabsContent>
-
+          
           <TabsContent value="compliments" className="mt-6">
             <section aria-labelledby="compliments-management-heading" className="bg-card p-6 rounded-xl shadow-md">
               <h2 id="compliments-management-heading" className="text-xl font-semibold mb-6 font-headline flex items-center">
