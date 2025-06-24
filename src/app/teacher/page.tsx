@@ -117,66 +117,6 @@ export default function TeacherPage() {
     }
   };
 
-  const fetchStudents = useCallback(async () => {
-    setIsLoadingStudents(true);
-    try {
-      const studentsCollectionRef = collection(db, "students");
-      const studentsSnapshot = await getDocs(studentsCollectionRef);
-      const studentsList = studentsSnapshot.docs.map(sDoc => {
-        const data = sDoc.data() as any;
-        
-        if (data.class && !data.grade) {
-            const classString = data.class;
-            const gradeMatch = classString.match(/(\d+)학년/);
-            const classNumMatch = classString.match(/(\d+)반/);
-            if (gradeMatch && classNumMatch) {
-                data.grade = gradeMatch[1];
-                data.classNum = classNumMatch[1];
-            }
-            delete data.class;
-        }
-
-        return { id: sDoc.id, ...data } as Student
-      });
-      setStudents(studentsList);
-      const classNames = Array.from(new Set(studentsList.filter(s => s.grade && s.classNum).map(s => `${s.grade}학년 ${s.classNum}반`))).sort();
-      setDynamicClasses(classNames);
-    } catch (error) {
-      console.error("Error fetching students: ", error);
-      toast({ title: "오류", description: "학생 목록을 불러오는 데 실패했습니다.", variant: "destructive"});
-    } finally {
-      setIsLoadingStudents(false);
-    }
-  }, [toast]);
-
-  const fetchLogs = useCallback(async () => {
-    setIsLoadingLogs(true);
-    try {
-      const logsCollectionRef = collection(db, "exerciseLogs");
-      const logsSnapshot = await getDocs(logsCollectionRef);
-      const logsList = logsSnapshot.docs.map(lDoc => {
-        const data = lDoc.data();
-        let dateStr = data.date;
-        if (data.date && typeof data.date.toDate === 'function') {
-          dateStr = format(data.date.toDate(), "yyyy-MM-dd");
-        } else if (typeof data.date === 'string' && data.date.includes('T')) {
-           dateStr = data.date.split('T')[0];
-        }
-        return {
-          id: lDoc.id,
-          ...data,
-          date: dateStr
-        } as RecordedExercise;
-      });
-      setRecordedExercises(logsList);
-    } catch (error) {
-      console.error("Error fetching logs: ", error);
-      toast({ title: "오류", description: "운동 기록을 불러오는 데 실패했습니다.", variant: "destructive"});
-    } finally {
-      setIsLoadingLogs(false);
-    }
-  }, [toast]);
-
   const fetchCompliments = useCallback(async () => {
     setIsLoadingCompliments(true);
     try {
@@ -303,12 +243,84 @@ export default function TeacherPage() {
     return gradeExercises;
   }, [allExercisesByGrade, selectedGrade, isLoadingCustomExercises]);
 
+  // Real-time listener for students
+  useEffect(() => {
+    if (!isAuthenticated) {
+        setStudents([]);
+        setDynamicClasses([]);
+        return;
+    }
+
+    setIsLoadingStudents(true);
+    const studentsCollectionRef = collection(db, "students");
+    
+    const unsubscribe = onSnapshot(studentsCollectionRef, (studentsSnapshot) => {
+        const studentsList = studentsSnapshot.docs.map(sDoc => {
+            const data = sDoc.data() as any;
+            if (data.class && !data.grade) {
+                const classString = data.class;
+                const gradeMatch = classString.match(/(\d+)학년/);
+                const classNumMatch = classString.match(/(\d+)반/);
+                if (gradeMatch && classNumMatch) {
+                    data.grade = gradeMatch[1];
+                    data.classNum = classNumMatch[1];
+                }
+                delete data.class;
+            }
+            return { id: sDoc.id, ...data } as Student;
+        });
+        setStudents(studentsList);
+        const classNames = Array.from(new Set(studentsList.filter(s => s.grade && s.classNum).map(s => `${s.grade}학년 ${s.classNum}반`))).sort();
+        setDynamicClasses(classNames);
+        setIsLoadingStudents(false);
+    }, (error) => {
+        console.error("Error fetching students snapshot: ", error);
+        toast({ title: "오류", description: "학생 목록을 실시간으로 불러오는 데 실패했습니다.", variant: "destructive" });
+        setIsLoadingStudents(false);
+    });
+
+    return () => unsubscribe();
+  }, [isAuthenticated, toast]);
+
+  // Real-time listener for exercise logs
+  useEffect(() => {
+    if (!isAuthenticated) {
+        setRecordedExercises([]);
+        return;
+    }
+
+    setIsLoadingLogs(true);
+    const logsCollectionRef = collection(db, "exerciseLogs");
+
+    const unsubscribe = onSnapshot(logsCollectionRef, (logsSnapshot) => {
+        const logsList = logsSnapshot.docs.map(lDoc => {
+            const data = lDoc.data();
+            let dateStr = data.date;
+            if (data.date && typeof data.date.toDate === 'function') {
+                dateStr = format(data.date.toDate(), "yyyy-MM-dd");
+            } else if (typeof data.date === 'string' && data.date.includes('T')) {
+                dateStr = data.date.split('T')[0];
+            }
+            return {
+                id: lDoc.id,
+                ...data,
+                date: dateStr
+            } as RecordedExercise;
+        });
+        setRecordedExercises(logsList);
+        setIsLoadingLogs(false);
+    }, (error) => {
+        console.error("Error fetching logs snapshot:", error);
+        toast({ title: "오류", description: "운동 기록을 실시간으로 불러오는 데 실패했습니다.", variant: "destructive" });
+        setIsLoadingLogs(false);
+    });
+
+    return () => unsubscribe();
+  }, [isAuthenticated, toast]);
 
   useEffect(() => {
     let unsubscribers: (() => void)[] = [];
     if (isAuthenticated) {
-      fetchStudents();
-      fetchLogs();
       fetchCompliments().then(unsub => unsub && unsubscribers.push(unsub));
       fetchExerciseRecommendations().then(unsub => unsub && unsubscribers.push(unsub));
       fetchStudentWelcomeMessage().then(unsub => unsub && unsubscribers.push(unsub));
@@ -317,7 +329,7 @@ export default function TeacherPage() {
     return () => {
       unsubscribers.forEach(unsub => unsub());
     };
-  }, [isAuthenticated, fetchStudents, fetchLogs, fetchCompliments, fetchExerciseRecommendations, fetchStudentWelcomeMessage, fetchCustomExercises]);
+  }, [isAuthenticated, fetchCompliments, fetchExerciseRecommendations, fetchStudentWelcomeMessage, fetchCustomExercises]);
   
   // Real-time listener for student goals in the selected class
   useEffect(() => {
