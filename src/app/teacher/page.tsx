@@ -84,7 +84,7 @@ export default function TeacherPage() {
   const [exerciseToDelete, setExerciseToDelete] = useState<CustomExerciseType | null>(null);
 
   const [studentsInClass, setStudentsInClass] = useState<Student[]>([]);
-  const [activeTab, setActiveTab] = useState<string>("students");
+  const [activeTab, setActiveTab] = useState<string>("patchNotes");
   const [isAddStudentDialogOpen, setIsAddStudentDialogOpen] = useState(false);
   const [isBatchAddDialogOpen, setIsBatchAddDialogOpen] = useState(false);
   const [studentToDelete, setStudentToDelete] = useState<Student | null>(null);
@@ -1024,6 +1024,9 @@ const handleClearNotice = async () => {
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-12 h-auto rounded-lg p-1.5">
+            <TabsTrigger value="patchNotes" className="py-3 text-base data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-md">
+                <History className="mr-2 h-5 w-5" /> 패치노트
+            </TabsTrigger>
             <TabsTrigger value="students" className="py-3 text-base data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-md">
               <Users className="mr-2 h-5 w-5" /> 학생 목록
             </TabsTrigger>
@@ -1056,9 +1059,6 @@ const handleClearNotice = async () => {
             </TabsTrigger>
             <TabsTrigger value="recommendations" className="py-3 text-base data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-md">
               <Wand2 className="mr-2 h-5 w-5" /> 추천 관리
-            </TabsTrigger>
-            <TabsTrigger value="patchNotes" className="py-3 text-base data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-md">
-                <History className="mr-2 h-5 w-5" /> 패치노트
             </TabsTrigger>
           </TabsList>
 
