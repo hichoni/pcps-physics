@@ -21,7 +21,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Users, BarChart2, Lightbulb, ListChecks, UserPlus, Trash2, Sparkles, MessageSquarePlus, MessageSquareX, Loader2, Wand2, KeyRound, LogIn, Image as ImageIconLucide, Edit, Settings2, School, PlusCircle, Edit3, AlertCircle, TrendingUp, CalendarDays, ChevronLeft, ChevronRight, Activity as ActivityIcon, Construction, RotateCcw, FileUp, Link as LinkIcon, Download, Megaphone, FileVideo, Globe, Save, Shuffle, Heart } from 'lucide-react';
+import { Users, BarChart2, Lightbulb, ListChecks, UserPlus, Trash2, Sparkles, MessageSquarePlus, MessageSquareX, Loader2, Wand2, KeyRound, LogIn, Image as ImageIconLucide, Edit, Settings2, School, PlusCircle, Edit3, AlertCircle, TrendingUp, CalendarDays, ChevronLeft, ChevronRight, Activity as ActivityIcon, Construction, RotateCcw, FileUp, Link as LinkIcon, Download, Megaphone, FileVideo, Globe, Save, Shuffle, Heart, History } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle as UICardTitle, CardDescription as UICardDescription } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -39,6 +39,7 @@ import { getIconByName } from '@/lib/iconMap';
 import { cn } from '@/lib/utils';
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import PatchNotes from '@/components/PatchNotes';
 
 const DEFAULT_COMPLIMENTS_LIST = [
   "별처럼 빛나는", "항상 긍정적인", "꿈을 향해 달리는", "세상을 밝히는",
@@ -237,7 +238,7 @@ export default function TeacherPage() {
             const data = sDoc.data() as any;
             if (data.class && !data.grade) {
                 const classString = data.class;
-                const gradeMatch = classString.match(/(\d+)학년/);
+                const gradeMatch = classString.match(/(\d)학년/);
                 const classNumMatch = classString.match(/(\d+)반/);
                 if (gradeMatch && classNumMatch) {
                     data.grade = gradeMatch[1];
@@ -1022,7 +1023,7 @@ const handleClearNotice = async () => {
         </section>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-11 h-auto rounded-lg p-1.5">
+          <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-12 h-auto rounded-lg p-1.5">
             <TabsTrigger value="students" className="py-3 text-base data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-md">
               <Users className="mr-2 h-5 w-5" /> 학생 목록
             </TabsTrigger>
@@ -1055,6 +1056,9 @@ const handleClearNotice = async () => {
             </TabsTrigger>
             <TabsTrigger value="recommendations" className="py-3 text-base data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-md">
               <Wand2 className="mr-2 h-5 w-5" /> 추천 관리
+            </TabsTrigger>
+            <TabsTrigger value="patchNotes" className="py-3 text-base data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-md">
+                <History className="mr-2 h-5 w-5" /> 패치노트
             </TabsTrigger>
           </TabsList>
 
@@ -1690,6 +1694,13 @@ const handleClearNotice = async () => {
                   학생용 앱 '오늘의 추천 운동/팁'에 표시될 목록입니다. 목록에 내용이 있으면 여기서 임의로 선택되어 학생에게 보여집니다. 비어있으면 AI가 생성합니다.
                 </p>
               </div>
+            </section>
+          </TabsContent>
+          
+          <TabsContent value="patchNotes" className="mt-6">
+            <section aria-labelledby="patch-notes-heading">
+                <h2 id="patch-notes-heading" className="sr-only">패치노트</h2>
+                <PatchNotes />
             </section>
           </TabsContent>
 
