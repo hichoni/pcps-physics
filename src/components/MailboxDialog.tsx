@@ -8,12 +8,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
-import { Mail, Send, CheckCircle, Gift, MessageSquare, AlertCircle } from 'lucide-react';
+import { Mail, Send, CheckCircle, Gift, MessageSquare, AlertCircle, Loader2 } from 'lucide-react';
 import type { MailboxMessage } from '@/lib/types';
 import { formatDistanceToNow } from 'date-fns';
 import { ko } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { ScrollArea } from './ui/scroll-area';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 interface MailboxDialogProps {
   isOpen: boolean;
