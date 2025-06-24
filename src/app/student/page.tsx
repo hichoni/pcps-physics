@@ -119,7 +119,7 @@ export default function StudentPage() {
   const [isLoadingClassmates, setIsLoadingClassmates] = useState(true);
 
   const [goalDialogState, setGoalDialogState] = useState<{isOpen: boolean; date: Date | null}>({ isOpen: false, date: null });
-  const [isLogFormOpen, setIsLogFormOpen] = useState(false);
+  const [logFormState, setLogFormState] = useState<{isOpen: boolean; initialExerciseId?: string}>({ isOpen: false });
   const [isChangeOwnPinDialogOpen, setIsChangeOwnPinDialogOpen] = useState(false);
   const [isChangeAvatarDialogOpen, setIsChangeAvatarDialogOpen] = useState(false);
   const [isLevelGuideDialogOpen, setIsLevelGuideDialogOpen] = useState(false);
@@ -636,8 +636,14 @@ export default function StudentPage() {
     setIsActivityLogsLoading(true);
   };
 
-  const handleOpenLogForm = () => {
+  const handleOpenLogForm = (initialExerciseId?: string) => {
     if (currentStudent) {
+        // If clicking a specific goal card, we can always open the form.
+        if (initialExerciseId) {
+            setLogFormState({ isOpen: true, initialExerciseId });
+            return;
+        }
+
         const exercisesWithGoals = Object.keys(todaysGoals).filter(exId => {
             if (todaysSkipped.has(exId)) return false;
             const goal = todaysGoals[exId];
@@ -650,12 +656,12 @@ export default function StudentPage() {
             setGoalDialogState({ isOpen: true, date: new Date() });
             return;
         }
-        setIsLogFormOpen(true);
+        setLogFormState({ isOpen: true, initialExerciseId: undefined });
     }
   };
 
   const handleCloseLogForm = () => {
-    setIsLogFormOpen(false);
+    setLogFormState({ isOpen: false, initialExerciseId: undefined });
   };
 
   const handleSaveExerciseLog = async (logData: Omit<RecordedExercise, 'id' | 'imageUrl'>) => {
@@ -664,7 +670,7 @@ export default function StudentPage() {
       const docRef = await addDoc(collection(db, "exerciseLogs"), logData);
 
       toast({ title: "기록 완료!", description: "오늘의 운동이 성공적으로 기록되었어요! 참 잘했어요!" });
-      setIsLogFormOpen(false);
+      handleCloseLogForm();
       setIsCameraModeOpen(false);
       setCameraExerciseId(null);
 
@@ -761,14 +767,14 @@ export default function StudentPage() {
         setIsChangeAvatarDialogOpen(false);
       } catch (error) {
         console.error("Error updating avatar:", error);
-        toast({ title: "오류", description: "아바타 변경에 실패했습니다. 다시 시도해주세요.", variant: "destructive" });
+        toast({ title: "오류", description: "아바타 변경에 실패했습니다.", variant: "destructive" });
       }
     }
   };
 
   const handleSwitchToCameraMode = (exerciseId: string) => {
     setCameraExerciseId(exerciseId);
-    setIsLogFormOpen(false);
+    setLogFormState({ isOpen: false });
     setIsCameraModeOpen(true);
   };
 
@@ -1135,7 +1141,7 @@ export default function StudentPage() {
                             <CheckSquare className="mr-2 h-6 w-6" />
                             운동 목표 설정하기
                         </Button>
-                        <Button size="lg" className="rounded-lg py-3 px-6 text-lg flex-grow sm:flex-grow-0" onClick={handleOpenLogForm}>
+                        <Button size="lg" className="rounded-lg py-3 px-6 text-lg flex-grow sm:flex-grow-0" onClick={() => handleOpenLogForm()}>
                             <PlusCircle className="mr-2 h-6 w-6" />
                             오늘의 운동 기록하기
                         </Button>
@@ -1194,7 +1200,11 @@ export default function StudentPage() {
                       const IconComp = getIconByName(exercise.iconName) || ActivityIconLucide;
 
                       return (
-                        <div key={exercise.id} className="p-3 border rounded-lg bg-secondary/20 space-y-3">
+                        <button
+                          key={exercise.id}
+                          className="w-full text-left p-3 border rounded-lg bg-secondary/20 space-y-3 hover:bg-secondary/40 transition-colors"
+                          onClick={() => handleOpenLogForm(exercise.id)}
+                        >
                           <div className="flex items-center justify-between">
                             <span className="font-semibold text-primary flex items-center">
                               <IconComp className="inline-block mr-2 h-5 w-5" />
@@ -1237,7 +1247,7 @@ export default function StudentPage() {
                                 </div>
                               );
                           })}
-                        </div>
+                        </button>
                       );
                     })}
                   </div>
@@ -1447,7 +1457,7 @@ export default function StudentPage() {
         {currentStudent && (
           <ExerciseLogForm
             student={currentStudent}
-            isOpen={isLogFormOpen}
+            isOpen={logFormState.isOpen}
             onClose={handleCloseLogForm}
             onSave={handleSaveExerciseLog}
             recordedExercises={studentActivityLogs}
@@ -1455,6 +1465,7 @@ export default function StudentPage() {
             availableExercises={availableExercises}
             skippedExercises={todaysSkipped}
             studentGoals={todaysGoals}
+            initialExerciseId={logFormState.initialExerciseId}
           />
         )}
 

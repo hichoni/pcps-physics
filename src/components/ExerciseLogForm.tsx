@@ -24,6 +24,7 @@ interface ExerciseLogFormProps {
   availableExercises: Exercise[];
   skippedExercises: Set<string>;
   studentGoals: StudentGoal;
+  initialExerciseId?: string;
 }
 
 const ExerciseLogForm: React.FC<ExerciseLogFormProps> = ({ 
@@ -35,7 +36,8 @@ const ExerciseLogForm: React.FC<ExerciseLogFormProps> = ({
   onSwitchToCameraMode, 
   availableExercises,
   skippedExercises,
-  studentGoals
+  studentGoals,
+  initialExerciseId
 }) => {
   
   const [selectedExerciseId, setSelectedExerciseId] = useState<string>('');
@@ -51,7 +53,7 @@ const ExerciseLogForm: React.FC<ExerciseLogFormProps> = ({
     });
   }, [availableExercises, studentGoals, skippedExercises]);
 
-  const selectedExercise = loggableExercises.find(ex => ex.id === selectedExerciseId) || loggableExercises[0];
+  const selectedExercise = loggableExercises.find(ex => ex.id === selectedExerciseId) || null;
   
   const getInitialLogValue = (exercise: Exercise | null): number => {
     if (!exercise) return 0;
@@ -79,16 +81,21 @@ const ExerciseLogForm: React.FC<ExerciseLogFormProps> = ({
 
   useEffect(() => {
     if (isOpen) {
-      const firstLoggableExercise = loggableExercises.length > 0 ? loggableExercises[0] : null;
-      const currentSelectionIsValid = selectedExerciseId && loggableExercises.some(ex => ex.id === selectedExerciseId);
-
-      if (!currentSelectionIsValid) {
-        setSelectedExerciseId(firstLoggableExercise?.id || '');
-      }
-      
-      setLogDate(new Date());
+        // Case 1: A specific exercise was clicked to open the form.
+        if (initialExerciseId && loggableExercises.some(e => e.id === initialExerciseId)) {
+            setSelectedExerciseId(initialExerciseId);
+        } 
+        // Case 2: Generic button was clicked.
+        else {
+            const currentSelectionIsValid = selectedExerciseId && loggableExercises.some(ex => ex.id === selectedExerciseId);
+            // If current selection is no longer valid (e.g., goal was removed), reset to the first available.
+            if (!currentSelectionIsValid) {
+                setSelectedExerciseId(loggableExercises.length > 0 ? loggableExercises[0].id : '');
+            }
+        }
+        setLogDate(new Date());
     }
-  }, [isOpen, student, loggableExercises, selectedExerciseId]);
+  }, [isOpen, initialExerciseId, loggableExercises]);
 
   useEffect(() => {
     const currentExerciseDetails = availableExercises.find(ex => ex.id === selectedExerciseId);
@@ -103,6 +110,7 @@ const ExerciseLogForm: React.FC<ExerciseLogFormProps> = ({
     }
     if (logValue === 0) {
         toast({ title: "알림", description: "운동 기록 값이 0입니다. 값을 입력해주세요.", variant: "default"});
+        return; // Do not save if value is 0
     }
 
     let logEntry: Omit<RecordedExercise, 'id' | 'imageUrl'> = {
@@ -120,14 +128,13 @@ const ExerciseLogForm: React.FC<ExerciseLogFormProps> = ({
     }
 
     onSave(logEntry);
-    onClose(); 
   };
 
   if (!student) return null;
   if (loggableExercises.length === 0) return null;
 
   const exercisesLoggedTodayForStudent = recordedExercises.filter(
-    rec => rec.studentId === student.id && isToday(new Date(rec.date)) && rec.exerciseId === selectedExercise.id
+    rec => rec.studentId === student.id && isToday(new Date(rec.date)) && rec.exerciseId === selectedExercise?.id
   );
 
   let totalLoggedTodayDisplay = "";
