@@ -479,16 +479,31 @@ export default function StudentPage() {
 
 
   useEffect(() => {
-    if (selectedGrade && selectedClassNum && allStudents.length > 0) {
-      setStudentsInClass(allStudents.filter(student => student.grade === selectedGrade && student.classNum === selectedClassNum).sort((a,b) => a.studentNumber - b.studentNumber));
+    // This effect manages the list of students shown, either for login selection or for class features.
+    if (currentStudent && allStudents.length > 0) {
+      // If a student is logged in, populate studentsInClass with their classmates for ranking.
+      setStudentsInClass(
+        allStudents
+          .filter(s => s.grade === currentStudent.grade && s.classNum === currentStudent.classNum)
+          .sort((a, b) => a.studentNumber - b.studentNumber)
+      );
+    } else if (!currentStudent && selectedGrade && selectedClassNum && allStudents.length > 0) {
+      // On the login screen, populate studentsInClass based on the selected grade and class.
+      setStudentsInClass(
+        allStudents
+          .filter(student => student.grade === selectedGrade && student.classNum === selectedClassNum)
+          .sort((a, b) => a.studentNumber - b.studentNumber)
+      );
+      // Reset student selection when class changes
       setSelectedStudentId('');
       setStudentForPinCheck(null);
       setEnteredPin('');
       setLoginError(null);
     } else {
+      // If logged out and no class is selected, the list is empty.
       setStudentsInClass([]);
     }
-  }, [selectedGrade, selectedClassNum, allStudents]);
+  }, [currentStudent, selectedGrade, selectedClassNum, allStudents]);
 
   // Fetch classmates data
   useEffect(() => {
