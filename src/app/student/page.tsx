@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dumbbell, Target, History, PlusCircle, LogOut, UserCheck, Loader2, AlertTriangle, KeyRound, Edit3, Camera, Info, Activity as ActivityIconLucide, CheckSquare, CalendarDays, Edit, CheckCircle, Trophy, RotateCcw, Link as LinkIcon, Download } from 'lucide-react';
+import { Dumbbell, Target, History, PlusCircle, LogOut, UserCheck, Loader2, AlertTriangle, KeyRound, Edit3, Camera, Info, Activity as ActivityIconLucide, CheckSquare, CalendarDays, Edit, CheckCircle, Trophy, RotateCcw, Link as LinkIcon, Download, Megaphone } from 'lucide-react';
 import type { Student, RecordedExercise, Gender, StudentGoal, CustomExercise as CustomExerciseType, Exercise as ExerciseType, LevelInfo, DailyGoalEntry, TeacherMessage } from '@/lib/types';
 import { EXERCISES_SEED_DATA } from '@/data/mockData';
 import SetStudentGoalsDialog from '@/components/SetStudentGoalsDialog';
@@ -258,6 +258,23 @@ export default function StudentPage() {
     levelInfo: LevelInfo
   ) => {
     setIsAiWelcomeLoading(true);
+    
+    // Cache key based on student ID and their current level.
+    // A new message will be generated when they level up.
+    const cacheKey = `personalized-welcome-${student.id}-${levelInfo.level}`;
+    try {
+      const cachedMessage = localStorage.getItem(cacheKey);
+
+      if (cachedMessage) {
+        setAiPersonalizedWelcome(cachedMessage);
+        setIsAiWelcomeLoading(false);
+        return;
+      }
+    } catch (e) {
+      console.warn("Could not read from localStorage for caching", e);
+    }
+
+
     try {
       const input: GeneratePersonalizedWelcomeMessageInput = {
         studentName: student.name,
@@ -266,10 +283,21 @@ export default function StudentPage() {
         currentLevelMaxXp: levelInfo.maxXp,
       };
       const result: GeneratePersonalizedWelcomeMessageOutput = await generatePersonalizedWelcomeMessage(input);
-      setAiPersonalizedWelcome(result.welcomeMessage);
+      
+      if (result.welcomeMessage) {
+        setAiPersonalizedWelcome(result.welcomeMessage);
+        try {
+          localStorage.setItem(cacheKey, result.welcomeMessage); // Save to cache
+        } catch (e) {
+          console.warn("Could not write to localStorage for caching", e);
+        }
+      } else {
+        // Handle cases where AI returns an empty message
+        setAiPersonalizedWelcome(`${student.name}님, 안녕하세요! 👋`);
+      }
     } catch (error) {
       console.error("AI 개인 맞춤 환영 메시지 생성 오류:", error);
-      setAiPersonalizedWelcome(`${student.name}님, 안녕하세요! 👋`); // Fallback
+      setAiPersonalizedWelcome(`${student.name}님, 안녕하세요! 👋`); // Fallback message
     } finally {
       setIsAiWelcomeLoading(false);
     }
@@ -436,8 +464,10 @@ export default function StudentPage() {
   useEffect(() => {
       if (!currentStudent) {
           setTeacherNotice(null);
+          setIsLoadingNotice(false); // Set to false if no student
           return;
       }
+      setIsLoadingNotice(true); // Set to true when starting to fetch
 
       let classNoticeData: TeacherMessage | null = null;
 
@@ -450,6 +480,8 @@ export default function StudentPage() {
           if (classNoticeData) {
               setTeacherNotice(classNoticeData);
           }
+      }, (error) => {
+        console.error("Class notice listener error:", error);
       });
 
       const unsubGrade = onSnapshot(gradeNoticeRef, (docSnap) => {
@@ -458,6 +490,12 @@ export default function StudentPage() {
           if (!classNoticeData) {
               setTeacherNotice(gradeNoticeData);
           }
+          // Loading is considered done after we get the result for the grade-wide notice,
+          // as it's the final fallback.
+          setIsLoadingNotice(false);
+      }, (error) => {
+        console.error("Grade notice listener error:", error);
+        setIsLoadingNotice(false);
       });
 
       return () => {
@@ -1111,7 +1149,7 @@ export default function StudentPage() {
     );
   }
 
-  if (isLoadingStudentData || isLoadingExercises || (currentStudent && isAiWelcomeLoading) ) {
+  if (isLoadingStudentData || isLoadingExercises) {
      return (
       <div className="flex flex-col min-h-screen">
         <StudentHeader
@@ -1125,7 +1163,6 @@ export default function StudentPage() {
           <Loader2 className="h-12 w-12 animate-spin text-primary" />
           <span className="ml-4 text-xl">
             {isLoadingStudentData ? `${currentStudent.name} 학생의 데이터를 불러오는 중...` : 
-             isAiWelcomeLoading ? '환영 메시지 생성 중...' :
              '운동 목록 설정 대기 중...'}
           </span>
         </main>
@@ -1167,11 +1204,11 @@ export default function StudentPage() {
                     <Loader2 className="h-6 w-6 animate-spin text-primary" />
                     <span className="ml-2">선생님 공지 확인 중...</span>
                 </Card>
-            ) : teacherNotice && (
+            ) : teacherNotice ? (
                 <Card className="shadow-lg rounded-xl">
                     <CardHeader>
                         <CardTitle className="text-2xl sm:text-3xl font-bold font-headline text-primary">
-                            📣 선생님의 공지
+                            📣 선생님의 한마디
                         </CardTitle>
                     </CardHeader>
                     <CardContent>
@@ -1187,7 +1224,7 @@ export default function StudentPage() {
                         )}
                     </CardContent>
                 </Card>
-            )}
+            ) : null}
             
             <Card className="shadow-lg rounded-xl flex flex-col">
                 <CardHeader className="pb-4">
