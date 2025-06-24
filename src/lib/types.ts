@@ -141,3 +141,18 @@ export interface TeacherMessage {
   };
   createdAt: any; // Can be Firestore Timestamp
 }
+
+export interface ManitoAssignment {
+  [studentId: string]: string; // key: studentId (마니또), value: their secret friend's ID (챙겨줘야 할 친구)
+}
+
+export interface MailboxMessage {
+  id: string;
+  fromId: string;
+  toId: string;
+  type: 'cheer' | 'mission';
+  content: string;
+  isRead: boolean;
+  missionStatus?: 'pending' | 'completed';
+  createdAt: any; // Firestore Timestamp
+}

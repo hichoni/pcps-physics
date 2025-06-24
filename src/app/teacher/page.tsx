@@ -14,14 +14,14 @@ import ClassSummaryStats from '@/components/ClassSummaryStats';
 import ClassWeeklyPlan from '@/components/ClassWeeklyPlan';
 import StudentWeeklyPlanDialog from '@/components/StudentWeeklyPlanDialog'; // 새로 추가
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import type { Student, RecordedExercise, CustomExercise as CustomExerciseType, Gender, TeacherExerciseRecommendation, StudentGoal, Exercise as ExerciseType, DailyGoalEntry, TeacherMessage } from '@/lib/types';
+import type { Student, RecordedExercise, CustomExercise as CustomExerciseType, Gender, TeacherExerciseRecommendation, StudentGoal, Exercise as ExerciseType, DailyGoalEntry, TeacherMessage, ManitoAssignment } from '@/lib/types';
 import { EXERCISES_SEED_DATA } from '@/data/mockData';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Users, BarChart2, Lightbulb, ListChecks, UserPlus, Trash2, Sparkles, MessageSquarePlus, MessageSquareX, Loader2, Wand2, KeyRound, LogIn, Image as ImageIconLucide, Edit, Settings2, School, PlusCircle, Edit3, AlertCircle, TrendingUp, CalendarDays, ChevronLeft, ChevronRight, Activity as ActivityIcon, Construction, RotateCcw, FileUp, Link as LinkIcon, Download, Megaphone, FileVideo, Globe, Save } from 'lucide-react';
+import { Users, BarChart2, Lightbulb, ListChecks, UserPlus, Trash2, Sparkles, MessageSquarePlus, MessageSquareX, Loader2, Wand2, KeyRound, LogIn, Image as ImageIconLucide, Edit, Settings2, School, PlusCircle, Edit3, AlertCircle, TrendingUp, CalendarDays, ChevronLeft, ChevronRight, Activity as ActivityIcon, Construction, RotateCcw, FileUp, Link as LinkIcon, Download, Megaphone, FileVideo, Globe, Save, Shuffle, Heart } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle as UICardTitle, CardDescription as UICardDescription } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -110,6 +110,10 @@ export default function TeacherPage() {
   const [currentNotice, setCurrentNotice] = useState<TeacherMessage | null>(null);
   const [isNoticeLoading, setIsNoticeLoading] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+
+  // State for Manito feature
+  const [manitoAssignments, setManitoAssignments] = useState<ManitoAssignment | null>(null);
+  const [isAssigningManito, setIsAssigningManito] = useState(false);
 
 
   const handlePinSubmit = (e: React.FormEvent) => {
@@ -312,8 +316,10 @@ export default function TeacherPage() {
     // Sort the result
     filteredStudents.sort((a, b) => {
       if (!selectedClass) {
-        const classCompare = (`${a.grade}학년 ${a.classNum}반`).localeCompare(`${b.grade}학년 ${b.classNum}반`);
-        if (classCompare !== 0) return classCompare;
+        const gradeCompare = (a.grade || '').localeCompare(b.grade || '');
+        if (gradeCompare !== 0) return gradeCompare;
+        const classNumCompare = (a.classNum || '').localeCompare(b.classNum || '');
+        if (classNumCompare !== 0) return classNumCompare;
       }
       return Number(a.studentNumber) - Number(b.studentNumber);
     });
@@ -434,6 +440,33 @@ export default function TeacherPage() {
   
       fetchNotice();
   }, [noticeGrade, noticeClass, toast]);
+
+    // Fetch Manito assignments for the selected class
+    useEffect(() => {
+        if (!selectedClass) {
+            setManitoAssignments(null);
+            return;
+        }
+        const gradeMatch = selectedClass.match(/(\d+)학년/);
+        const classNumMatch = selectedClass.match(/(\d+)반/);
+        if (!gradeMatch || !classNumMatch) return;
+
+        const assignmentDocId = `${gradeMatch[1]}_${classNumMatch[1]}`;
+        const assignmentDocRef = doc(db, "manitoAssignments", assignmentDocId);
+
+        const unsub = onSnapshot(assignmentDocRef, (docSnap) => {
+            if (docSnap.exists()) {
+                setManitoAssignments(docSnap.data() as ManitoAssignment);
+            } else {
+                setManitoAssignments(null);
+            }
+        }, (error) => {
+            console.error("Error fetching manito assignments:", error);
+            setManitoAssignments(null);
+        });
+
+        return () => unsub();
+    }, [selectedClass]);
 
   const goalsForSelectedDate = useMemo(() => {
     const dateKey = format(selectedLogDate, 'yyyy-MM-dd');
@@ -852,6 +885,52 @@ const handleClearNotice = async () => {
       setSelectedStudentForPlan(null);
   };
 
+  const handleAssignManito = async () => {
+      if (!selectedClass || studentsInClass.length < 2) {
+          toast({
+              title: "오류",
+              description: "마니또를 배정하려면 학급을 선택해야 하며, 최소 2명의 학생이 있어야 합니다.",
+              variant: "destructive",
+          });
+          return;
+      }
+
+      setIsAssigningManito(true);
+      try {
+          const studentIds = studentsInClass.map(s => s.id);
+          for (let i = studentIds.length - 1; i > 0; i--) {
+              const j = Math.floor(Math.random() * (i + 1));
+              [studentIds[i], studentIds[j]] = [studentIds[j], studentIds[i]];
+          }
+
+          const assignments: ManitoAssignment = {};
+          for (let i = 0; i < studentIds.length; i++) {
+              assignments[studentIds[i]] = studentIds[(i + 1) % studentIds.length];
+          }
+
+          const gradeMatch = selectedClass.match(/(\d+)학년/);
+          const classNumMatch = selectedClass.match(/(\d+)반/);
+          const assignmentDocId = `${gradeMatch![1]}_${classNumMatch![1]}`;
+          const assignmentDocRef = doc(db, "manitoAssignments", assignmentDocId);
+
+          await setDoc(assignmentDocRef, assignments);
+
+          toast({
+              title: "성공!",
+              description: `${selectedClass} 마니또 배정이 완료되었습니다.`,
+          });
+      } catch (error) {
+          console.error("Error assigning manito:", error);
+          toast({
+              title: "오류",
+              description: "마니또 배정 중 오류가 발생했습니다.",
+              variant: "destructive",
+          });
+      } finally {
+          setIsAssigningManito(false);
+      }
+  };
+
   const isNextDayDisabled = isToday(selectedLogDate) || selectedLogDate > new Date();
 
   const logsForClass = useMemo(() => {
@@ -943,7 +1022,7 @@ const handleClearNotice = async () => {
         </section>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-10 h-auto rounded-lg p-1.5">
+          <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-11 h-auto rounded-lg p-1.5">
             <TabsTrigger value="students" className="py-3 text-base data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-md">
               <Users className="mr-2 h-5 w-5" /> 학생 목록
             </TabsTrigger>
@@ -964,6 +1043,9 @@ const handleClearNotice = async () => {
             </TabsTrigger>
              <TabsTrigger value="noticeManagement" className="py-3 text-base data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-md">
               <Megaphone className="mr-2 h-5 w-5" /> 공지/자료
+            </TabsTrigger>
+            <TabsTrigger value="manito" className="py-3 text-base data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-md">
+              <Heart className="mr-2 h-5 w-5" /> 마니또
             </TabsTrigger>
             <TabsTrigger value="exerciseManagement" className="py-3 text-base data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-md">
               <Settings2 className="mr-2 h-5 w-5" /> 운동 관리
@@ -1356,6 +1438,54 @@ const handleClearNotice = async () => {
                 </div>
               </div>
             </section>
+          </TabsContent>
+
+          <TabsContent value="manito" className="mt-6">
+              <section aria-labelledby="manito-heading" className="bg-card p-6 rounded-xl shadow-md">
+                  <h2 id="manito-heading" className="text-xl font-semibold mb-4 font-headline flex items-center">
+                      <Heart className="mr-3 h-6 w-6 text-primary" />
+                      마니또(비밀친구) 관리
+                  </h2>
+                  <div className="space-y-4">
+                      <Button onClick={handleAssignManito} disabled={isAssigningManito || !selectedClass} className="rounded-lg">
+                          {isAssigningManito ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Shuffle className="mr-2 h-4 w-4" />}
+                          {manitoAssignments ? `${selectedClass} 마니또 재배정` : '마니또 배정하기'}
+                      </Button>
+                      <p className="text-xs text-muted-foreground">
+                          선택된 학급의 학생들을 대상으로 마니또를 배정합니다. 각 학생은 다른 학생의 비밀친구가 됩니다.
+                      </p>
+                      
+                      {manitoAssignments && studentsInClass.length > 0 ? (
+                          <div className="overflow-x-auto">
+                              <Table>
+                                  <TableHeader>
+                                      <TableRow>
+                                          <TableHead>마니또 (수호자)</TableHead>
+                                          <TableHead>비밀친구 (도와줄 친구)</TableHead>
+                                      </TableRow>
+                                  </TableHeader>
+                                  <TableBody>
+                                      {Object.entries(manitoAssignments).map(([manitoId, secretFriendId]) => {
+                                          const manitoStudent = studentsInClass.find(s => s.id === manitoId);
+                                          const secretFriendStudent = studentsInClass.find(s => s.id === secretFriendId);
+                                          if (!manitoStudent || !secretFriendStudent) return null;
+                                          return (
+                                              <TableRow key={manitoId}>
+                                                  <TableCell>{manitoStudent.name} ({manitoStudent.studentNumber}번)</TableCell>
+                                                  <TableCell>{secretFriendStudent.name} ({secretFriendStudent.studentNumber}번)</TableCell>
+                                              </TableRow>
+                                          );
+                                      })}
+                                  </TableBody>
+                              </Table>
+                          </div>
+                      ) : selectedClass ? (
+                          <p className="text-sm text-muted-foreground">
+                              {studentsInClass.length < 2 ? "마니또를 배정하려면 학생이 2명 이상 필요합니다." : "아직 배정된 마니또가 없습니다. '마니또 배정하기' 버튼을 눌러 시작하세요."}
+                          </p>
+                      ) : null}
+                  </div>
+              </section>
           </TabsContent>
 
           <TabsContent value="exerciseManagement" className="mt-6">

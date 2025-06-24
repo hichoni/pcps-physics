@@ -2,7 +2,7 @@
 'use client';
 
 import React from 'react';
-import { Target, UserCircle2 } from 'lucide-react';
+import { Target, UserCircle2, Mail } from 'lucide-react';
 import type { Gender } from '@/lib/types';
 import { AVATAR_OPTIONS } from '@/data/avatarOptions';
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -15,6 +15,8 @@ interface StudentHeaderProps {
   avatarId?: string | null; // Can be null or undefined if not set
   onChangeAvatar: () => void;
   dailyCompliment?: string;
+  onOpenMailbox: () => void;
+  unreadMailCount: number;
 }
 
 const getInitials = (name: string) => {
@@ -26,7 +28,7 @@ const getInitials = (name: string) => {
   return initials;
 };
 
-const StudentHeader: React.FC<StudentHeaderProps> = ({ studentName, gender, avatarId, onChangeAvatar, dailyCompliment }) => {
+const StudentHeader: React.FC<StudentHeaderProps> = ({ studentName, gender, avatarId, onChangeAvatar, dailyCompliment, onOpenMailbox, unreadMailCount }) => {
   const titleText = `${studentName}의 운동기록장`;
 
   const headerStyles = {
@@ -76,19 +78,36 @@ const StudentHeader: React.FC<StudentHeaderProps> = ({ studentName, gender, avat
             </h1>
           </div>
         </div>
-        <Button 
-          variant="ghost" 
-          size="icon" 
-          onClick={onChangeAvatar} 
-          className={cn("rounded-full hover:bg-background/20", currentStyle.buttonText)}
-          aria-label="아바타 변경"
-        >
-          <UserCircle2 className="h-7 w-7" />
-        </Button>
+        <div className="flex items-center gap-2">
+            <div className="relative">
+                <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    onClick={onOpenMailbox} 
+                    className={cn("rounded-full hover:bg-background/20", currentStyle.buttonText)}
+                    aria-label="편지함"
+                >
+                    <Mail className="h-7 w-7" />
+                </Button>
+                {unreadMailCount > 0 && (
+                    <div className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-xs font-bold text-white">
+                        {unreadMailCount}
+                    </div>
+                )}
+            </div>
+            <Button 
+            variant="ghost" 
+            size="icon" 
+            onClick={onChangeAvatar} 
+            className={cn("rounded-full hover:bg-background/20", currentStyle.buttonText)}
+            aria-label="아바타 변경"
+            >
+            <UserCircle2 className="h-7 w-7" />
+            </Button>
+        </div>
       </div>
     </header>
   );
 };
 
 export default StudentHeader;
-    

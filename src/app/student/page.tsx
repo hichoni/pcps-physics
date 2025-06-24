@@ -9,8 +9,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dumbbell, Target, History, PlusCircle, LogOut, UserCheck, Loader2, AlertTriangle, KeyRound, Edit3, Camera, Info, Activity as ActivityIconLucide, CheckSquare, CalendarDays, Edit, CheckCircle, Trophy, RotateCcw, Link as LinkIcon, Download, Megaphone } from 'lucide-react';
-import type { Student, RecordedExercise, Gender, StudentGoal, CustomExercise as CustomExerciseType, Exercise as ExerciseType, LevelInfo, DailyGoalEntry, TeacherMessage } from '@/lib/types';
+import { Dumbbell, Target, History, PlusCircle, LogOut, UserCheck, Loader2, AlertTriangle, KeyRound, Edit3, Camera, Info, Activity as ActivityIconLucide, CheckSquare, CalendarDays, Edit, CheckCircle, Trophy, RotateCcw, Link as LinkIcon, Download, Megaphone, Mail } from 'lucide-react';
+import type { Student, RecordedExercise, Gender, StudentGoal, CustomExercise as CustomExerciseType, Exercise as ExerciseType, LevelInfo, DailyGoalEntry, TeacherMessage, ManitoAssignment, MailboxMessage } from '@/lib/types';
 import { EXERCISES_SEED_DATA } from '@/data/mockData';
 import SetStudentGoalsDialog from '@/components/SetStudentGoalsDialog';
 import ExerciseLogForm from '@/components/ExerciseLogForm';
@@ -21,11 +21,12 @@ import StudentActivityChart from '@/components/StudentActivityChart';
 import LevelGuideDialog from '@/components/LevelGuideDialog';
 import ClassRanking from '@/components/ClassRanking';
 import ClassmateWeeklyPlans from '@/components/ClassmateWeeklyPlans';
+import MailboxDialog from '@/components/MailboxDialog'; // New Component
 import { useToast } from "@/hooks/use-toast";
 import { recommendStudentExercise, RecommendStudentExerciseOutput, RecommendStudentExerciseInput } from '@/ai/flows/recommend-student-exercise';
 import { generatePersonalizedWelcomeMessage, GeneratePersonalizedWelcomeMessageInput, GeneratePersonalizedWelcomeMessageOutput } from '@/ai/flows/generatePersonalizedWelcomeMessage';
 import { db } from '@/lib/firebase';
-import { collection, getDocs, doc, getDoc, setDoc, query, where, addDoc, updateDoc, onSnapshot, arrayUnion, arrayRemove, runTransaction, increment } from 'firebase/firestore';
+import { collection, getDocs, doc, getDoc, setDoc, query, where, addDoc, updateDoc, onSnapshot, arrayUnion, arrayRemove, runTransaction, increment, orderBy, writeBatch } from 'firebase/firestore';
 import { format, parseISO, isToday, startOfWeek, addDays, endOfMonth } from 'date-fns';
 import { ko } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
@@ -122,6 +123,7 @@ export default function StudentPage() {
   const [isChangeOwnPinDialogOpen, setIsChangeOwnPinDialogOpen] = useState(false);
   const [isChangeAvatarDialogOpen, setIsChangeAvatarDialogOpen] = useState(false);
   const [isLevelGuideDialogOpen, setIsLevelGuideDialogOpen] = useState(false);
+  const [isMailboxOpen, setIsMailboxOpen] = useState(false); // For Manito
 
   const [todaysGoals, setTodaysGoals] = useState<StudentGoal>({});
   const [todaysSkipped, setTodaysSkipped] = useState<Set<string>>(new Set());
@@ -143,6 +145,10 @@ export default function StudentPage() {
 
   const [isCameraModeOpen, setIsCameraModeOpen] = useState(false);
   const [cameraExerciseId, setCameraExerciseId] = useState<string | null>(null);
+  
+  // Manito state
+  const [mySecretFriend, setMySecretFriend] = useState<Student | null>(null);
+  const [mailboxMessages, setMailboxMessages] = useState<MailboxMessage[]>([]);
   
   const todayDate = useMemo(() => new Date(), []);
   
@@ -628,6 +634,52 @@ export default function StudentPage() {
     fetchClassmatesData();
   }, [currentStudent, allStudents, toast]);
 
+    // Fetch Manito assignment
+    useEffect(() => {
+        if (!currentStudent || allStudents.length === 0) {
+            setMySecretFriend(null);
+            return;
+        }
+        const assignmentDocId = `${currentStudent.grade}_${currentStudent.classNum}`;
+        const assignmentDocRef = doc(db, "manitoAssignments", assignmentDocId);
+
+        const unsub = onSnapshot(assignmentDocRef, (docSnap) => {
+            if (docSnap.exists()) {
+                const assignments = docSnap.data() as ManitoAssignment;
+                const secretFriendId = assignments[currentStudent.id];
+                if (secretFriendId) {
+                    const friendData = allStudents.find(s => s.id === secretFriendId);
+                    setMySecretFriend(friendData || null);
+                } else {
+                    setMySecretFriend(null);
+                }
+            } else {
+                setMySecretFriend(null);
+            }
+        });
+
+        return () => unsub();
+    }, [currentStudent, allStudents]);
+
+    // Listen to mailbox for new messages
+    useEffect(() => {
+        if (!currentStudent) {
+            setMailboxMessages([]);
+            return;
+        }
+        const mailboxCollectionRef = collection(db, 'students', currentStudent.id, 'mailbox');
+        const q = query(mailboxCollectionRef, orderBy('createdAt', 'desc'));
+
+        const unsub = onSnapshot(q, (snapshot) => {
+            const messages = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as MailboxMessage));
+            setMailboxMessages(messages);
+        });
+
+        return () => unsub();
+    }, [currentStudent]);
+
+    const unreadMailCount = useMemo(() => mailboxMessages.filter(m => !m.isRead).length, [mailboxMessages]);
+
   const handleStudentSelect = (studentId: string) => {
     setSelectedStudentId(studentId);
     const student = allStudents.find(s => s.id === studentId);
@@ -951,6 +1003,62 @@ export default function StudentPage() {
     }
   };
 
+  const handleOpenMailbox = () => {
+    if (!currentStudent) return;
+    setIsMailboxOpen(true);
+    // Mark all unread messages as read
+    const unreadMessages = mailboxMessages.filter(m => !m.isRead);
+    if (unreadMessages.length > 0) {
+      const batch = writeBatch(db);
+      unreadMessages.forEach(msg => {
+        const msgRef = doc(db, 'students', currentStudent.id, 'mailbox', msg.id);
+        batch.update(msgRef, { isRead: true });
+      });
+      batch.commit().catch(err => console.error("Error marking messages as read:", err));
+    }
+  };
+
+  const handleSendMessage = async (type: 'cheer' | 'mission', content: string) => {
+      if (!currentStudent || !mySecretFriend) {
+          toast({ title: "오류", description: "비밀친구가 지정되지 않아 메시지를 보낼 수 없습니다.", variant: "destructive" });
+          return;
+      }
+      try {
+          const message: Omit<MailboxMessage, 'id'> = {
+              fromId: currentStudent.id,
+              toId: mySecretFriend.id,
+              type,
+              content,
+              isRead: false,
+              createdAt: new Date(),
+              ...(type === 'mission' && { missionStatus: 'pending' })
+          };
+          await addDoc(collection(db, 'students', mySecretFriend.id, 'mailbox'), message);
+          toast({ title: "성공!", description: "메시지를 비밀친구에게 보냈습니다." });
+      } catch (error) {
+          console.error("Error sending message:", error);
+          toast({ title: "전송 실패", description: "메시지 전송 중 오류가 발생했습니다.", variant: "destructive" });
+      }
+  };
+
+  const handleCompleteMission = async (messageId: string) => {
+      if (!currentStudent) return;
+      try {
+          const messageRef = doc(db, 'students', currentStudent.id, 'mailbox', messageId);
+          const studentRef = doc(db, 'students', currentStudent.id);
+
+          await runTransaction(db, async (transaction) => {
+              transaction.update(messageRef, { missionStatus: 'completed', isRead: true });
+              transaction.update(studentRef, { totalXp: increment(10) });
+          });
+          toast({ title: "미션 완료!", description: "대단해요! 보너스 10 XP를 획득했습니다! ✨" });
+      } catch (error) {
+          console.error("Error completing mission:", error);
+          toast({ title: "오류", description: "미션 완료 처리 중 오류가 발생했습니다.", variant: "destructive" });
+      }
+  };
+
+
   const xpProgress = useMemo(() => {
     if (!currentStudent || !currentLevelInfo || currentLevelInfo.level === 10) return 100;
     const xpInCurrentLevel = (currentStudent.totalXp || 0) - currentLevelInfo.minXp;
@@ -1158,6 +1266,8 @@ export default function StudentPage() {
           avatarId={currentStudent.avatarSeed}
           onChangeAvatar={() => setIsChangeAvatarDialogOpen(true)}
           dailyCompliment={dailyCompliment}
+          onOpenMailbox={handleOpenMailbox}
+          unreadMailCount={unreadMailCount}
         />
         <main className="flex-grow container mx-auto p-4 sm:p-6 lg:p-8 flex justify-center items-center">
           <Loader2 className="h-12 w-12 animate-spin text-primary" />
@@ -1193,6 +1303,8 @@ export default function StudentPage() {
         avatarId={currentStudent.avatarSeed}
         onChangeAvatar={() => setIsChangeAvatarDialogOpen(true)}
         dailyCompliment={dailyCompliment}
+        onOpenMailbox={handleOpenMailbox}
+        unreadMailCount={unreadMailCount}
       />
       <main className="flex-grow container mx-auto p-4 sm:p-6 lg:p-8 space-y-8">
         <div
@@ -1654,6 +1766,18 @@ export default function StudentPage() {
             onClose={() => setIsLevelGuideDialogOpen(false)}
             levelTiers={LEVEL_TIERS}
         />}
+
+        {mySecretFriend && currentStudent && (
+            <MailboxDialog
+                isOpen={isMailboxOpen}
+                onClose={() => setIsMailboxOpen(false)}
+                messages={mailboxMessages}
+                mySecretFriendName={mySecretFriend.name}
+                onSendMessage={handleSendMessage}
+                onCompleteMission={handleCompleteMission}
+                currentStudentName={currentStudent.name}
+            />
+        )}
 
       </main>
       <footer className="text-center p-4 text-sm text-muted-foreground border-t">
