@@ -10,7 +10,7 @@ export interface PatchNote {
 export const PATCH_NOTES: PatchNote[] = [
     {
         version: "v1.2.0",
-        date: "2024-08-01",
+        date: "2024-07-31",
         features: [
             "교사용 페이지에 '패치노트' 기능 추가",
             "비밀친구(마니또) 기능 추가! 친구에게 미션을 보내고 보너스 XP를 획득하세요.",
