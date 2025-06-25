@@ -21,7 +21,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Users, BarChart2, Lightbulb, ListChecks, UserPlus, Trash2, Sparkles, MessageSquarePlus, MessageSquareX, Loader2, Wand2, KeyRound, LogIn, Image as ImageIconLucide, Edit, Settings2, School, PlusCircle, Edit3, AlertCircle, TrendingUp, CalendarDays, ChevronLeft, ChevronRight, Activity as ActivityIcon, Construction, RotateCcw, FileUp, Link as LinkIcon, Download, Megaphone, FileVideo, Globe, Save, Shuffle, Heart, History } from 'lucide-react';
+import { Users, BarChart2, Lightbulb, ListChecks, UserPlus, Trash2, Sparkles, MessageSquarePlus, MessageSquareX, Loader2, Wand2, KeyRound, LogIn, Image as ImageIconLucide, Edit, Settings2, School, PlusCircle, Edit3, AlertCircle, TrendingUp, CalendarDays, ChevronLeft, ChevronRight, Activity as ActivityIcon, Construction, RotateCw, FileUp, Link as LinkIcon, Download, Megaphone, FileVideo, Globe, Save, Shuffle, Heart, History } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle as UICardTitle, CardDescription as UICardDescription } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -32,7 +32,7 @@ import { useToast } from "@/hooks/use-toast";
 import { db, storage } from '@/lib/firebase';
 import { v4 as uuidv4 } from 'uuid';
 import {
-  collection, getDocs, addDoc, deleteDoc, doc, writeBatch, query, where, setDoc, getDoc, updateDoc, arrayUnion, arrayRemove, onSnapshot
+  collection, getDocs, addDoc, deleteDoc, doc, writeBatch, query, where, setDoc, getDoc, updateDoc, arrayUnion, arrayRemove
 } from 'firebase/firestore';
 import { ref as storageRef, uploadBytesResumable, getDownloadURL, deleteObject } from "firebase/storage";
 import { getIconByName } from '@/lib/iconMap';
@@ -78,6 +78,8 @@ export default function TeacherPage() {
   const [isLoadingRecommendations, setIsLoadingRecommendations] = useState(true);
   const [isLoadingCustomExercises, setIsLoadingCustomExercises] = useState(true);
   const [isLoadingStudentGoals, setIsLoadingStudentGoals] = useState(true);
+  
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const [isManageExerciseDialogOpen, setIsManageExerciseDialogOpen] = useState(false);
   const [exerciseToEdit, setExerciseToEdit] = useState<CustomExerciseType | null>(null);
@@ -127,113 +129,36 @@ export default function TeacherPage() {
       setPinInput('');
     }
   };
+  
+  const fetchData = useCallback(async (isClassChange = false) => {
+    if (!isAuthenticated) return;
 
-  const fetchCompliments = useCallback(async () => {
-    setIsLoadingCompliments(true);
-    try {
-      const complimentsDocRef = doc(db, COMPLIMENTS_DOC_PATH);
-      const unsub = onSnapshot(complimentsDocRef, (docSnap) => {
-        if (docSnap.exists() && docSnap.data()?.list) {
-          setCompliments(docSnap.data()?.list);
-        } else {
-          setCompliments(DEFAULT_COMPLIMENTS_LIST);
-          if (!docSnap.exists()) {
-              setDoc(complimentsDocRef, { list: DEFAULT_COMPLIMENTS_LIST });
-          }
-        }
-        setIsLoadingCompliments(false);
-      }, (error) => {
-          console.error("Error in compliments snapshot: ", error);
-          toast({ title: "오류", description: "칭찬 문구 실시간 업데이트 중 오류 발생.", variant: "destructive"});
-          setCompliments(DEFAULT_COMPLIMENTS_LIST);
-          setIsLoadingCompliments(false);
-      });
-      return unsub;
-    } catch (error) {
-      console.error("Error setting up compliments snapshot: ", error);
-      toast({ title: "오류", description: "칭찬 문구를 불러오는 데 실패했습니다.", variant: "destructive"});
-      setCompliments(DEFAULT_COMPLIMENTS_LIST);
-      setIsLoadingCompliments(false);
+    if (!isClassChange) {
+      toast({ title: "데이터 새로고침 중..." });
     }
-  }, [toast]);
-
-  const fetchExerciseRecommendations = useCallback(async () => {
-    setIsLoadingRecommendations(true);
-    try {
-      const recommendationsDocRef = doc(db, RECOMMENDATIONS_DOC_PATH);
-      const unsub = onSnapshot(recommendationsDocRef, (docSnap) => {
-        if (docSnap.exists() && docSnap.data()?.list) {
-          setExerciseRecommendations(docSnap.data()?.list);
-        } else {
-          setExerciseRecommendations([]);
-          if (!docSnap.exists()) {
-               setDoc(recommendationsDocRef, { list: [] });
-          }
-        }
-        setIsLoadingRecommendations(false);
-      }, (error) => {
-        console.error("Error in recommendations snapshot: ", error);
-        toast({ title: "오류", description: "추천 운동/팁 실시간 업데이트 중 오류 발생.", variant: "destructive"});
-        setExerciseRecommendations([]);
-        setIsLoadingRecommendations(false);
-      });
-      return unsub;
-    } catch (error) {
-      console.error("Error setting up recommendations snapshot: ", error);
-      toast({ title: "오류", description: "추천 운동/팁 목록을 불러오는 데 실패했습니다.", variant: "destructive"});
-      setExerciseRecommendations([]);
-      setIsLoadingRecommendations(false);
-    }
-  }, [toast]);
-
-  const fetchCustomExercises = useCallback(async () => {
-    setIsLoadingCustomExercises(true);
-    try {
-      const exercisesDocRef = doc(db, EXERCISES_BY_GRADE_DOC_PATH);
-      const unsub = onSnapshot(exercisesDocRef, (docSnap) => {
-        if (docSnap.exists()) {
-          setAllExercisesByGrade(docSnap.data() as Record<string, CustomExerciseType[]>);
-        } else {
-          setDoc(exercisesDocRef, {});
-          setAllExercisesByGrade({});
-        }
-        setIsLoadingCustomExercises(false);
-      }, (error) => {
-         console.error("Error in custom exercises snapshot: ", error);
-         toast({ title: "오류", description: "운동 목록 실시간 업데이트 중 오류 발생.", variant: "destructive"});
-         setAllExercisesByGrade({});
-         setIsLoadingCustomExercises(false);
-      });
-      return unsub;
-    } catch (error) {
-      console.error("Error setting up custom exercises snapshot: ", error);
-      toast({ title: "오류", description: "운동 목록을 불러오는 데 실패했습니다.", variant: "destructive"});
-      setAllExercisesByGrade({});
-      setIsLoadingCustomExercises(false);
-    }
-  }, [toast]);
-
-  const exercisesForCurrentGrade = useMemo(() => {
-    if (!selectedGrade || isLoadingCustomExercises) return [];
-    const gradeExercises = allExercisesByGrade[selectedGrade];
-    if (!gradeExercises || gradeExercises.length === 0) {
-      return EXERCISES_SEED_DATA;
-    }
-    return gradeExercises;
-  }, [allExercisesByGrade, selectedGrade, isLoadingCustomExercises]);
-
-  // Real-time listener for students
-  useEffect(() => {
-    if (!isAuthenticated) {
-        setStudents([]);
-        setDynamicClasses([]);
-        return;
-    }
-
+    setIsRefreshing(true);
     setIsLoadingStudents(true);
-    const studentsCollectionRef = collection(db, "students");
-    
-    const unsubscribe = onSnapshot(studentsCollectionRef, (studentsSnapshot) => {
+    setIsLoadingLogs(true);
+    setIsLoadingCompliments(true);
+    setIsLoadingRecommendations(true);
+    setIsLoadingCustomExercises(true);
+    setIsLoadingStudentGoals(true);
+
+    try {
+        const [
+            studentsSnapshot,
+            logsSnapshot,
+            complimentsDocSnap,
+            recommendationsDocSnap,
+            exercisesDocSnap
+        ] = await Promise.all([
+            getDocs(collection(db, "students")),
+            getDocs(collection(db, "exerciseLogs")),
+            getDoc(doc(db, COMPLIMENTS_DOC_PATH)),
+            getDoc(doc(db, RECOMMENDATIONS_DOC_PATH)),
+            getDoc(doc(db, EXERCISES_BY_GRADE_DOC_PATH))
+        ]);
+
         const studentsList = studentsSnapshot.docs.map(sDoc => {
             const data = sDoc.data() as any;
             if (data.class && !data.grade) {
@@ -251,27 +176,7 @@ export default function TeacherPage() {
         setStudents(studentsList);
         const classNames = Array.from(new Set(studentsList.filter(s => s.grade && s.classNum).map(s => `${s.grade}학년 ${s.classNum}반`))).sort();
         setDynamicClasses(classNames);
-        setIsLoadingStudents(false);
-    }, (error) => {
-        console.error("Error fetching students snapshot: ", error);
-        toast({ title: "오류", description: "학생 목록을 실시간으로 불러오는 데 실패했습니다.", variant: "destructive" });
-        setIsLoadingStudents(false);
-    });
 
-    return () => unsubscribe();
-  }, [isAuthenticated, toast]);
-
-  // Real-time listener for exercise logs
-  useEffect(() => {
-    if (!isAuthenticated) {
-        setRecordedExercises([]);
-        return;
-    }
-
-    setIsLoadingLogs(true);
-    const logsCollectionRef = collection(db, "exerciseLogs");
-
-    const unsubscribe = onSnapshot(logsCollectionRef, (logsSnapshot) => {
         const logsList = logsSnapshot.docs.map(lDoc => {
             const data = lDoc.data();
             let dateStr = data.date;
@@ -280,116 +185,107 @@ export default function TeacherPage() {
             } else if (typeof data.date === 'string' && data.date.includes('T')) {
                 dateStr = data.date.split('T')[0];
             }
-            return {
-                id: lDoc.id,
-                ...data,
-                date: dateStr
-            } as RecordedExercise;
+            return { id: lDoc.id, ...data, date: dateStr } as RecordedExercise;
         });
         setRecordedExercises(logsList);
-        setIsLoadingLogs(false);
-    }, (error) => {
-        console.error("Error fetching logs snapshot: ", error);
-        toast({ title: "오류", description: "운동 기록을 실시간으로 불러오는 데 실패했습니다.", variant: "destructive" });
-        setIsLoadingLogs(false);
-    });
 
-    return () => unsubscribe();
-  }, [isAuthenticated, toast]);
-  
-  // New useEffect to manage studentsInClass reactively
-  useEffect(() => {
-    if (isLoadingStudents) return;
+        setCompliments(complimentsDocSnap.exists() ? complimentsDocSnap.data()?.list : DEFAULT_COMPLIMENTS_LIST);
+        setExerciseRecommendations(recommendationsDocSnap.exists() ? recommendationsDocSnap.data()?.list : []);
+        setAllExercisesByGrade(exercisesDocSnap.exists() ? exercisesDocSnap.data() as Record<string, CustomExerciseType[]> : {});
 
-    let filteredStudents: Student[];
-
-    if (!selectedClass) {
-      // "All students" view
-      filteredStudents = [...students];
-    } else {
-      const gradeMatch = selectedClass.match(/(\d+)학년/);
-      const classNumMatch = selectedClass.match(/(\d+)반/);
-      const grade = gradeMatch ? gradeMatch[1] : '';
-      const classNum = classNumMatch ? classNumMatch[1] : '';
-      filteredStudents = students.filter(s => s.grade === grade && s.classNum === classNum);
-    }
-
-    // Sort the result
-    filteredStudents.sort((a, b) => {
-      if (!selectedClass) {
-        const gradeCompare = (a.grade || '').localeCompare(b.grade || '');
-        if (gradeCompare !== 0) return gradeCompare;
-        const classNumCompare = (a.classNum || '').localeCompare(b.classNum || '');
-        if (classNumCompare !== 0) return classNumCompare;
-      }
-      return Number(a.studentNumber) - Number(b.studentNumber);
-    });
-
-    setStudentsInClass(filteredStudents);
-  }, [students, selectedClass, isLoadingStudents]);
-
-
-  useEffect(() => {
-    let unsubscribers: (() => void)[] = [];
-    if (isAuthenticated) {
-      fetchCompliments().then(unsub => unsub && unsubscribers.push(unsub));
-      fetchExerciseRecommendations().then(unsub => unsub && unsubscribers.push(unsub));
-      fetchCustomExercises().then(unsub => unsub && unsubscribers.push(unsub));
-    }
-    return () => {
-      unsubscribers.forEach(unsub => unsub());
-    };
-  }, [isAuthenticated, fetchCompliments, fetchExerciseRecommendations, fetchCustomExercises]);
-  
-  // Real-time listener for student goals in the selected class
-  useEffect(() => {
-    if (!isAuthenticated || !selectedClass) {
-        setAllStudentDailyGoals({});
-        setIsLoadingStudentGoals(false);
-        return;
-    }
-    
-    if (studentsInClass.length === 0) {
-        setAllStudentDailyGoals({});
-        setIsLoadingStudentGoals(false);
-        return;
-    }
-
-    setIsLoadingStudentGoals(true);
-
-    const unsubscribers = studentsInClass.map(student => {
-        const goalsDocRef = doc(db, 'studentGoals', student.id);
-        return onSnapshot(goalsDocRef, (docSnap) => {
-            const dailyGoalsFromDb = docSnap.exists() ? docSnap.data().dailyGoals || {} : {};
-            const processedGoals: Record<string, { goals: StudentGoal; skipped: Set<string> }> = {};
-            
-            for (const dateKey in dailyGoalsFromDb) {
-                processedGoals[dateKey] = {
-                    goals: dailyGoalsFromDb[dateKey].goals || {},
-                    skipped: new Set(dailyGoalsFromDb[dateKey].skipped || []),
-                };
+        let filteredStudents: Student[];
+        const gradeMatch = selectedClass ? selectedClass.match(/(\d+)학년/) : null;
+        const classNumMatch = selectedClass ? selectedClass.match(/(\d+)반/) : null;
+        if (!selectedClass) {
+            filteredStudents = [...studentsList];
+        } else {
+            const grade = gradeMatch ? gradeMatch[1] : '';
+            const classNum = classNumMatch ? classNumMatch[1] : '';
+            filteredStudents = studentsList.filter(s => s.grade === grade && s.classNum === classNum);
+        }
+        filteredStudents.sort((a, b) => {
+            if (!selectedClass) {
+                const gradeCompare = (a.grade || '').localeCompare(b.grade || '');
+                if (gradeCompare !== 0) return gradeCompare;
+                const classNumCompare = (a.classNum || '').localeCompare(b.classNum || '');
+                if (classNumCompare !== 0) return classNumCompare;
             }
-            
-            setAllStudentDailyGoals(prev => ({
-                ...prev,
-                [student.id]: processedGoals
-            }));
-        }, (error) => {
-            console.error(`Error listening to goals for student ${student.id}:`, error);
+            return Number(a.studentNumber) - Number(b.studentNumber);
         });
-    });
+        setStudentsInClass(filteredStudents);
 
-    const studentIds = studentsInClass.map(s => s.id);
-    const goalPromises = studentIds.map(id => getDoc(doc(db, 'studentGoals', id)));
-    Promise.all(goalPromises)
-        .catch((err) => console.error("Error during initial goal fetch for loading state:", err))
-        .finally(() => setIsLoadingStudentGoals(false));
+        if (filteredStudents.length > 0) {
+            const studentIds = filteredStudents.map(s => s.id);
+            const goalPromises = studentIds.map(id => getDoc(doc(db, 'studentGoals', id)));
+            const goalDocs = await Promise.all(goalPromises);
+            const allGoals: Record<string, Record<string, { goals: StudentGoal; skipped: Set<string>; }>> = {};
+            goalDocs.forEach((docSnap, index) => {
+                const studentId = studentIds[index];
+                const dailyGoalsFromDb = docSnap.exists() ? docSnap.data().dailyGoals || {} : {};
+                const processedGoals: Record<string, { goals: StudentGoal; skipped: Set<string> }> = {};
+                for (const dateKey in dailyGoalsFromDb) {
+                    processedGoals[dateKey] = {
+                        goals: dailyGoalsFromDb[dateKey].goals || {},
+                        skipped: new Set(dailyGoalsFromDb[dateKey].skipped || []),
+                    };
+                }
+                allGoals[studentId] = processedGoals;
+            });
+            setAllStudentDailyGoals(allGoals);
+        } else {
+            setAllStudentDailyGoals({});
+        }
 
-    return () => {
-        unsubscribers.forEach(unsub => unsub());
-    };
-  }, [isAuthenticated, selectedClass, studentsInClass]);
+        if (selectedClass && gradeMatch && classNumMatch) {
+            const assignmentDocId = `${gradeMatch[1]}_${classNumMatch[1]}`;
+            const assignmentDocRef = doc(db, "manitoAssignments", assignmentDocId);
+            const manitoDocSnap = await getDoc(assignmentDocRef);
+            setManitoAssignments(manitoDocSnap.exists() ? manitoDocSnap.data() as ManitoAssignment : null);
+        } else {
+            setManitoAssignments(null);
+        }
+
+        if (!isClassChange) {
+            toast({ title: "완료", description: "최신 데이터를 불러왔습니다." });
+        }
+
+    } catch (error) {
+        console.error("Data fetch error:", error);
+        toast({ title: "오류", description: "데이터를 불러오는 데 실패했습니다.", variant: "destructive" });
+    } finally {
+        setIsRefreshing(false);
+        setIsLoadingStudents(false);
+        setIsLoadingLogs(false);
+        setIsLoadingCompliments(false);
+        setIsLoadingRecommendations(false);
+        setIsLoadingCustomExercises(false);
+        setIsLoadingStudentGoals(false);
+    }
+  }, [isAuthenticated, selectedClass, toast]);
+
+  useEffect(() => {
+    if (isAuthenticated) {
+        fetchData();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated]);
   
+  useEffect(() => {
+    if (isAuthenticated) {
+        fetchData(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedClass]);
+
+  const exercisesForCurrentGrade = useMemo(() => {
+    if (!selectedGrade || isLoadingCustomExercises) return [];
+    const gradeExercises = allExercisesByGrade[selectedGrade];
+    if (!gradeExercises || gradeExercises.length === 0) {
+      return EXERCISES_SEED_DATA;
+    }
+    return gradeExercises;
+  }, [allExercisesByGrade, selectedGrade, isLoadingCustomExercises]);
+
   // Effect for notice management form
   useEffect(() => {
       if (noticeGrade) {
@@ -442,33 +338,6 @@ export default function TeacherPage() {
       fetchNotice();
   }, [noticeGrade, noticeClass, toast]);
 
-    // Fetch Manito assignments for the selected class
-    useEffect(() => {
-        if (!selectedClass) {
-            setManitoAssignments(null);
-            return;
-        }
-        const gradeMatch = selectedClass.match(/(\d+)학년/);
-        const classNumMatch = selectedClass.match(/(\d+)반/);
-        if (!gradeMatch || !classNumMatch) return;
-
-        const assignmentDocId = `${gradeMatch[1]}_${classNumMatch[1]}`;
-        const assignmentDocRef = doc(db, "manitoAssignments", assignmentDocId);
-
-        const unsub = onSnapshot(assignmentDocRef, (docSnap) => {
-            if (docSnap.exists()) {
-                setManitoAssignments(docSnap.data() as ManitoAssignment);
-            } else {
-                setManitoAssignments(null);
-            }
-        }, (error) => {
-            console.error("Error fetching manito assignments:", error);
-            setManitoAssignments(null);
-        });
-
-        return () => unsub();
-    }, [selectedClass]);
-
   const goalsForSelectedDate = useMemo(() => {
     const dateKey = format(selectedLogDate, 'yyyy-MM-dd');
     const goals: Record<string, StudentGoal> = {};
@@ -496,16 +365,11 @@ export default function TeacherPage() {
       const docRef = await addDoc(collection(db, "students"), studentWithAvatar);
       const newStudent = { ...studentWithAvatar, id: docRef.id };
       
-      const newClassName = `${newStudent.grade}학년 ${newStudent.classNum}반`;
-      setStudents(prev => [...prev, newStudent].sort((a, b) => (`${a.grade}학년 ${a.classNum}반`).localeCompare(`${b.grade}학년 ${b.classNum}반`) || Number(a.studentNumber) - Number(b.studentNumber)));
-      if (!dynamicClasses.includes(newClassName)) {
-        setDynamicClasses(prev => [...prev, newClassName].sort());
-      }
-      
       const studentGoalsDocRef = doc(db, "studentGoals", newStudent.id);
       await setDoc(studentGoalsDocRef, { dailyGoals: {} });
 
-      toast({ title: "성공", description: "학생이 추가되었습니다." });
+      toast({ title: "성공", description: "학생이 추가되었습니다. 데이터를 보려면 새로고침 해주세요." });
+      fetchData(); // Refetch data after adding
     } catch (error) {
       console.error("Error adding student: ", error);
       toast({ title: "오류", description: "학생 추가에 실패했습니다.", variant: "destructive"});
@@ -518,28 +382,17 @@ export default function TeacherPage() {
       const studentsCollectionRef = collection(db, "students");
       const goalsCollectionRef = collection(db, "studentGoals");
 
-      const newStudents: Student[] = [];
-      const newClassNames = new Set(dynamicClasses);
-
       studentsToAdd.forEach(studentData => {
         const studentWithAvatar = { ...studentData, avatarSeed: '' };
         const newDocRef = doc(studentsCollectionRef); 
         batch.set(newDocRef, studentWithAvatar);
         
-        const newStudent = { ...studentWithAvatar, id: newDocRef.id };
-        newStudents.push(newStudent);
-        
         const goalsDocRef = doc(goalsCollectionRef, newDocRef.id);
         batch.set(goalsDocRef, { dailyGoals: {} });
-        
-        newClassNames.add(`${newStudent.grade}학년 ${newStudent.classNum}반`);
       });
       
       await batch.commit();
-
-      setStudents(prev => [...prev, ...newStudents].sort((a,b) => (`${a.grade}학년 ${a.classNum}반`).localeCompare(`${b.grade}학년 ${b.classNum}반`) || Number(a.studentNumber) - Number(b.studentNumber)));
-      setDynamicClasses(Array.from(newClassNames).sort());
-
+      fetchData(); // Refetch data
     } catch (error) {
       console.error("Error batch adding students: ", error);
       toast({ title: "오류", description: "학생 일괄 추가에 실패했습니다.", variant: "destructive"});
@@ -567,22 +420,8 @@ export default function TeacherPage() {
         batch.delete(goalsDocRef);
         await batch.commit();
         
-        const remainingStudents = students.filter(s => s.id !== studentToDelete.id);
-        setStudents(remainingStudents);
-        setRecordedExercises(prevLogs => prevLogs.filter(log => log.studentId !== studentToDelete.id));
-        setAllStudentDailyGoals(prevGoals => {
-            const newGoals = {...prevGoals};
-            delete newGoals[studentToDelete.id];
-            return newGoals;
-        });
-
-        const updatedClassNames = Array.from(new Set(remainingStudents.map(s => `${s.grade}학년 ${s.classNum}반`))).sort();
-        setDynamicClasses(updatedClassNames);
-        if(selectedClass && !updatedClassNames.includes(selectedClass)){
-          setSelectedClass(undefined);
-        }
-
         toast({ title: "성공", description: `${studentToDelete.name} 학생 정보가 삭제되었습니다.` });
+        fetchData(); // Refetch data
       } catch (error) {
         console.error("Error deleting student: ", error);
         toast({ title: "오류", description: "학생 정보 삭제에 실패했습니다.", variant: "destructive"});
@@ -607,6 +446,7 @@ export default function TeacherPage() {
       });
       setNewCompliment('');
       toast({ title: "성공", description: "칭찬 문구가 추가되었습니다."});
+      fetchData();
     } catch (error) {
       console.error("Error adding compliment: ", error);
       toast({ title: "오류", description: "칭찬 문구 추가에 실패했습니다.", variant: "destructive"});
@@ -620,6 +460,7 @@ export default function TeacherPage() {
         list: arrayRemove(complimentToDelete)
       });
       toast({ title: "성공", description: "칭찬 문구가 삭제되었습니다."});
+      fetchData();
     } catch (error) {
       console.error("Error deleting compliment: ", error);
       toast({ title: "오류", description: "칭찬 문구 삭제에 실패했습니다.", variant: "destructive"});
@@ -646,6 +487,7 @@ export default function TeacherPage() {
       setNewRecommendationTitle('');
       setNewRecommendationDetail('');
       toast({ title: "성공", description: "추천 운동/팁이 추가되었습니다."});
+      fetchData();
     } catch (error) {
         console.error("Error adding exercise recommendation: ", error);
         toast({ title: "오류", description: "추천 운동/팁 추가에 실패했습니다.", variant: "destructive"});
@@ -659,6 +501,7 @@ export default function TeacherPage() {
         list: arrayRemove(recommendationToDelete)
       });
       toast({ title: "성공", description: "추천 운동/팁이 삭제되었습니다."});
+      fetchData();
     } catch (error) {
       console.error("Error deleting exercise recommendation: ", error);
       toast({ title: "오류", description: "추천 운동/팁 삭제에 실패했습니다.", variant: "destructive"});
@@ -683,7 +526,6 @@ export default function TeacherPage() {
     let fileSize = 0;
 
     try {
-        // 1. If there's a new file, upload it
         if (attachmentType === 'file' && attachmentFile) {
             const filePath = `notices/${noticeGrade}/${noticeClass}/${Date.now()}_${attachmentFile.name}`;
             const fileStorageRef = storageRef(storage, filePath);
@@ -693,7 +535,6 @@ export default function TeacherPage() {
             fileSize = attachmentFile.size;
         }
 
-        // 2. Prepare data for Firestore
         const noticeData: Partial<TeacherMessage> = {
             grade: noticeGrade,
             classNum: noticeClass,
@@ -711,17 +552,15 @@ export default function TeacherPage() {
             noticeData.attachment = undefined;
         }
 
-        // 3. If there was an old file and we are replacing it or removing it, delete the old file
         if (currentNotice?.attachment?.type === 'file' && (attachmentType !== 'file' || attachmentFile)) {
             const oldFileRef = storageRef(storage, currentNotice.attachment.url);
             await deleteObject(oldFileRef).catch(err => console.warn("Old file deletion failed, it might not exist:", err));
         }
         
-        // 4. Save to Firestore
         await setDoc(noticeDocRef, noticeData);
         
         toast({ title: "성공", description: "공지가 성공적으로 저장되었습니다." });
-        setAttachmentFile(null); // Clear file after successful upload
+        setAttachmentFile(null);
 
     } catch (error) {
         console.error("Error saving notice: ", error);
@@ -736,12 +575,10 @@ const handleClearNotice = async () => {
 
     setIsUploading(true);
     try {
-        // Delete file from storage if it exists
         if (currentNotice.attachment?.type === 'file') {
             const fileRef = storageRef(storage, currentNotice.attachment.url);
             await deleteObject(fileRef);
         }
-        // Delete document from Firestore
         const noticeDocRef = doc(db, "teacherMessages", currentNotice.id);
         await deleteDoc(noticeDocRef);
         
@@ -797,6 +634,7 @@ const handleClearNotice = async () => {
         
         setIsManageExerciseDialogOpen(false);
         setExerciseToEdit(null);
+        fetchData();
     } catch (error) {
         console.error("Error saving custom exercise: ", error);
         toast({ title: "오류", description: "운동 저장에 실패했습니다.", variant: "destructive"});
@@ -817,6 +655,7 @@ const handleClearNotice = async () => {
       const exercisesDocRef = doc(db, EXERCISES_BY_GRADE_DOC_PATH);
       await updateDoc(exercisesDocRef, { [selectedGrade]: EXERCISES_SEED_DATA });
       toast({title: "성공", description: `${selectedGrade}학년 운동 목록이 기본값으로 초기화되었습니다.`});
+      fetchData();
     } catch (error) {
       toast({title: "오류", description: "운동 목록 초기화에 실패했습니다.", variant: "destructive"});
     }
@@ -834,6 +673,7 @@ const handleClearNotice = async () => {
             const updatedExercises = baseExercises.filter(ex => ex.id !== exerciseToDelete.id);
             await updateDoc(exercisesDocRef, { [selectedGrade]: updatedExercises });
             toast({ title: "성공", description: `운동 "${exerciseToDelete.koreanName}"이(가) 삭제되었습니다.` });
+            fetchData();
         } catch (error) {
             console.error("Error deleting exercise: ", error);
             toast({ title: "오류", description: "운동 삭제에 실패했습니다.", variant: "destructive" });
@@ -915,6 +755,8 @@ const handleClearNotice = async () => {
           const assignmentDocRef = doc(db, "manitoAssignments", assignmentDocId);
 
           await setDoc(assignmentDocRef, assignments);
+          
+          setManitoAssignments(assignments);
 
           toast({
               title: "성공!",
@@ -1016,9 +858,15 @@ const handleClearNotice = async () => {
       <Header />
       <main className="flex-grow container mx-auto p-4 sm:p-6 lg:p-8 space-y-8">
         <section aria-labelledby="class-selection-heading" className="bg-card p-6 rounded-xl shadow-md">
-          <h2 id="class-selection-heading" className="text-xl font-semibold mb-4 font-headline">
-            학급 선택
-          </h2>
+          <div className="flex flex-wrap gap-4 justify-between items-center mb-4">
+            <h2 id="class-selection-heading" className="text-xl font-semibold font-headline">
+              학급 선택
+            </h2>
+            <Button onClick={() => fetchData(false)} variant="outline" disabled={isRefreshing}>
+              <RotateCw className={cn("mr-2 h-4 w-4", isRefreshing && "animate-spin")} />
+              데이터 새로고침
+            </Button>
+          </div>
           <ClassSelector selectedClass={selectedClass} onClassChange={handleClassChange} allClasses={dynamicClasses} />
         </section>
 
@@ -1363,7 +1211,6 @@ const handleClearNotice = async () => {
                   공지 및 학습자료 관리
               </h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Left side: Target Selection */}
                 <div className="space-y-4">
                   <div className="space-y-2">
                     <Label htmlFor="notice-grade">대상 학년</Label>
@@ -1385,7 +1232,6 @@ const handleClearNotice = async () => {
                     </Select>
                   </div>
                 </div>
-                 {/* Right side: Notice Content */}
                 <div className="space-y-4">
                   {isNoticeLoading ? <div className="h-full flex items-center justify-center"><Loader2 className="animate-spin" /></div> : (
                   <>
@@ -1506,7 +1352,7 @@ const handleClearNotice = async () => {
                     <AlertDialog>
                       <AlertDialogTrigger asChild>
                         <Button variant="outline" className="rounded-lg" disabled={!selectedGrade}>
-                          <RotateCcw className="mr-2 h-5 w-5" /> 기본값으로 초기화
+                          <RotateCw className="mr-2 h-5 w-5" /> 기본값으로 초기화
                         </Button>
                       </AlertDialogTrigger>
                       <AlertDialogContent>
