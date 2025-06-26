@@ -9,6 +9,19 @@ export interface PatchNote {
 
 export const PATCH_NOTES: PatchNote[] = [
     {
+        version: "v1.2.1",
+        date: "2025-06-25",
+        features: [
+            "교사가 학생에게 보너스 XP를 지급하는 기능 추가",
+        ],
+        improvements: [
+            "교사 페이지의 데이터 새로고침 방식을 자동에서 수동으로 변경하여 사용성 개선",
+        ],
+        fixes: [
+            "마니또 미션을 하루에 한 번만 보낼 수 있도록 제한하여 경험치 무한 획득 버그 수정",
+        ],
+    },
+    {
         version: "v1.2.0",
         date: "2025-06-24",
         features: [

@@ -32,7 +32,7 @@ import { useToast } from "@/hooks/use-toast";
 import { db, storage } from '@/lib/firebase';
 import { v4 as uuidv4 } from 'uuid';
 import {
-  collection, getDocs, addDoc, deleteDoc, doc, writeBatch, query, where, setDoc, getDoc, updateDoc, arrayUnion, arrayRemove
+  collection, getDocs, addDoc, deleteDoc, doc, writeBatch, query, where, setDoc, getDoc, updateDoc, arrayUnion, arrayRemove, increment
 } from 'firebase/firestore';
 import { ref as storageRef, uploadBytesResumable, getDownloadURL, deleteObject } from "firebase/storage";
 import { getIconByName } from '@/lib/iconMap';
@@ -774,6 +774,20 @@ const handleClearNotice = async () => {
       }
   };
 
+  const handleGiveXp = async (studentId: string, studentName: string) => {
+    try {
+      const studentDocRef = doc(db, "students", studentId);
+      await updateDoc(studentDocRef, {
+        totalXp: increment(5)
+      });
+      toast({ title: "XP 지급 완료!", description: `${studentName} 학생에게 보너스 5XP를 지급했습니다. 학생의 멋진 활동을 칭찬해주세요!` });
+      fetchData(); // Refresh data to show updated XP
+    } catch (error) {
+      console.error("Error giving XP:", error);
+      toast({ title: "오류", description: "XP 지급 중 오류가 발생했습니다.", variant: "destructive" });
+    }
+  };
+
   const isNextDayDisabled = isToday(selectedLogDate) || selectedLogDate > new Date();
 
   const logsForClass = useMemo(() => {
@@ -947,6 +961,7 @@ const handleClearNotice = async () => {
                       student={student}
                       onDeleteStudent={() => requestDeleteStudent(student)}
                       onManagePin={() => handleOpenManagePinDialog(student)}
+                      onGiveXp={() => handleGiveXp(student.id, student.name)}
                     />
                   ))}
                 </div>

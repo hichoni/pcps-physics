@@ -5,7 +5,7 @@ import type { Student } from '@/lib/types';
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Trash2, KeyRound, Eye, EyeOff, Gem } from 'lucide-react';
+import { Trash2, KeyRound, Eye, EyeOff, Gem, Award } from 'lucide-react';
 import { AVATAR_OPTIONS } from '@/data/avatarOptions';
 import { cn } from '@/lib/utils';
 import { getIconByName } from '@/lib/iconMap';
@@ -14,6 +14,7 @@ interface StudentCardProps {
   student: Student;
   onDeleteStudent: (student: Student) => void;
   onManagePin: (student: Student) => void;
+  onGiveXp: () => void;
 }
 
 const getInitials = (name: string) => {
@@ -25,7 +26,7 @@ const getInitials = (name: string) => {
   return initials;
 };
 
-const StudentCard: React.FC<StudentCardProps> = ({ student, onDeleteStudent, onManagePin }) => {
+const StudentCard: React.FC<StudentCardProps> = ({ student, onDeleteStudent, onManagePin, onGiveXp }) => {
   const [showPin, setShowPin] = useState(false);
 
   const SelectedAvatarIcon = AVATAR_OPTIONS.find(opt => opt.id === student.avatarSeed)?.icon || getIconByName(null);
@@ -69,6 +70,9 @@ const StudentCard: React.FC<StudentCardProps> = ({ student, onDeleteStudent, onM
         </CardContent>
       </div>
       <CardFooter className="p-3 bg-slate-50 dark:bg-slate-800/30 flex justify-end gap-2">
+        <Button onClick={onGiveXp} variant="outline" size="icon" className="rounded-lg py-2 h-auto px-2.5 border-amber-500 text-amber-500 hover:bg-amber-50" aria-label={`${student.name} 학생에게 XP 지급`}>
+          <Award className="h-4 w-4" />
+        </Button>
         <Button onClick={() => onManagePin(student)} variant="outline" size="icon" className="rounded-lg py-2 h-auto px-2.5" aria-label={`${student.name} 학생 PIN 관리`}>
           <KeyRound className="h-4 w-4" />
         </Button>
