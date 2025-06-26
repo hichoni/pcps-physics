@@ -26,6 +26,7 @@ interface MailboxDialogProps {
   onCompleteMission: (messageId: string) => Promise<void>;
   secretFriendTodaysGoals?: StudentGoal;
   availableExercises?: ExerciseType[];
+  hasSentMissionToday: boolean;
 }
 
 const MailboxDialog: React.FC<MailboxDialogProps> = ({
@@ -38,6 +39,7 @@ const MailboxDialog: React.FC<MailboxDialogProps> = ({
   onCompleteMission,
   secretFriendTodaysGoals = {},
   availableExercises = [],
+  hasSentMissionToday,
 }) => {
   const [activeTab, setActiveTab] = useState('inbox');
   const [newMessage, setNewMessage] = useState('');
@@ -121,12 +123,14 @@ const MailboxDialog: React.FC<MailboxDialogProps> = ({
                 <Label htmlFor="cheer">응원하기</Label>
               </div>
               <div className="flex items-center space-x-2">
-                <RadioGroupItem value="mission" id="mission" />
-                <Label htmlFor="mission">미션주기</Label>
+                <RadioGroupItem value="mission" id="mission" disabled={hasSentMissionToday} />
+                <Label htmlFor="mission" className={cn(hasSentMissionToday && "text-muted-foreground")}>
+                    미션주기 {hasSentMissionToday ? '(오늘 보냄)' : ''}
+                </Label>
               </div>
             </RadioGroup>
 
-            {messageType === 'mission' && (
+            {messageType === 'mission' && !hasSentMissionToday && (
                 <div className="space-y-2">
                     <Label>미션 제안하기</Label>
                     <div className="p-3 border rounded-lg bg-secondary/30 space-y-2 max-h-32 overflow-y-auto">
@@ -178,6 +182,7 @@ const MailboxDialog: React.FC<MailboxDialogProps> = ({
               onChange={(e) => setNewMessage(e.target.value)}
               placeholder={messageType === 'cheer' ? '따뜻한 응원의 메시지를 보내보세요!' : '친구의 목표를 기반으로 미션을 제안하거나, 자유롭게 미션을 만들어주세요!'}
               rows={5}
+              disabled={messageType === 'mission' && hasSentMissionToday}
             />
             <Alert variant="default" className="mt-2">
               <AlertCircle className="h-4 w-4" />
@@ -185,7 +190,7 @@ const MailboxDialog: React.FC<MailboxDialogProps> = ({
                 보낸 편지는 수정하거나 삭제할 수 없으니 신중하게 작성해주세요.
               </AlertDescription>
             </Alert>
-            <Button onClick={handleSend} disabled={isSending || !newMessage.trim()} className="w-full">
+            <Button onClick={handleSend} disabled={isSending || !newMessage.trim() || (messageType === 'mission' && hasSentMissionToday)} className="w-full">
               {isSending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
               {isSending ? '보내는 중...' : '보내기'}
             </Button>

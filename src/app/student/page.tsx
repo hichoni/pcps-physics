@@ -127,6 +127,7 @@ export default function StudentPage() {
   const [todaysGoals, setTodaysGoals] = useState<StudentGoal>({});
   const [todaysSkipped, setTodaysSkipped] = useState<Set<string>>(new Set());
   const [allDailyGoals, setAllDailyGoals] = useState<Record<string, { goals: StudentGoal; skipped: Set<string> }>>({});
+  const [todaysActions, setTodaysActions] = useState<{ sentManitoMission?: boolean }>({});
 
   const [studentActivityLogs, setStudentActivityLogs] = useState<RecordedExercise[]>([]);
   const [classActivityLogs, setClassActivityLogs] = useState<RecordedExercise[]>([]);
@@ -334,22 +335,27 @@ export default function StudentPage() {
   // Real-time listener for student's goals
   useEffect(() => {
     if (!currentStudent?.id) {
-      setAllDailyGoals({});
-      return;
+        setAllDailyGoals({});
+        setTodaysActions({}); // Reset actions on logout
+        return;
     }
     setIsLoadingStudentData(true);
     const goalsDocRef = doc(db, 'studentGoals', currentStudent.id);
     const unsubscribe = onSnapshot(goalsDocRef, (docSnap) => {
-      const dailyGoalsFromDb = docSnap.exists() ? docSnap.data().dailyGoals || {} : {};
-      const processedGoals: Record<string, { goals: StudentGoal; skipped: Set<string> }> = {};
-      for (const dateKey in dailyGoalsFromDb) {
-        processedGoals[dateKey] = {
-          goals: dailyGoalsFromDb[dateKey].goals || {},
-          skipped: new Set(dailyGoalsFromDb[dateKey].skipped || []),
-        };
-      }
-      setAllDailyGoals(processedGoals);
-      setIsLoadingStudentData(false);
+        const data = docSnap.exists() ? docSnap.data() : {}; // Get the whole doc data
+        const dailyGoalsFromDb = data.dailyGoals || {};
+        const dailyActionsFromDb = data.dailyActions || {}; // Get daily actions
+        
+        const processedGoals: Record<string, { goals: StudentGoal; skipped: Set<string> }> = {};
+        for (const dateKey in dailyGoalsFromDb) {
+            processedGoals[dateKey] = {
+            goals: dailyGoalsFromDb[dateKey].goals || {},
+            skipped: new Set(dailyGoalsFromDb[dateKey].skipped || []),
+            };
+        }
+        setAllDailyGoals(processedGoals);
+        setTodaysActions(dailyActionsFromDb[todayKey] || {}); // Set today's actions
+        setIsLoadingStudentData(false);
     }, (error) => {
         console.error("Error fetching goals snapshot: ", error);
         toast({ title: "오류", description: "목표 데이터를 실시간으로 가져오는 데 실패했습니다.", variant: "destructive" });
@@ -357,7 +363,7 @@ export default function StudentPage() {
     });
 
     return () => unsubscribe();
-  }, [currentStudent?.id, toast]);
+  }, [currentStudent?.id, toast, todayKey]);
 
   // Set today's goals whenever all goals are updated
   useEffect(() => {
@@ -1018,26 +1024,45 @@ export default function StudentPage() {
   };
 
   const handleSendMessage = async (type: 'cheer' | 'mission', content: string) => {
-      if (!currentStudent || !mySecretFriend) {
-          toast({ title: "오류", description: "비밀친구가 지정되지 않아 메시지를 보낼 수 없습니다.", variant: "destructive" });
-          return;
-      }
-      try {
-          const message: Omit<MailboxMessage, 'id'> = {
-              fromId: currentStudent.id,
-              toId: mySecretFriend.id,
-              type,
-              content,
-              isRead: false,
-              createdAt: new Date(),
-              ...(type === 'mission' && { missionStatus: 'pending' })
-          };
-          await addDoc(collection(db, 'students', mySecretFriend.id, 'mailbox'), message);
-          toast({ title: "성공!", description: "메시지를 비밀친구에게 보냈습니다." });
-      } catch (error) {
-          console.error("Error sending message:", error);
-          toast({ title: "전송 실패", description: "메시지 전송 중 오류가 발생했습니다.", variant: "destructive" });
-      }
+    if (!currentStudent || !mySecretFriend) {
+        toast({ title: "오류", description: "비밀친구가 지정되지 않아 메시지를 보낼 수 없습니다.", variant: "destructive" });
+        return;
+    }
+    if (type === 'mission' && todaysActions.sentManitoMission) {
+        toast({ title: "알림", description: "미션은 하루에 한 번만 보낼 수 있습니다.", variant: "default" });
+        return;
+    }
+    try {
+        const message: Omit<MailboxMessage, 'id'> = {
+            fromId: currentStudent.id,
+            toId: mySecretFriend.id,
+            type,
+            content,
+            isRead: false,
+            createdAt: new Date(),
+            ...(type === 'mission' && { missionStatus: 'pending' })
+        };
+        
+        const batch = writeBatch(db);
+        const newMessageRef = doc(collection(db, 'students', mySecretFriend.id, 'mailbox'));
+        batch.set(newMessageRef, message);
+
+        if (type === 'mission') {
+            const goalsDocRef = doc(db, 'studentGoals', currentStudent.id);
+            batch.set(goalsDocRef, {
+                dailyActions: {
+                    [todayKey]: { sentManitoMission: true }
+                }
+            }, { merge: true });
+        }
+        
+        await batch.commit();
+
+        toast({ title: "성공!", description: "메시지를 비밀친구에게 보냈습니다." });
+    } catch (error) {
+        console.error("Error sending message:", error);
+        toast({ title: "전송 실패", description: "메시지 전송 중 오류가 발생했습니다.", variant: "destructive" });
+    }
   };
 
   const handleCompleteMission = async (messageId: string) => {
@@ -1787,6 +1812,7 @@ export default function StudentPage() {
                 currentStudentName={currentStudent.name}
                 secretFriendTodaysGoals={secretFriendTodaysGoals}
                 availableExercises={availableExercises}
+                hasSentMissionToday={todaysActions.sentManitoMission === true}
             />
         )}
 
