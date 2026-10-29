@@ -26,8 +26,9 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
-# Local .env files
-.env*.local
+# Local .env files (비밀값이 들어가므로 git에 올리지 않음)
+.env
+.env*
 !.env.example
 
 # Firebase

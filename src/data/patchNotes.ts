@@ -9,6 +9,14 @@ export interface PatchNote {
 
 export const PATCH_NOTES: PatchNote[] = [
     {
+        version: "v1.2.2",
+        date: "2026-10-29",
+        fixes: [
+            "보안: 교사 PIN을 앱 코드에서 빼고 서버에서 확인하도록 변경",
+            "보안: 저장소에 올라가 있던 환경 변수 파일(.env)을 제거하고 비밀값을 서버 비밀값으로 이전",
+        ],
+    },
+    {
         version: "v1.2.1",
         date: "2025-06-25",
         features: [

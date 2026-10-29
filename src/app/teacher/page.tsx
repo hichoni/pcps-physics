@@ -40,6 +40,7 @@ import { cn } from '@/lib/utils';
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import PatchNotes from '@/components/PatchNotes';
+import { verifyTeacherPin } from './actions';
 
 const DEFAULT_COMPLIMENTS_LIST = [
   "별처럼 빛나는", "항상 긍정적인", "꿈을 향해 달리는", "세상을 밝히는",
@@ -51,7 +52,6 @@ const DEFAULT_COMPLIMENTS_LIST = [
 const COMPLIMENTS_DOC_PATH = "appConfig/complimentsDoc";
 const RECOMMENDATIONS_DOC_PATH = "appConfig/exerciseRecommendationsDoc";
 const EXERCISES_BY_GRADE_DOC_PATH = "appConfig/exercisesByGrade";
-const TEACHER_PIN = "0408";
 const GRADES = ["1", "2", "3", "4", "5", "6", "기타"];
 
 
@@ -60,6 +60,7 @@ export default function TeacherPage() {
   const [pinInput, setPinInput] = useState('');
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [pinError, setPinError] = useState('');
+  const [isCheckingPin, setIsCheckingPin] = useState(false);
 
   const [selectedClass, setSelectedClass] = useState<string | undefined>(undefined);
   const { toast } = useToast();
@@ -119,14 +120,24 @@ export default function TeacherPage() {
   const [isAssigningManito, setIsAssigningManito] = useState(false);
 
 
-  const handlePinSubmit = (e: React.FormEvent) => {
+  const handlePinSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (pinInput === TEACHER_PIN) {
-      setIsAuthenticated(true);
-      setPinError('');
-    } else {
-      setPinError('PIN 번호가 올바르지 않습니다. 다시 시도해주세요.');
-      setPinInput('');
+    setIsCheckingPin(true);
+    try {
+      // PIN 비교는 서버에서 합니다 (./actions.ts). PIN 값은 브라우저 코드에 없습니다.
+      const result = await verifyTeacherPin(pinInput);
+      if (result.ok) {
+        setIsAuthenticated(true);
+        setPinError('');
+      } else {
+        setPinError(result.error || 'PIN 번호가 올바르지 않습니다. 다시 시도해주세요.');
+        setPinInput('');
+      }
+    } catch (error) {
+      console.error("Teacher PIN check error:", error);
+      setPinError('PIN 확인 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.');
+    } finally {
+      setIsCheckingPin(false);
     }
   };
   
@@ -841,8 +852,8 @@ const handleClearNotice = async () => {
                 disabled={!selectedGrade}
               />
               {pinError && <p className="text-sm text-destructive text-center">{pinError}</p>}
-              <Button type="submit" size="lg" className="w-full py-4 text-xl rounded-lg" disabled={!selectedGrade || pinInput.length !== 4}>
-                <LogIn className="mr-3 h-6 w-6" />
+              <Button type="submit" size="lg" className="w-full py-4 text-xl rounded-lg" disabled={!selectedGrade || pinInput.length !== 4 || isCheckingPin}>
+                {isCheckingPin ? <Loader2 className="mr-3 h-6 w-6 animate-spin" /> : <LogIn className="mr-3 h-6 w-6" />}
                 확인
               </Button>
             </form>
