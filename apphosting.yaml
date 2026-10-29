@@ -10,31 +10,34 @@ runConfig:
   maxInstances: 3
 
 # Environment variables available to the build and runtime environments.
-# These will be populated from the Firebase console's App Hosting environment variable settings.
-# It's CRITICAL to set these in the Firebase console for the deployed app to connect to Firebase services.
-# Example (you'll set these in the console, not directly here if deploying via GitHub connected to App Hosting console):
-# env:
-#   - variable: NEXT_PUBLIC_FIREBASE_API_KEY
-#     value: "YOUR_CONSOLE_SET_API_KEY" # This value will come from the Firebase console
-#   - variable: NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
-#     value: "YOUR_CONSOLE_SET_AUTH_DOMAIN"
-#   - variable: NEXT_PUBLIC_FIREBASE_PROJECT_ID
-#     value: "YOUR_CONSOLE_SET_PROJECT_ID"
-#   - variable: NEXT_PROJECT_ID # For Genkit/AI features if needed separately by backend
-#     value: "YOUR_CONSOLE_SET_PROJECT_ID" # Can often be the same as NEXT_PUBLIC_FIREBASE_PROJECT_ID
-#   - variable: NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
-#     value: "YOUR_CONSOLE_SET_STORAGE_BUCKET"
-#   - variable: NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
-#     value: "YOUR_CONSOLE_SET_MESSAGING_SENDER_ID"
-#   - variable: NEXT_PUBLIC_FIREBASE_APP_ID
-#     value: "YOUR_CONSOLE_SET_APP_ID"
-#   - variable: NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID
-#     value: "YOUR_CONSOLE_SET_MEASUREMENT_ID" # If you use Analytics
-
-# If you were using secrets from Secret Manager, it would look like this:
-# env:
-#   - variable: NEXT_PUBLIC_FIREBASE_API_KEY
-#     secret: projects/YOUR_PROJECT_ID/secrets/firebase-api-key/versions/latest
-#   - variable: NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
-#     secret: projects/YOUR_PROJECT_ID/secrets/firebase-auth-domain/versions/latest
-#   # ... and so on for other variables
+# https://firebase.google.com/docs/app-hosting/configure#user-defined-environment
+#
+# NEXT_PUBLIC_FIREBASE_* 값은 브라우저에 그대로 전달되는 Firebase 웹 설정값이라 원래 공개되는 값입니다.
+# (예전에는 저장소에 올라가 있던 .env 파일에서 읽었습니다. .env는 이제 git에 올리지 않습니다.)
+# apphosting.pcpsphysicsapp.yaml에도 같은 값이 있으며, 그 환경에서는 그 파일 값이 우선합니다.
+#
+# GEMINI_API_KEY와 TEACHER_PIN은 비밀값이라 여기에 값을 적지 않고 Secret Manager에서 가져옵니다.
+# 배포 전에 한 번 만들어 두어야 합니다(없으면 새 배포가 실패하고, 기존 버전은 그대로 동작합니다):
+#   firebase apphosting:secrets:set gemini-api-key --project physed-pal
+#   firebase apphosting:secrets:set teacher-pin --project physed-pal
+env:
+  - variable: NEXT_PUBLIC_FIREBASE_API_KEY
+    value: "AIzaSyDNvPRgDDnyBrkWURedb7zM8qcguJgA9c4"
+  - variable: NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
+    value: "physed-pal.firebaseapp.com"
+  - variable: NEXT_PUBLIC_FIREBASE_PROJECT_ID
+    value: "physed-pal"
+  - variable: NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
+    value: "physed-pal.firebasestorage.app"
+  - variable: NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
+    value: "839550291355"
+  - variable: NEXT_PUBLIC_FIREBASE_APP_ID
+    value: "1:839550291355:web:13022639a72f443a15253e"
+  - variable: GEMINI_API_KEY
+    secret: gemini-api-key
+    availability:
+      - RUNTIME
+  - variable: TEACHER_PIN
+    secret: teacher-pin
+    availability:
+      - RUNTIME
